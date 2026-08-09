@@ -65,6 +65,12 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("fund_etf_spot_em", [], "loose", "ETF实时行情"),
     ("fund_lof_spot_em", [], "loose", "LOF实时行情"),
     ("fund_etf_hist_em", ["510300", "daily", "20240101", "20240131", ""], "strict", "ETF日K"),
+    ("stock_profile_cninfo", ["600030"], "strict", "巨潮公司概况"),
+    ("stock_ipo_summary_cninfo", ["600030"], "strict", "巨潮上市相关"),
+    ("stock_dividend_cninfo", ["600009"], "strict", "巨潮历史分红"),
+    ("stock_new_ipo_cninfo", [], "strict", "巨潮新股发行"),
+    # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
+    # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]
 
 
@@ -147,7 +153,7 @@ def norm_val(v) -> str | None:
     if v is None:
         return None
     s = str(v).strip()
-    if s in ("nan", "None", ""):
+    if s in ("nan", "None", "NaT", ""):
         return None
     try:
         f = float(s)
@@ -172,9 +178,14 @@ def compare(func: str, golden: dict, actual: dict, mode: str) -> list[str]:
         issues.append(
             f"列名不一致\n  python: {[c['name'] for c in g_cols]}\n  rust:   {[c['name'] for c in a_cols]}"
         )
-    # dtype 归一化：pandas 自动推断的 int64/float64 视为同一数值类（值仍严格比较）
+    # dtype 归一化：pandas 自动推断的 int64/float64 视为同一数值类（值仍严格比较）；
+    # pandas 的 datetime64 与我们的 ISO 日期字符串表示等价（值仍严格比较）
     def norm_dtype(d):
-        return "num" if d in ("int64", "float64") else d
+        if d in ("int64", "float64"):
+            return "num"
+        if d in ("datetime", "str"):
+            return "str"
+        return d
 
     g_dt = [norm_dtype(c["dtype"]) for c in g_cols]
     a_dt = [norm_dtype(c["dtype"]) for c in a_cols]

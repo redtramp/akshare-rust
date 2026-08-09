@@ -2,6 +2,10 @@
 //!
 //! 每节独立容错：单节失败打印错误后继续，便于在部分节点限流时观察其余接口。
 
+use akshare_rust::cninfo::{
+    stock_dividend_cninfo, stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo,
+    stock_profile_cninfo,
+};
 use akshare_rust::fund::{fund_etf_spot_em, fund_lof_spot_em};
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::stock::{
@@ -156,6 +160,41 @@ fn main() {
 
     section("stock_gpzy_profile_em()", || {
         let df = stock_gpzy_profile_em()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_profile_cninfo(600030)", || {
+        let df = stock_profile_cninfo("600030")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_ipo_summary_cninfo(600030)", || {
+        let df = stock_ipo_summary_cninfo("600030")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_dividend_cninfo(600009)", || {
+        let df = stock_dividend_cninfo("600009")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_new_ipo_cninfo()", || {
+        let df = stock_new_ipo_cninfo()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_new_gh_cninfo()", || {
+        let df = stock_new_gh_cninfo()?;
         println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
         println!("{}", df.head_preview(3));
         Ok(())

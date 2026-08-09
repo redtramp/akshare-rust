@@ -15,6 +15,10 @@
 //!  "height":22,"head":[["2024-01-02","9.11",...],...]}
 //! ```
 
+use akshare_rust::cninfo::{
+    stock_dividend_cninfo, stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo,
+    stock_profile_cninfo,
+};
 use akshare_rust::core::df::Df;
 use akshare_rust::fund::{fund_etf_spot_em, fund_lof_spot_em};
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
@@ -144,6 +148,20 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         "fund_etf_spot_em" => Ok(fund_etf_spot_em()?),
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
+        "stock_profile_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_profile_cninfo(s)?)
+        }
+        "stock_ipo_summary_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_ipo_summary_cninfo(s)?)
+        }
+        "stock_dividend_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_dividend_cninfo(s)?)
+        }
+        "stock_new_ipo_cninfo" => Ok(stock_new_ipo_cninfo()?),
+        "stock_new_gh_cninfo" => Ok(stock_new_gh_cninfo()?),
         _ => Err(format!("未知函数: {func}").into()),
     }
 }

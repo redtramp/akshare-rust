@@ -18,6 +18,7 @@
 //! println!("{}", df);
 //! ```
 
+pub mod cninfo;
 pub mod core;
 pub mod fund;
 pub mod index;

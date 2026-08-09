@@ -63,7 +63,7 @@ pub(crate) fn finalize_clist(rows: Vec<Value>) -> Result<Df> {
         return Ok(df);
     }
 
-    df = df.sort_by("f3", false)?;
+    df = df.sort_by("f3", false, true)?;
 
     let idx: Vec<Option<i64>> = (1..=df.height()).map(|i| Some(i as i64)).collect();
     df.inner_mut().insert_column(0, {
