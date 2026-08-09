@@ -29,10 +29,15 @@ println!("{}", df);
 | 函数 | 对应 akshare | 数据源 |
 |---|---|---|
 | `stock_zh_a_hist` | `ak.stock_zh_a_hist` | 东财 K 线 |
+| `stock_zh_a_hist_min_em` | `ak.stock_zh_a_hist_min_em` | 东财分钟 K 线/分时 |
 | `stock_zh_a_spot_em` / `stock_sh_a_spot_em` / `stock_sz_a_spot_em` / `stock_bj_a_spot_em` | `ak.stock_*_spot_em` | 东财行情列表 |
+| `stock_individual_info_em` | `ak.stock_individual_info_em` | 东财个股信息 |
+| `stock_bid_ask_em` | `ak.stock_bid_ask_em` | 东财五档盘口 |
 | `index_zh_a_hist` | `ak.index_zh_a_hist` | 东财指数 K 线 |
+| `index_zh_a_hist_min_em` | `ak.index_zh_a_hist_min_em` | 东财指数分钟 K 线/分时 |
 | `index_code_id_map_em` | `ak.index_code_id_map_em` | 东财指数映射 |
 | `fund_etf_hist_em` | `ak.fund_etf_hist_em` | 东财 ETF K 线 |
+| `fund_etf_spot_em` / `fund_lof_spot_em` | `ak.fund_etf_spot_em` / `ak.fund_lof_spot_em` | 东财基金行情列表 |
 
 > 完整实施计划见 [`PLAN.md`](PLAN.md)（1099 个函数 / 33 个分类的迁移路线图）。
 
@@ -50,13 +55,16 @@ src/
 │   └── eastmoney.rs# 东财：clist 分页（多节点故障转移）/ K 线 / 市场判定
 ├── stock/          # 股票接口（对应 akshare stock_* 函数）
 ├── index/          # 指数接口（对应 akshare index_* 函数）
+├── fund/           # 基金接口（对应 akshare fund_* 函数）
 └── bin/demo.rs     # 命令行冒烟演示
 ```
 
 ### 关键设计
 
-- **多节点容灾**：东财 push2 集群单节点可能被限流/故障，`fetch_paginated_diff_any`
-  第一轮每节点单次快速探测、失败立即切换，全部失败后再按完整重试策略兜底。
+- **多节点容灾**：东财 push2 集群单节点可能被限流/故障，`fetch_paginated_diff_any` /
+  `get_json_any` 第一轮每节点单次快速探测、失败立即切换，全部失败后再按完整重试策略兜底。
+- **分钟级数据滚动窗口**：东财分钟 K 线/分时接口只返回最近约 8 个月的滚动数据，
+  与 akshare 行为一致；请求较早日期的分钟数据会得到空表。
 - **JS 加密**：一律用 rquickjs 执行 akshare 原版 JS，不在 Rust 手写算法；
   通过注入 `var BROWSER_LIST; var time;` 等浏览器全局 shim 兼容非严格模式写法。
 - **反爬识别**：响应含 `_waf`/`Just a moment`/`challenge-platform` 判为 `Blocked`，

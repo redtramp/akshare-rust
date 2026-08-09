@@ -19,6 +19,7 @@
 //! ```
 
 pub mod core;
+pub mod fund;
 pub mod index;
 pub mod sources;
 pub mod stock;

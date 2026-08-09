@@ -90,7 +90,6 @@ pub fn fetch_kline(
     beg: &str,
     end: &str,
 ) -> Result<Vec<Vec<String>>> {
-    let url = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
     let params = json!({
         "fields1": "f1,f2,f3,f4,f5,f6",
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116",
@@ -101,6 +100,71 @@ pub fn fetch_kline(
         "beg": beg,
         "end": end,
     });
+    kline_lines(http, params)
+}
+
+/// 分钟级 K 线（对应 akshare `stock_zh_a_hist_min_em` 的 klt 分支：
+/// `beg=0, end=20500000`，11 字段、无 f116）。
+pub fn fetch_kline_min(
+    http: &HttpClient,
+    secid: &str,
+    klt: &str,
+    fqt: &str,
+) -> Result<Vec<Vec<String>>> {
+    let params = json!({
+        "fields1": "f1,f2,f3,f4,f5,f6",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+        "ut": UT_KLINE,
+        "klt": klt,
+        "fqt": fqt,
+        "secid": secid,
+        "beg": "0",
+        "end": "20500000",
+    });
+    kline_lines(http, params)
+}
+
+/// 分时线（trends2/get，对应 akshare `stock_zh_a_hist_min_em` period=1 分支）。
+///
+/// `ndays` 拉取天数（如 `"5"`）；`iscr` 是否含盘前数据（`"0"`/`"1"`）。
+/// 每行 8 字段：时间,开盘,收盘,最高,最低,成交量,成交额,均价（iscr=1 时末列为最新价）。
+pub fn fetch_trends(
+    http: &HttpClient,
+    secid: &str,
+    ndays: &str,
+    iscr: &str,
+) -> Result<Vec<Vec<String>>> {
+    let url = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
+    let params = json!({
+        "fields1": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58",
+        "ut": UT_KLINE,
+        "ndays": ndays,
+        "iscr": iscr,
+        "secid": secid,
+    });
+    let params = params.as_object().cloned().unwrap_or_default();
+
+    let value = http.get_json(url, &params, None)?;
+    let trends = value
+        .get("data")
+        .and_then(|d| d.get("trends"))
+        .and_then(Value::as_array);
+
+    let Some(trends) = trends else {
+        return Ok(Vec::new());
+    };
+
+    Ok(trends
+        .iter()
+        .filter_map(Value::as_str)
+        .map(|line| line.split(',').map(|s| s.to_string()).collect())
+        .collect())
+}
+
+/// K 线原始行提取（公共底层，由 [`fetch_kline`]/[`fetch_kline_min`] 复用）。
+fn kline_lines(http: &HttpClient, params: Value) -> Result<Vec<Vec<String>>> {
+    let url = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
     let params = params.as_object().cloned().unwrap_or_default();
 
     let value = http.get_json(url, &params, None)?;
@@ -210,6 +274,84 @@ pub fn require_kline_data(klines: &[Vec<String>], symbol: &str) -> Result<()> {
     }
 }
 
+/// 时间戳归一化：分钟级时间缺秒时补 `":00"`（对齐 pandas
+/// `to_datetime(...).astype(str)` 的 `"2024-01-02 09:35:00"` 格式）。
+pub fn normalize_dt(s: &str) -> String {
+    if s.len() == 16 && s.as_bytes().get(10) == Some(&b' ') {
+        format!("{s}:00")
+    } else {
+        s.to_string()
+    }
+}
+
+/// 分钟级 K 线/分时通用处理（对应 akshare datetime 切片 + 列选择 + 数值化）。
+///
+/// - 按时间字符串区间过滤（`start <= 时间 <= end`；时间格式固定宽度，
+///   字符串比较与 pandas 标签切片语义等价）
+/// - 时间列归一化补秒
+/// - 按 `out_cols` 目标列序建表（从 `src_cols` 中取对应源列），`numeric_out` 转 f64
+pub fn min_kline_to_df(
+    lines: &[Vec<String>],
+    start: &str,
+    end: &str,
+    src_cols: &[&str],
+    out_cols: &[&str],
+    numeric_out: &[&str],
+) -> Result<Df> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for line in lines {
+        let Some(t) = line.first() else {
+            continue;
+        };
+        if t.as_str() < start || t.as_str() > end {
+            continue;
+        }
+        let mut row: Vec<Option<String>> = Vec::with_capacity(out_cols.len());
+        for oc in out_cols {
+            if *oc == "时间" {
+                row.push(Some(normalize_dt(t)));
+                continue;
+            }
+            let src_idx = src_cols.iter().position(|c| c == oc);
+            row.push(src_idx.and_then(|i| line.get(i)).cloned());
+        }
+        rows.push(row);
+    }
+    let mut df = Df::from_string_rows(out_cols, &rows)?;
+    let _ = df.cast_numeric(numeric_out);
+    Ok(df)
+}
+
+/// spot 类公共列处理：重命名 + 选择 + 数值转换。
+///
+/// 对应 akshare `df.rename(columns=...) + df[cols] + to_numeric(errors="coerce")`。
+/// 行序（f3 降序 + 序号）已在 [`finalize_clist`] 完成。
+pub(crate) fn finalize_spot(
+    mut df: Df,
+    rename: &[(&str, &str)],
+    select: &[&str],
+    numeric: &[&str],
+) -> Result<Df> {
+    if df.height() == 0 {
+        return Ok(df);
+    }
+    for (from, to) in rename {
+        let _ = df.inner_mut().rename(from, (*to).into());
+    }
+    let mut df = df.select(select)?;
+    df.cast_numeric(numeric)?;
+    Ok(df)
+}
+
+/// JSON 值转字符串（null → None）。
+pub(crate) fn json_value_to_string(v: &Value) -> Option<String> {
+    match v {
+        Value::Null => None,
+        Value::String(s) => Some(s.clone()),
+        other => Some(other.to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,5 +384,97 @@ mod tests {
     fn finalize_clist_empty_rows() {
         let df = finalize_clist(Vec::new()).unwrap();
         assert_eq!(df.height(), 0);
+    }
+
+    /// 分钟线通用处理：时间区间过滤、缺秒补 ":00"、按目标列序重排。
+    #[test]
+    fn min_kline_to_df_filters_reorders_normalizes() {
+        let lines = vec![
+            vec![
+                "2024-01-02 09:35".into(),
+                "10.0".into(),
+                "10.1".into(),
+                "10.2".into(),
+                "9.9".into(),
+                "1000".into(),
+                "10100".into(),
+                "3.0".into(),
+                "1.0".into(),
+                "0.1".into(),
+                "0.5".into(),
+            ],
+            vec![
+                "2024-01-02 10:00".into(),
+                "10.2".into(),
+                "10.3".into(),
+                "10.4".into(),
+                "10.0".into(),
+                "800".into(),
+                "8200".into(),
+                "3.9".into(),
+                "1.98".into(),
+                "0.2".into(),
+                "0.4".into(),
+            ],
+            vec![
+                "2024-01-03 09:30".into(),
+                "10.4".into(),
+                "10.5".into(),
+                "10.6".into(),
+                "10.1".into(),
+                "900".into(),
+                "9400".into(),
+                "4.7".into(),
+                "1.94".into(),
+                "0.2".into(),
+                "0.6".into(),
+            ],
+        ];
+        let src = [
+            "时间",
+            "开盘",
+            "收盘",
+            "最高",
+            "最低",
+            "成交量",
+            "成交额",
+            "振幅",
+            "涨跌幅",
+            "涨跌额",
+            "换手率",
+        ];
+        let out = [
+            "时间",
+            "开盘",
+            "收盘",
+            "最高",
+            "最低",
+            "涨跌幅",
+            "涨跌额",
+            "成交量",
+            "成交额",
+            "振幅",
+            "换手率",
+        ];
+        let df = min_kline_to_df(
+            &lines,
+            "2024-01-02 00:00:00",
+            "2024-01-02 23:59:59",
+            &src,
+            &out,
+            &out[1..],
+        )
+        .unwrap();
+        assert_eq!(df.height(), 2);
+        // 时间归一化补秒
+        let t = df.inner().column("时间").unwrap().str().unwrap();
+        assert_eq!(t.get(0), Some("2024-01-02 09:35:00"));
+        assert_eq!(t.get(1), Some("2024-01-02 10:00:00"));
+        // 重排正确：涨跌幅列应取源第 8 字段(1.0/1.98)而非源第 5 字段(成交量)
+        let pct = df.inner().column("涨跌幅").unwrap().f64().unwrap();
+        assert_eq!(pct.get(0), Some(1.0));
+        assert_eq!(pct.get(1), Some(1.98));
+        let vol = df.inner().column("成交量").unwrap().f64().unwrap();
+        assert_eq!(vol.get(0), Some(1000.0));
     }
 }

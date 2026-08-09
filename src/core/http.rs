@@ -170,6 +170,32 @@ impl HttpClient {
         serde_json::from_str(&text).map_err(|e| AkshareError::json(url, e.to_string()))
     }
 
+    /// 多节点 GET：依次尝试候选 URL，返回首个成功响应。
+    ///
+    /// 第一轮每节点单次快速探测，失败立即切换；全部失败后按完整重试策略兜底。
+    pub fn get_json_any(
+        &self,
+        urls: &[String],
+        params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<Value> {
+        for url in urls {
+            if let Ok(v) = self.get_json_once(url, params, referer) {
+                return Ok(v);
+            }
+        }
+        let mut last_err: Option<AkshareError> = None;
+        for url in urls {
+            match self.get_json(url, params, referer) {
+                Ok(v) => return Ok(v),
+                Err(e) => last_err = Some(e),
+            }
+        }
+        Err(last_err.unwrap_or_else(|| {
+            AkshareError::Blocked("所有候选节点均请求失败（多节点容灾耗尽）".into())
+        }))
+    }
+
     /// 单主机分页抓取并合并（对应 akshare `fetch_paginated_data`）。
     ///
     /// - 首页确定 `total` 与每页条数，计算总页数

@@ -6,7 +6,10 @@
 use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
-use crate::sources::eastmoney::{fetch_clist, fetch_kline, kline_to_df, push2_urls, KLINE_COLS};
+use crate::sources::eastmoney::{
+    fetch_clist, fetch_kline, fetch_kline_min, fetch_trends, kline_to_df, min_kline_to_df,
+    push2_urls, KLINE_COLS,
+};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -100,6 +103,113 @@ pub fn index_zh_a_hist(symbol: &str, period: &str, start_date: &str, end_date: &
         }
     }
     Err(last_err.unwrap_or_else(|| AkshareError::empty(format!("{symbol} 无 K 线数据"))))
+}
+
+/// 指数分钟级行情（对应 akshare [`akshare.index_zh_a_hist_min_em`]）。
+///
+/// # 参数
+/// - `symbol`: 指数代码，如 `"399006"`（创业板指）
+/// - `period`: `"1"`（当日分时）或 `"5"`/`"15"`/`"30"`/`"60"`（分钟 K 线，恒前复权）
+/// - `start_date`/`end_date`: `YYYY-MM-DD HH:MM:SS` 区间（含边界）
+///
+/// # 返回列
+/// period=1: `时间, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 均价`；
+/// 其余: `时间, 开盘, 收盘, 最高, 最低, 涨跌幅, 涨跌额, 成交量, 成交额, 振幅, 换手率`
+pub fn index_zh_a_hist_min_em(
+    symbol: &str,
+    period: &str,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Df> {
+    if period != "1" && !matches!(period, "5" | "15" | "30" | "60") {
+        return Err(AkshareError::Param(format!("无效 period: {period}")));
+    }
+    let http = HttpClient::default();
+
+    // secid 候选：优先查映射，回退 1/0/47（对应 akshare 的 fallback 链）
+    let mut candidates: Vec<String> = Vec::new();
+    if let Ok(map) = index_code_id_map_em() {
+        if let Some(m) = map.get(symbol) {
+            candidates.push(m.clone());
+        }
+    }
+    for fb in ["1", "0", "47"] {
+        candidates.push(fb.to_string());
+    }
+
+    let mut last_err: Option<AkshareError> = None;
+    for market in candidates {
+        let secid = format!("{market}.{symbol}");
+        let result = if period == "1" {
+            let lines = match fetch_trends(&http, &secid, "5", "0") {
+                Ok(l) => l,
+                Err(e) => {
+                    last_err = Some(e);
+                    continue;
+                }
+            };
+            if lines.is_empty() {
+                last_err = Some(AkshareError::empty(format!("{symbol} 无分时数据")));
+                continue;
+            }
+            let cols = [
+                "时间",
+                "开盘",
+                "收盘",
+                "最高",
+                "最低",
+                "成交量",
+                "成交额",
+                "均价",
+            ];
+            min_kline_to_df(&lines, start_date, end_date, &cols, &cols, &cols[1..])
+        } else {
+            let lines = match fetch_kline_min(&http, &secid, period, "1") {
+                Ok(l) => l,
+                Err(e) => {
+                    last_err = Some(e);
+                    continue;
+                }
+            };
+            if lines.is_empty() {
+                last_err = Some(AkshareError::empty(format!("{symbol} 无分钟数据")));
+                continue;
+            }
+            let src = [
+                "时间",
+                "开盘",
+                "收盘",
+                "最高",
+                "最低",
+                "成交量",
+                "成交额",
+                "振幅",
+                "涨跌幅",
+                "涨跌额",
+                "换手率",
+            ];
+            let out = [
+                "时间",
+                "开盘",
+                "收盘",
+                "最高",
+                "最低",
+                "涨跌幅",
+                "涨跌额",
+                "成交量",
+                "成交额",
+                "振幅",
+                "换手率",
+            ];
+            min_kline_to_df(&lines, start_date, end_date, &src, &out, &out[1..])
+        };
+        match result {
+            Ok(df) if df.height() > 0 => return Ok(df),
+            Ok(_) => last_err = Some(AkshareError::empty(format!("{symbol} 无分钟数据"))),
+            Err(e) => last_err = Some(e),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| AkshareError::empty(format!("{symbol} 无分钟数据"))))
 }
 
 #[cfg(test)]
