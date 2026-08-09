@@ -583,12 +583,13 @@ pub fn stock_board_industry_hist_em(
 
 /// 概念板块历史行情（对应 akshare [`akshare.stock_board_concept_hist_em`]）。
 ///
+/// 参数顺序与 akshare 一致：`(symbol, period, start_date, end_date, adjust)`。
 /// `period`: `"daily"`/`"weekly"`/`"monthly"`；`adjust` 同行业版。
 pub fn stock_board_concept_hist_em(
     symbol: &str,
+    period: &str,
     start_date: &str,
     end_date: &str,
-    period: &str,
     adjust: &str,
 ) -> Result<Df> {
     let klt = match period {

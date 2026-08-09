@@ -158,9 +158,96 @@ impl Df {
         &self.inner
     }
 
+    /// 导出差分对比契约（供 `tools/parity_runner.py` 与 Python akshare 对比）。
+    ///
+    /// 输出：`{ok, columns:[{name,dtype}], height, head:[[..]]}`，
+    /// 其中 `head` 为前 `head_n` 行所有列字符串化后的值（`None` 表示空值），
+    /// dtype 映射为 `str/int64/float64/bool/other` 五类，与 pandas dtype 简化一致。
+    pub fn export_parity(&self, head_n: usize) -> Value {
+        let columns: Vec<Value> = self
+            .inner
+            .columns()
+            .iter()
+            .map(|c| {
+                let dtype = match c.dtype() {
+                    DataType::String => "str",
+                    DataType::Int64 => "int64",
+                    DataType::Float64 => "float64",
+                    DataType::Boolean => "bool",
+                    DataType::Datetime(_, _) => "datetime",
+                    _ => "other",
+                };
+                serde_json::json!({ "name": c.name().to_string(), "dtype": dtype })
+            })
+            .collect();
+        let mut head_rows: Vec<Value> = Vec::new();
+        for i in 0..self.inner.height().min(head_n) {
+            let mut row: Vec<Value> = Vec::with_capacity(self.inner.width());
+            for c in self.inner.columns() {
+                row.push(cell_to_json(c, i));
+            }
+            head_rows.push(serde_json::Value::Array(row));
+        }
+        serde_json::json!({
+            "ok": true,
+            "columns": columns,
+            "height": self.inner.height(),
+            "head": head_rows,
+        })
+    }
+
     /// 内部 DataFrame 可变引用（高级用法）。
     pub fn inner_mut(&mut self) -> &mut DataFrame {
         &mut self.inner
+    }
+}
+
+/// 将某列第 `i` 行的单元格转为 JSON（字符串化，`None` 表示空值）。
+fn cell_to_json(c: &Column, i: usize) -> Value {
+    match c.dtype() {
+        DataType::String => c
+            .str()
+            .ok()
+            .and_then(|s| s.get(i))
+            .map(|s| Value::String(s.to_string()))
+            .unwrap_or(Value::Null),
+        DataType::Int64 => c
+            .i64()
+            .ok()
+            .and_then(|s| s.get(i))
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        DataType::Float64 => c
+            .f64()
+            .ok()
+            .and_then(|s| s.get(i))
+            .map(|v| Value::String(format_float(v)))
+            .unwrap_or(Value::Null),
+        DataType::Boolean => c
+            .bool()
+            .ok()
+            .and_then(|s| s.get(i))
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        DataType::Datetime(_, _) => c
+            .get(i)
+            .ok()
+            .map(|any| Value::String(any.to_string()))
+            .unwrap_or(Value::Null),
+        _ => c
+            .get(i)
+            .ok()
+            .map(|any| Value::String(any.to_string()))
+            .unwrap_or(Value::Null),
+    }
+}
+
+/// 浮点字符串化：与 pandas `str()` 对齐（整数时省略小数部分）。
+fn format_float(v: f64) -> String {
+    if v.fract() == 0.0 && v.abs() < 1e15 {
+        format!("{}", v as i64)
+    } else {
+        format!("{v}")
     }
 }
 
@@ -200,6 +287,35 @@ mod tests {
         let f3 = df.inner().column("f3").unwrap().f64().unwrap();
         assert!(f3.get(0).is_none());
         assert_eq!(f3.get(1), Some(1.2));
+    }
+
+    #[test]
+    fn export_parity_contract() {
+        let rows = vec![
+            json!({"code": "000001", "name": "平安银行", "price": "10.5", "chg": "1.2"}),
+            json!({"code": "600000", "name": "浦发银行", "price": "7.8", "chg": "-"}),
+        ];
+        let mut df = Df::from_json_rows(&rows).unwrap();
+        df.cast_numeric(&["price", "chg"]).unwrap();
+        let out = df.export_parity(2);
+        let obj = out.as_object().unwrap();
+        assert_eq!(obj["ok"], serde_json::json!(true));
+        assert_eq!(obj["height"], serde_json::json!(2));
+        let cols = obj["columns"].as_array().unwrap();
+        let names: Vec<_> = cols.iter().map(|c| c["name"].as_str().unwrap()).collect();
+        let dtypes: Vec<_> = cols.iter().map(|c| c["dtype"].as_str().unwrap()).collect();
+        assert_eq!(names, vec!["code", "name", "price", "chg"]);
+        assert_eq!(dtypes, vec!["str", "str", "float64", "float64"]);
+        // 空值(\"-\" 转数值失败)应为 null；浮点整数显示不带小数点
+        let head = obj["head"].as_array().unwrap();
+        assert_eq!(
+            head[0],
+            serde_json::json!(["000001", "平安银行", "10.5", "1.2"])
+        );
+        assert_eq!(
+            head[1],
+            serde_json::json!(["600000", "浦发银行", "7.8", null])
+        );
     }
 
     #[test]

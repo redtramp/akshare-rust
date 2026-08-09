@@ -120,7 +120,7 @@ fn main() {
     });
 
     section("stock_board_concept_hist_em(BK0715, daily)", || {
-        let df = stock_board_concept_hist_em("BK0715", "20240101", "20240131", "daily", "")?;
+        let df = stock_board_concept_hist_em("BK0715", "daily", "20240101", "20240131", "")?;
         println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
         println!("{}", df.head_preview(3));
         Ok(())
