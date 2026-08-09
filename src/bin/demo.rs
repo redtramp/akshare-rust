@@ -5,8 +5,11 @@
 use akshare_rust::fund::{fund_etf_spot_em, fund_lof_spot_em};
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::stock::{
-    stock_bid_ask_em, stock_individual_info_em, stock_zh_a_hist, stock_zh_a_hist_min_em,
-    stock_zh_a_spot_em,
+    stock_bid_ask_em, stock_board_concept_hist_em, stock_board_concept_name_em,
+    stock_board_industry_cons_em, stock_board_industry_hist_em, stock_board_industry_name_em,
+    stock_gpzy_profile_em, stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow,
+    stock_individual_info_em, stock_lhb_detail_em, stock_zh_a_hist, stock_zh_a_hist_min_em,
+    stock_zh_a_spot_em, stock_zt_pool_em,
 };
 
 type BoxErr = Box<dyn std::error::Error>;
@@ -83,6 +86,76 @@ fn main() {
 
     section("fund_lof_spot_em()", || {
         let df = fund_lof_spot_em()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_board_industry_name_em()", || {
+        let df = stock_board_industry_name_em()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_board_concept_name_em()", || {
+        let df = stock_board_concept_name_em()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_board_industry_cons_em(小金属)", || {
+        let df = stock_board_industry_cons_em("小金属")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_board_industry_hist_em(BK1027, 日k)", || {
+        let df = stock_board_industry_hist_em("BK1027", "20240101", "20240131", "日k", "")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_board_concept_hist_em(BK0715, daily)", || {
+        let df = stock_board_concept_hist_em("BK0715", "20240101", "20240131", "daily", "")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_zt_pool_em(20260807)", || {
+        let df = stock_zt_pool_em("20260807")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_individual_fund_flow(600094, sh)", || {
+        let df = stock_individual_fund_flow("600094", "sh")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_lhb_detail_em(20260801~20260807)", || {
+        let df = stock_lhb_detail_em("20260801", "20260807")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_hsgt_fund_flow_summary_em()", || {
+        let df = stock_hsgt_fund_flow_summary_em()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_gpzy_profile_em()", || {
+        let df = stock_gpzy_profile_em()?;
         println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
         println!("{}", df.head_preview(3));
         Ok(())

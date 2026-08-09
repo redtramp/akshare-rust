@@ -351,6 +351,594 @@ pub(crate) fn finalize_spot(
     Ok(df)
 }
 
+/// 板块名称/概念列表公共列契约（行业/概念一致）。
+pub(crate) const BOARD_NAME_SELECT: [&str; 12] = [
+    "排名",
+    "板块名称",
+    "板块代码",
+    "最新价",
+    "涨跌额",
+    "涨跌幅",
+    "总市值",
+    "换手率",
+    "上涨家数",
+    "下跌家数",
+    "领涨股票",
+    "领涨股票-涨跌幅",
+];
+
+/// 板块名称/概念列表的数值列（除 排名/板块名称/板块代码/领涨股票 外全部数值化）。
+pub(crate) const BOARD_NAME_NUMERIC: [&str; 8] = [
+    "最新价",
+    "涨跌额",
+    "涨跌幅",
+    "总市值",
+    "换手率",
+    "上涨家数",
+    "下跌家数",
+    "领涨股票-涨跌幅",
+];
+
+/// 板块成份（cons）公共列契约（行业/概念一致）。
+pub(crate) const BOARD_CONS_SELECT: [&str; 16] = [
+    "序号",
+    "代码",
+    "名称",
+    "最新价",
+    "涨跌幅",
+    "涨跌额",
+    "成交量",
+    "成交额",
+    "振幅",
+    "最高",
+    "最低",
+    "今开",
+    "昨收",
+    "换手率",
+    "市盈率-动态",
+    "市净率",
+];
+
+/// 板块成份的数值列（除 序号/代码/名称 外全部数值化）。
+pub(crate) const BOARD_CONS_NUMERIC: [&str; 13] = [
+    "最新价",
+    "涨跌幅",
+    "涨跌额",
+    "成交量",
+    "成交额",
+    "振幅",
+    "最高",
+    "最低",
+    "今开",
+    "昨收",
+    "换手率",
+    "市盈率-动态",
+    "市净率",
+];
+
+/// 板块历史行情列（由 K 线源列重排得到）。
+pub(crate) const BOARD_HIST_SELECT: [&str; 11] = [
+    "日期",
+    "开盘",
+    "收盘",
+    "最高",
+    "最低",
+    "涨跌幅",
+    "涨跌额",
+    "成交量",
+    "成交额",
+    "振幅",
+    "换手率",
+];
+
+/// 涨停股池列契约（对应 akshare `stock_zt_pool_em` 的最终 select）。
+pub(crate) const ZT_POOL_SELECT: [&str; 16] = [
+    "序号",
+    "代码",
+    "名称",
+    "涨跌幅",
+    "最新价",
+    "成交额",
+    "流通市值",
+    "总市值",
+    "换手率",
+    "封板资金",
+    "首次封板时间",
+    "最后封板时间",
+    "炸板次数",
+    "涨停统计",
+    "连板数",
+    "所属行业",
+];
+
+/// 个股资金流列契约（对应 akshare `stock_individual_fund_flow` 的最终 select）。
+pub(crate) const FFLOW_SELECT: [&str; 13] = [
+    "日期",
+    "收盘价",
+    "涨跌幅",
+    "主力净流入-净额",
+    "主力净流入-净占比",
+    "超大单净流入-净额",
+    "超大单净流入-净占比",
+    "大单净流入-净额",
+    "大单净流入-净占比",
+    "中单净流入-净额",
+    "中单净流入-净占比",
+    "小单净流入-净额",
+    "小单净流入-净占比",
+];
+
+/// 龙虎榜详情列契约（对应 akshare `stock_lhb_detail_em` 的最终 select）。
+pub(crate) const LHB_SELECT: [&str; 21] = [
+    "序号",
+    "代码",
+    "名称",
+    "上榜日",
+    "解读",
+    "收盘价",
+    "涨跌幅",
+    "龙虎榜净买额",
+    "龙虎榜买入额",
+    "龙虎榜卖出额",
+    "龙虎榜成交额",
+    "市场总成交额",
+    "净买额占总成交比",
+    "成交额占总成交比",
+    "换手率",
+    "流通市值",
+    "上榜原因",
+    "上榜后1日",
+    "上榜后2日",
+    "上榜后5日",
+    "上榜后10日",
+];
+
+/// 沪深港通资金流向列契约（对应 akshare `stock_hsgt_fund_flow_summary_em` 的最终 select）。
+pub(crate) const HSGT_SELECT: [&str; 13] = [
+    "交易日",
+    "类型",
+    "板块",
+    "资金方向",
+    "交易状态",
+    "成交净买额",
+    "资金净流入",
+    "当日资金余额",
+    "上涨数",
+    "持平数",
+    "下跌数",
+    "相关指数",
+    "指数涨跌幅",
+];
+
+/// 股权质押市场概况列契约（对应 akshare `stock_gpzy_profile_em` 的最终 select）。
+pub(crate) const GPZY_SELECT: [&str; 8] = [
+    "交易日期",
+    "A股质押总比例",
+    "质押公司数量",
+    "质押笔数",
+    "质押总股数",
+    "质押总市值",
+    "沪深300指数",
+    "涨跌幅",
+];
+
+/// 板块名称/概念列表公共加工：按字段名重命名 + 选择 + 数值化。
+///
+/// 说明：akshare 源实现按“位置”重命名，但其列名表数量与请求字段数并不一致
+/// （上游缺陷，如概念板块 28 列名 vs 24 字段），本实现按东财字段标准语义
+/// （`f2`=最新价、`f12`=板块代码、`f14`=板块名称、`f104`/`f105`=上涨/下跌家数、
+/// `f128`=领涨股票）重命名，保证数值落在正确列上；最终列契约与 akshare 一致。
+pub(crate) fn finalize_board_name(df: Df, rename: &[(&str, &str)]) -> Result<Df> {
+    if df.height() == 0 {
+        return Df::from_string_rows(&BOARD_NAME_SELECT, &[]);
+    }
+    let mut df = df;
+    for (from, to) in rename {
+        let _ = df.inner_mut().rename(from, (*to).into());
+    }
+    let mut df = df.select(&BOARD_NAME_SELECT)?;
+    df.cast_numeric(&BOARD_NAME_NUMERIC)?;
+    Ok(df)
+}
+
+/// 板块成份（cons）公共加工（行业/概念同构）。
+///
+/// 与 [`finalize_board_name`] 同理：按东财字段标准语义映射
+/// （`f2`=最新价…`f12`=代码、`f14`=名称、`f15`=最高…`f25`=市净率）。
+pub(crate) fn finalize_board_cons(df: Df) -> Result<Df> {
+    if df.height() == 0 {
+        return Df::from_string_rows(&BOARD_CONS_SELECT, &[]);
+    }
+    let rename = [
+        ("index", "序号"),
+        ("f2", "最新价"),
+        ("f3", "涨跌幅"),
+        ("f4", "涨跌额"),
+        ("f5", "成交量"),
+        ("f6", "成交额"),
+        ("f7", "振幅"),
+        ("f8", "换手率"),
+        ("f9", "市盈率-动态"),
+        ("f12", "代码"),
+        ("f14", "名称"),
+        ("f15", "最高"),
+        ("f16", "最低"),
+        ("f17", "今开"),
+        ("f18", "昨收"),
+        ("f25", "市净率"),
+    ];
+    let mut df = df;
+    for (from, to) in rename {
+        let _ = df.inner_mut().rename(from, (*to).into());
+    }
+    let mut df = df.select(&BOARD_CONS_SELECT)?;
+    df.cast_numeric(&BOARD_CONS_NUMERIC)?;
+    Ok(df)
+}
+
+/// 抓取板块名称列表并返回 `(板块名称, 板块代码)` 对（用于名称→代码解析）。
+pub(crate) fn board_name_pairs(
+    http: &HttpClient,
+    fs: &str,
+    fields: &str,
+    rename: &[(&str, &str)],
+) -> Result<Vec<(String, String)>> {
+    let urls = push2_urls("/api/qt/clist/get");
+    let params = json!({
+        "pn": "1", "pz": "100", "po": "1", "np": "1", "ut": UT_CLIST,
+        "fltt": "2", "invt": "2", "fid": "f3", "fs": fs, "fields": fields,
+    });
+    let params = params.as_object().cloned().unwrap_or_default();
+    let df = finalize_board_name(fetch_clist(http, &urls, &params)?, rename)?;
+    let (Some(names), Some(codes)) = (
+        df.inner()
+            .column("板块名称")
+            .ok()
+            .and_then(|c| c.str().ok()),
+        df.inner()
+            .column("板块代码")
+            .ok()
+            .and_then(|c| c.str().ok()),
+    ) else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::with_capacity(df.height());
+    for (n, c) in names.iter().zip(codes.iter()) {
+        if let (Some(n), Some(c)) = (n, c) {
+            out.push((n.to_string(), c.to_string()));
+        }
+    }
+    Ok(out)
+}
+
+/// K 线接口（带附加参数，如板块 K 线的 `smplmt`/`lmt`）。
+pub fn fetch_kline_ext(
+    http: &HttpClient,
+    secid: &str,
+    klt: &str,
+    fqt: &str,
+    beg: &str,
+    end: &str,
+    extra: &[(&str, &str)],
+) -> Result<Vec<Vec<String>>> {
+    let mut params = json!({
+        "fields1": "f1,f2,f3,f4,f5,f6",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116",
+        "ut": UT_KLINE,
+        "klt": klt,
+        "fqt": fqt,
+        "secid": secid,
+        "beg": beg,
+        "end": end,
+    });
+    if let Some(obj) = params.as_object_mut() {
+        for (k, v) in extra {
+            obj.insert((*k).into(), Value::String((*v).into()));
+        }
+    }
+    kline_lines(http, params)
+}
+
+/// datacenter-web 分页数据（对应 akshare 各 `datacenter-web.eastmoney.com/api/data/v1/get`
+/// 函数：按 `result.pages` 循环翻页；页数据为空时提前终止——
+/// 服务端 `pages` 数值偶有虚高（如 5000 行/页却返回 300+ 页），空页终止
+/// 在结果等价的前提下避免无效请求）。
+pub(crate) fn fetch_datacenter_pages(
+    http: &HttpClient,
+    report_name: &str,
+    columns: &str,
+    extra: &Map<String, Value>,
+    page_size: &str,
+) -> Result<Vec<Value>> {
+    let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
+    let mut all: Vec<Value> = Vec::new();
+    let mut page: i64 = 1;
+    loop {
+        let mut params = extra.clone();
+        params.insert("reportName".into(), Value::String(report_name.into()));
+        params.insert("columns".into(), Value::String(columns.into()));
+        params.insert("pageSize".into(), Value::String(page_size.into()));
+        params.insert("pageNumber".into(), Value::from(page));
+        params.insert("source".into(), Value::String("WEB".into()));
+        params.insert("client".into(), Value::String("WEB".into()));
+        let value = http.get_json(url, &params, None)?;
+        let data = value
+            .get("result")
+            .and_then(|r| r.get("data"))
+            .and_then(Value::as_array);
+        let Some(data) = data else {
+            break;
+        };
+        if data.is_empty() {
+            break;
+        }
+        let pages = value
+            .get("result")
+            .and_then(|r| r.get("pages"))
+            .and_then(Value::as_i64)
+            .unwrap_or(1);
+        all.extend(data.iter().cloned());
+        if page >= pages {
+            break;
+        }
+        page += 1;
+    }
+    Ok(all)
+}
+
+/// 日期截断：`"2026-08-05 00:00:00"` → `"2026-08-05"`（对应 akshare `dt.date`）。
+pub(crate) fn date_only(s: &str) -> &str {
+    if s.len() >= 10 {
+        &s[..10]
+    } else {
+        s
+    }
+}
+
+/// 前导补零到 6 位（对应 akshare `str.zfill(6)`，如封板时间 `92500` → `"092500"`）。
+pub(crate) fn zfill6(s: &str) -> String {
+    format!("{s:0>6}")
+}
+
+/// 数值除以缩放因子并转字符串（对应 akshare `df[col] / N`）。
+pub(crate) fn num_div(v: &Value, div: f64) -> Option<String> {
+    v.as_f64().map(|f| (f / div).to_string())
+}
+
+/// 字符串数值除以缩放因子并转字符串。
+pub(crate) fn num_div_str(s: &str, div: f64) -> Option<String> {
+    s.parse::<f64>().ok().map(|f| (f / div).to_string())
+}
+
+/// 涨停统计 `{days, ct}` → `"days/ct"`（对应 akshare 拼接）。
+fn zttj_str(v: &Value) -> Option<String> {
+    match (
+        v.get("days").and_then(Value::as_i64),
+        v.get("ct").and_then(Value::as_i64),
+    ) {
+        (Some(d), Some(c)) => Some(format!("{d}/{c}")),
+        _ => None,
+    }
+}
+
+/// 在 0 列插入 1 起始的 int64 序号列（对应 akshare `reset_index + 1`）。
+pub(crate) fn insert_index_col(df: &mut Df, name: &str) -> Result<()> {
+    let idx: Vec<Option<i64>> = (1..=df.height()).map(|i| Some(i as i64)).collect();
+    let chunked = Int64Chunked::from_iter_options(name.into(), idx.iter().copied());
+    df.inner_mut()
+        .insert_column(0, chunked.into_series().into())?;
+    Ok(())
+}
+
+/// 涨停股池加工（对应 akshare `stock_zt_pool_em`：最新价 ÷1000、封板时间补零、
+/// 涨停统计 `days/ct`，16 列含 int64 序号）。
+pub(crate) fn finalize_zt_pool(pool: &[Value]) -> Result<Df> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(pool.len());
+    for item in pool {
+        let f = |k: &str| item.get(k).and_then(json_value_to_string);
+        rows.push(vec![
+            f("c"),
+            f("n"),
+            f("zdp"),
+            item.get("p").and_then(|v| num_div(v, 1000.0)),
+            f("amount"),
+            f("ltsz"),
+            f("tshare"),
+            f("hs"),
+            f("fund"),
+            f("fbt").map(|s| zfill6(&s)),
+            f("lbt").map(|s| zfill6(&s)),
+            f("zbc"),
+            item.get("zttj").and_then(zttj_str),
+            f("lbc"),
+            f("hybk"),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&ZT_POOL_SELECT[1..], &rows)?;
+    df.cast_numeric(&[
+        "涨跌幅",
+        "最新价",
+        "成交额",
+        "流通市值",
+        "总市值",
+        "换手率",
+        "封板资金",
+        "炸板次数",
+        "连板数",
+    ])?;
+    insert_index_col(&mut df, "序号")?;
+    Ok(df)
+}
+
+/// 个股资金流加工（15 字段 klines 行 → 13 列，日期截断，数值化）。
+pub(crate) fn finalize_fflow(klines: &[Value]) -> Result<Df> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(klines.len());
+    for line in klines {
+        let Some(s) = line.as_str() else {
+            continue;
+        };
+        let parts: Vec<&str> = s.split(',').collect();
+        if parts.len() < 13 {
+            continue;
+        }
+        rows.push(vec![
+            Some(date_only(parts[0]).to_string()),
+            Some(parts[11].to_string()),
+            Some(parts[12].to_string()),
+            Some(parts[1].to_string()),
+            Some(parts[6].to_string()),
+            Some(parts[5].to_string()),
+            Some(parts[10].to_string()),
+            Some(parts[4].to_string()),
+            Some(parts[9].to_string()),
+            Some(parts[3].to_string()),
+            Some(parts[8].to_string()),
+            Some(parts[2].to_string()),
+            Some(parts[7].to_string()),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&FFLOW_SELECT, &rows)?;
+    df.cast_numeric(&[
+        "收盘价",
+        "涨跌幅",
+        "主力净流入-净额",
+        "主力净流入-净占比",
+        "超大单净流入-净额",
+        "超大单净流入-净占比",
+        "大单净流入-净额",
+        "大单净流入-净占比",
+        "中单净流入-净额",
+        "中单净流入-净占比",
+        "小单净流入-净额",
+        "小单净流入-净占比",
+    ])?;
+    Ok(df)
+}
+
+/// 龙虎榜详情加工（英文键 → 21 列中文契约，上榜日截断，序号 int64）。
+pub(crate) fn finalize_lhb(rows: &[Value]) -> Result<Df> {
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for item in rows {
+        let f = |k: &str| item.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("SECURITY_CODE"),
+            f("SECURITY_NAME_ABBR"),
+            f("TRADE_DATE").map(|s| date_only(&s).to_string()),
+            f("EXPLAIN"),
+            f("CLOSE_PRICE"),
+            f("CHANGE_RATE"),
+            f("BILLBOARD_NET_AMT"),
+            f("BILLBOARD_BUY_AMT"),
+            f("BILLBOARD_SELL_AMT"),
+            f("BILLBOARD_DEAL_AMT"),
+            f("ACCUM_AMOUNT"),
+            f("DEAL_NET_RATIO"),
+            f("DEAL_AMOUNT_RATIO"),
+            f("TURNOVERRATE"),
+            f("FREE_MARKET_CAP"),
+            f("EXPLANATION"),
+            f("D1_CLOSE_ADJCHRATE"),
+            f("D2_CLOSE_ADJCHRATE"),
+            f("D5_CLOSE_ADJCHRATE"),
+            f("D10_CLOSE_ADJCHRATE"),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&LHB_SELECT[1..], &out)?;
+    df.cast_numeric(&[
+        "收盘价",
+        "涨跌幅",
+        "龙虎榜净买额",
+        "龙虎榜买入额",
+        "龙虎榜卖出额",
+        "龙虎榜成交额",
+        "市场总成交额",
+        "净买额占总成交比",
+        "成交额占总成交比",
+        "换手率",
+        "流通市值",
+        "上榜后1日",
+        "上榜后2日",
+        "上榜后5日",
+        "上榜后10日",
+    ])?;
+    insert_index_col(&mut df, "序号")?;
+    Ok(df)
+}
+
+/// 沪深港通资金流向加工（13 列；成交净买额/资金净流入/当日资金余额 ÷10000）。
+pub(crate) fn finalize_hsgt(rows: &[Value]) -> Result<Df> {
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for item in rows {
+        let f = |k: &str| item.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("TRADE_DATE").map(|s| date_only(&s).to_string()),
+            f("BOARD_TYPE"),
+            f("MUTUAL_TYPE_NAME"),
+            f("FUNDS_DIRECTION"),
+            f("status"),
+            f("netBuyAmt").and_then(|s| num_div_str(&s, 10000.0)),
+            f("dayNetAmtIn").and_then(|s| num_div_str(&s, 10000.0)),
+            f("dayAmtRemain").and_then(|s| num_div_str(&s, 10000.0)),
+            f("f104"),
+            f("f106"),
+            f("f105"),
+            f("INDEX_NAME"),
+            f("INDEX_f3"),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&HSGT_SELECT, &out)?;
+    df.cast_numeric(&[
+        "成交净买额",
+        "资金净流入",
+        "当日资金余额",
+        "上涨数",
+        "持平数",
+        "下跌数",
+        "指数涨跌幅",
+    ])?;
+    Ok(df)
+}
+
+/// 股权质押市场概况加工（8 列；A股质押总比例 ÷100；按交易日期升序）。
+pub(crate) fn finalize_gpzy(rows: &[Value]) -> Result<Df> {
+    let mut out: Vec<(String, Vec<Option<String>>)> = Vec::with_capacity(rows.len());
+    for item in rows {
+        let date = item
+            .get("TRADE_DATE")
+            .and_then(json_value_to_string)
+            .map(|s| date_only(&s).to_string());
+        out.push((
+            date.clone().unwrap_or_default(),
+            vec![
+                date,
+                item.get("PM_RATIO").and_then(|v| num_div(v, 100.0)),
+                item.get("PLEDGE_CO_NUM").and_then(json_value_to_string),
+                item.get("DAILY_STATISTICS").and_then(json_value_to_string),
+                item.get("TOTAL_PLEDGED_SHARES")
+                    .and_then(json_value_to_string),
+                item.get("PLEDGE_MARKET_VALUE")
+                    .and_then(json_value_to_string),
+                item.get("CSI_300_INDEX").and_then(json_value_to_string),
+                item.get("CSI_300_CHG").and_then(json_value_to_string),
+            ],
+        ));
+    }
+    // 交易日期为 "YYYY-MM-DD" 定宽字符串，字典序即时间序（对应 akshare sort_values）。
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    let rows: Vec<Vec<Option<String>>> = out.into_iter().map(|(_, r)| r).collect();
+    let mut df = Df::from_string_rows(&GPZY_SELECT, &rows)?;
+    df.cast_numeric(&[
+        "A股质押总比例",
+        "质押公司数量",
+        "质押笔数",
+        "质押总股数",
+        "质押总市值",
+        "沪深300指数",
+        "涨跌幅",
+    ])?;
+    Ok(df)
+}
+
 /// JSON 值转字符串（null → None）。
 pub(crate) fn json_value_to_string(v: &Value) -> Option<String> {
     match v {
@@ -484,5 +1072,174 @@ mod tests {
         assert_eq!(pct.get(1), Some(1.98));
         let vol = df.inner().column("成交量").unwrap().f64().unwrap();
         assert_eq!(vol.get(0), Some(1000.0));
+    }
+}
+
+#[cfg(test)]
+mod tests_b3 {
+    use super::*;
+    use serde_json::json;
+
+    /// 涨停股池：最新价 ÷1000、封板时间补零、涨停统计 days/ct、序号 int64。
+    #[test]
+    fn zt_pool_offline() {
+        let pool = json!([
+            {
+                "c": "002792", "n": "通宇通讯", "p": 37190, "zdp": 9.997,
+                "amount": 307960640, "ltsz": 12563692485.58, "tshare": 19481462030.08,
+                "hs": 2.45, "lbc": 2, "fbt": 92500, "lbt": 92500, "fund": 305090470,
+                "zbc": 0, "hybk": "通信设备",
+                "zttj": {"days": 5, "ct": 4},
+            }
+        ]);
+        let df = finalize_zt_pool(pool.as_array().unwrap()).unwrap();
+        assert_eq!(df.column_names(), ZT_POOL_SELECT);
+        assert_eq!(df.height(), 1);
+        let idx = df.inner().column("序号").unwrap().i64().unwrap();
+        assert_eq!(idx.get(0), Some(1));
+        let px = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(37.19));
+        let t = df.inner().column("首次封板时间").unwrap().str().unwrap();
+        assert_eq!(t.get(0), Some("092500"));
+        let zttj = df.inner().column("涨停统计").unwrap().str().unwrap();
+        assert_eq!(zttj.get(0), Some("5/4"));
+    }
+
+    /// 个股资金流：真实响应行 → 13 列契约，日期截断。
+    #[test]
+    fn fflow_offline() {
+        let klines = json!([
+            "2026-02-06,-462514.0,6527678.0,-6065163.0,-10508481.0,10045967.0,-0.50,7.01,-6.51,-11.28,10.78,4.85,-0.61,0.00,0.00"
+        ]);
+        let df = finalize_fflow(klines.as_array().unwrap()).unwrap();
+        assert_eq!(df.column_names(), FFLOW_SELECT);
+        let date = df.inner().column("日期").unwrap().str().unwrap();
+        assert_eq!(date.get(0), Some("2026-02-06"));
+        let close = df.inner().column("收盘价").unwrap().f64().unwrap();
+        assert_eq!(close.get(0), Some(4.85));
+        let main = df.inner().column("主力净流入-净额").unwrap().f64().unwrap();
+        assert_eq!(main.get(0), Some(-462514.0));
+        let small = df
+            .inner()
+            .column("小单净流入-净占比")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(small.get(0), Some(7.01));
+    }
+
+    /// 龙虎榜：英文键 → 21 列，上榜日截断，序号 int64。
+    #[test]
+    fn lhb_offline() {
+        let rows = json!([{
+            "SECURITY_CODE": "000533", "SECURITY_NAME_ABBR": "顺钠股份",
+            "TRADE_DATE": "2026-08-05 00:00:00", "EXPLAIN": "3家机构买入",
+            "CLOSE_PRICE": 12.7, "CHANGE_RATE": 0.7937, "BILLBOARD_NET_AMT": 100.0,
+            "BILLBOARD_BUY_AMT": 200.0, "BILLBOARD_SELL_AMT": 100.0,
+            "BILLBOARD_DEAL_AMT": 300.0, "ACCUM_AMOUNT": 999.0, "DEAL_NET_RATIO": 1.0,
+            "DEAL_AMOUNT_RATIO": 2.0, "TURNOVERRATE": 3.0, "FREE_MARKET_CAP": 1e9,
+            "EXPLANATION": "日涨幅偏离值达7%", "D1_CLOSE_ADJCHRATE": 1.1,
+            "D2_CLOSE_ADJCHRATE": 2.2, "D5_CLOSE_ADJCHRATE": 3.3, "D10_CLOSE_ADJCHRATE": 4.4,
+        }]);
+        let df = finalize_lhb(rows.as_array().unwrap()).unwrap();
+        assert_eq!(df.column_names(), LHB_SELECT);
+        let day = df.inner().column("上榜日").unwrap().str().unwrap();
+        assert_eq!(day.get(0), Some("2026-08-05"));
+        let idx = df.inner().column("序号").unwrap().i64().unwrap();
+        assert_eq!(idx.get(0), Some(1));
+    }
+
+    /// 沪深港通：÷10000 缩放 + 13 列契约。
+    #[test]
+    fn hsgt_offline() {
+        let rows = json!([{
+            "TRADE_DATE": "2026-08-07 00:00:00", "BOARD_TYPE": "1", "MUTUAL_TYPE_NAME": "沪股通",
+            "FUNDS_DIRECTION": "北向", "status": "实时", "netBuyAmt": 123456789.0,
+            "dayNetAmtIn": 1000000.0, "dayAmtRemain": 50000000.0, "f104": 800,
+            "f106": 60, "f105": 300, "INDEX_NAME": "上证指数", "INDEX_f3": 0.5,
+        }]);
+        let df = finalize_hsgt(rows.as_array().unwrap()).unwrap();
+        assert_eq!(df.column_names(), HSGT_SELECT);
+        let net = df.inner().column("成交净买额").unwrap().f64().unwrap();
+        assert_eq!(net.get(0), Some(12345.6789));
+        let day = df.inner().column("交易日").unwrap().str().unwrap();
+        assert_eq!(day.get(0), Some("2026-08-07"));
+    }
+
+    /// 股权质押：A股质押总比例 ÷100、按交易日期升序。
+    #[test]
+    fn gpzy_offline_sorted_and_scaled() {
+        let rows = json!([
+            {
+                "TRADE_DATE": "2026-08-07 00:00:00", "TOTAL_PLEDGED_SHARES": 28246885.95,
+                "PLEDGE_MARKET_VALUE": 268064333.8584, "CSI_300_INDEX": 4694.4365,
+                "CSI_300_CHG": 2.3155, "PM_RATIO": 275.497, "PLEDGE_CO_NUM": 2214,
+                "DAILY_STATISTICS": 13513,
+            },
+            {
+                "TRADE_DATE": "2026-07-31 00:00:00", "TOTAL_PLEDGED_SHARES": 28323510.24,
+                "PLEDGE_MARKET_VALUE": 254220794.3112, "CSI_300_INDEX": 4588.1968,
+                "CSI_300_CHG": -1.3119, "PM_RATIO": 270.646, "PLEDGE_CO_NUM": 2211,
+                "DAILY_STATISTICS": 13486,
+            }
+        ]);
+        let df = finalize_gpzy(rows.as_array().unwrap()).unwrap();
+        assert_eq!(df.column_names(), GPZY_SELECT);
+        // 升序：7-31 在前
+        let day = df.inner().column("交易日期").unwrap().str().unwrap();
+        assert_eq!(day.get(0), Some("2026-07-31"));
+        assert_eq!(day.get(1), Some("2026-08-07"));
+        let ratio = df.inner().column("A股质押总比例").unwrap().f64().unwrap();
+        assert_eq!(ratio.get(1), Some(2.75497));
+    }
+
+    /// 板块名称/概念列表公共加工：字段语义映射 + 12 列契约。
+    #[test]
+    fn board_name_offline() {
+        let rows = json!([
+            {"index": 1, "f2": 11500.39, "f3": -0.15, "f12": "BK1627", "f14": "综合Ⅲ",
+             "f104": 7, "f105": 10, "f128": "XX股份", "f20": 1e12, "f8": 1.2,
+             "f4": -17.2, "f141": 0.3}
+        ]);
+        let df = Df::from_json_rows(rows.as_array().unwrap()).unwrap();
+        let rename = [
+            ("index", "排名"),
+            ("f2", "最新价"),
+            ("f3", "涨跌幅"),
+            ("f4", "涨跌额"),
+            ("f8", "换手率"),
+            ("f12", "板块代码"),
+            ("f14", "板块名称"),
+            ("f20", "总市值"),
+            ("f104", "上涨家数"),
+            ("f105", "下跌家数"),
+            ("f128", "领涨股票"),
+            ("f141", "领涨股票-涨跌幅"),
+        ];
+        let df = finalize_board_name(df, &rename).unwrap();
+        assert_eq!(df.column_names(), BOARD_NAME_SELECT);
+        let name = df.inner().column("板块名称").unwrap().str().unwrap();
+        assert_eq!(name.get(0), Some("综合Ⅲ"));
+        let code = df.inner().column("板块代码").unwrap().str().unwrap();
+        assert_eq!(code.get(0), Some("BK1627"));
+        let px = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(11500.39));
+    }
+
+    /// 板块成份公共加工：16 列契约 + 数值化。
+    #[test]
+    fn board_cons_offline() {
+        let rows = json!([
+            {"index": 1, "f2": 10.5, "f3": 3.2, "f4": 0.3, "f5": 100000, "f6": 1050000.0,
+             "f7": 2.1, "f8": 0.5, "f9": 8.1, "f12": "000001", "f14": "平安银行",
+             "f15": 10.8, "f16": 10.2, "f17": 10.3, "f18": 9.6, "f25": 0.9}
+        ]);
+        let df = Df::from_json_rows(rows.as_array().unwrap()).unwrap();
+        let df = finalize_board_cons(df).unwrap();
+        assert_eq!(df.column_names(), BOARD_CONS_SELECT);
+        let code = df.inner().column("代码").unwrap().str().unwrap();
+        assert_eq!(code.get(0), Some("000001"));
+        let pb = df.inner().column("市净率").unwrap().f64().unwrap();
+        assert_eq!(pb.get(0), Some(0.9));
     }
 }
