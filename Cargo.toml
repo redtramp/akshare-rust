@@ -1,0 +1,43 @@
+[package]
+name = "akshare-rust"
+version = "0.1.0"
+edition = "2021"
+description = "Rust 版 akshare：纯 HTTP + 内置 JS 引擎的财经数据获取库（v1.0 无浏览器）"
+license = "MIT"
+keywords = ["finance", "stock", "data", "akshare", "china"]
+categories = ["finance"]
+
+[dependencies]
+# HTTP 客户端：blocking 模式 + 自动 gzip + cookie 会话 + 自签证书容忍（对应 akshare verify=False）
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "json",
+    "gzip",
+    "cookies",
+    "charset",
+    "rustls-tls",
+] }
+# JS 引擎：执行网站下发的加密 JS（对应 akshare 的 py_mini_racer）
+rquickjs = "0.9"
+# 列式数据表：对应 pandas.DataFrame
+polars = { version = "0.55", default-features = false, features = [
+    "dtype-slim",
+    "dtype-full",
+    "fmt",
+    "temporal",
+    "rows",
+    "zip_with",
+] }
+serde = { version = "1", features = ["derive"] }
+# preserve_order: 保持 JSON 响应中的字段顺序（与 Python dict 顺序一致，列序对齐依赖此）
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "1"
+# 字符集解码：GBK/GB2312 页面（交易所/新浪 HTML 源必需）
+encoding_rs = "0.8"
+once_cell = "1"
+# 乐咕等站点的 md5 日期 token（对应 akshare get_token_lg）
+md-5 = "0.10"
+# 重试抖动/随机延迟（对应 akshare random.uniform(0.5, 1.5)）
+rand = "0.10"
+
+[dev-dependencies]

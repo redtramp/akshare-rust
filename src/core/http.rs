@@ -1,0 +1,333 @@
+//! HTTP 客户端封装。
+//!
+//! 对应 akshare `utils/request.py::request_with_retry` 与
+//! `utils/func.py::fetch_paginated_data`：
+//! - 指数退避 + 随机抖动重试
+//! - 统一 UA / 可选 Referer / 可选代理
+//! - JSON 与文本（自动字符集解码）响应
+//! - 分页抓取合并
+
+use crate::core::config::get_config;
+use crate::core::error::{AkshareError, Result};
+use reqwest::blocking::Client;
+use reqwest::header::{HeaderMap, HeaderValue, REFERER, USER_AGENT};
+use serde_json::{Map, Value};
+use std::time::Duration;
+
+/// 反爬特征关键字：命中即判定为被拦截。
+const BLOCK_MARKERS: &[&str] = &["_waf", "alichlgref", "just a moment", "challenge-platform"];
+
+/// 需要登录态的响应特征（雪球等）。
+const AUTH_MARKERS: &[&str] = &["400016", "xq_a_token", "需要登录", "login required"];
+
+/// 轻量 HTTP 客户端，围绕 `reqwest::blocking` 封装重试与解码。
+#[derive(Debug, Clone)]
+pub struct HttpClient {
+    inner: Client,
+    user_agent: String,
+    timeout_secs: u64,
+    max_retries: u32,
+    base_delay_secs: f64,
+    random_delay_range: (f64, f64),
+}
+
+impl Default for HttpClient {
+    fn default() -> Self {
+        Self::from_config(&get_config())
+    }
+}
+
+impl HttpClient {
+    /// 基于全局/指定配置构建客户端。
+    pub fn from_config(cfg: &crate::core::config::AkshareConfig) -> Self {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            USER_AGENT,
+            HeaderValue::from_str(&cfg.user_agent).unwrap_or_else(|_| {
+                HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+            }),
+        );
+
+        let mut builder = Client::builder()
+            .default_headers(headers)
+            .timeout(Duration::from_secs(cfg.timeout_secs))
+            .gzip(true)
+            // 对应 akshare 51 处 verify=False 的自签证书接口
+            .danger_accept_invalid_certs(true);
+
+        if let Some(proxy) = &cfg.proxies {
+            if let Some(p) = &proxy.http {
+                if let Ok(pp) = reqwest::Proxy::http(p) {
+                    builder = builder.proxy(pp);
+                }
+            }
+        }
+
+        Self {
+            inner: builder.build().expect("构建 HTTP 客户端失败"),
+            user_agent: cfg.user_agent.clone(),
+            timeout_secs: cfg.timeout_secs,
+            max_retries: cfg.max_retries,
+            base_delay_secs: cfg.base_delay_secs,
+            random_delay_range: cfg.random_delay_range,
+        }
+    }
+
+    /// 带重试的 GET，返回原始 JSON。
+    pub fn get_json(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<Value> {
+        let text = self.get_text(url, params, referer)?;
+        serde_json::from_str(&text).map_err(|e| AkshareError::json(url, e.to_string()))
+    }
+
+    /// 带重试的 GET，返回按字符集解码后的文本。
+    pub fn get_text(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<String> {
+        let bytes = self.request_with_retry(url, params, referer)?;
+        let text = decode_body(&bytes);
+        detect_block_or_auth(url, &text)?;
+        Ok(text)
+    }
+
+    /// 核心重试循环：对应 akshare `request_with_retry`。
+    /// 指数退避 `base_delay * 2^attempt + uniform(随机延迟范围)`。
+    /// 仅对 5xx 与连接错误重试；4xx 客户端错误立即返回（对应 akshare
+    /// `raise_for_status` 语义，重试无意义）。
+    fn request_with_retry(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<Vec<u8>> {
+        let mut last_err: Option<AkshareError> = None;
+
+        for attempt in 0..self.max_retries {
+            let mut req = self.inner.get(url).query(params);
+            if let Some(r) = referer {
+                req = req.header(REFERER, r);
+            }
+
+            match req.send() {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        return resp.bytes().map(|b| b.to_vec()).map_err(AkshareError::from);
+                    }
+                    let err = AkshareError::Status {
+                        status: status.as_u16(),
+                        url: url.to_string(),
+                    };
+                    if status.is_client_error() {
+                        return Err(err);
+                    }
+                    // 5xx：服务端错误，可重试
+                    last_err = Some(err);
+                }
+                Err(e) => last_err = Some(AkshareError::Http(e)),
+            }
+
+            if attempt + 1 < self.max_retries {
+                let jitter: f64 =
+                    rand::random_range(self.random_delay_range.0..self.random_delay_range.1);
+                let delay = self.base_delay_secs * (2u32.pow(attempt)) as f64 + jitter;
+                std::thread::sleep(Duration::from_secs_f64(delay));
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| AkshareError::Blocked("请求重试耗尽，未知错误".into())))
+    }
+
+    /// 单次 GET 并解析为 JSON（不重试）：多节点容灾时快速探测节点可用性。
+    fn get_json_once(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<Value> {
+        let mut req = self.inner.get(url).query(params);
+        if let Some(r) = referer {
+            req = req.header(REFERER, r);
+        }
+        let resp = req.send().map_err(AkshareError::Http)?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(AkshareError::Status {
+                status: status.as_u16(),
+                url: url.to_string(),
+            });
+        }
+        let bytes = resp.bytes().map_err(AkshareError::from)?;
+        let text = decode_body(&bytes);
+        detect_block_or_auth(url, &text)?;
+        serde_json::from_str(&text).map_err(|e| AkshareError::json(url, e.to_string()))
+    }
+
+    /// 单主机分页抓取并合并（对应 akshare `fetch_paginated_data`）。
+    ///
+    /// - 首页确定 `total` 与每页条数，计算总页数
+    /// - 后续页带随机延迟 0.5~1.5s（对应 akshare 限流）
+    /// - 返回每页 `diff` 数组的拼接
+    ///
+    /// 注：东财等多节点源请优先使用 [`Self::fetch_paginated_diff_any`]（带节点容灾）。
+    pub fn fetch_paginated_diff(
+        &self,
+        url: &str,
+        base_params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<Vec<Value>> {
+        let first = self.get_json(url, base_params, referer)?;
+        self.paginate_diff(first, url, base_params, referer)
+    }
+
+    /// 多节点分页抓取（东财 push2 多节点容灾）。
+    ///
+    /// 第一轮对每个候选节点做**单次**快速探测，连接/网络错误立即切换下一节点，
+    /// 避免被限流的主节点拖慢整体延迟；取首个成功节点继续翻页。
+    /// 若全部单次探测失败，第二轮按完整重试策略再走一遍（容忍瞬时抖动），
+    /// 仍全部失败则返回最后一次错误。
+    pub fn fetch_paginated_diff_any(
+        &self,
+        urls: &[String],
+        base_params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<Vec<Value>> {
+        // 第一轮：每节点单次快速探测
+        for url in urls {
+            if let Ok(first) = self.get_json_once(url, base_params, referer) {
+                return self.paginate_diff(first, url, base_params, referer);
+            }
+        }
+        // 第二轮：完整重试策略兜底
+        let mut last_err: Option<AkshareError> = None;
+        for url in urls {
+            match self.get_json(url, base_params, referer) {
+                Ok(first) => return self.paginate_diff(first, url, base_params, referer),
+                Err(e) => last_err = Some(e),
+            }
+        }
+        Err(last_err.unwrap_or_else(|| {
+            AkshareError::Blocked("所有候选节点均请求失败（东财多节点容灾耗尽）".into())
+        }))
+    }
+
+    /// 分页合并：由首页响应确定 `total` 与每页条数，抓取其余页面。
+    fn paginate_diff(
+        &self,
+        first: Value,
+        url: &str,
+        base_params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<Vec<Value>> {
+        let data = first.get("data").cloned().unwrap_or(Value::Null);
+        let total = data.get("total").and_then(Value::as_u64).unwrap_or(0);
+        let diff = data.get("diff").and_then(Value::as_array).cloned();
+        let Some(mut acc) = diff else {
+            return Ok(Vec::new());
+        };
+        let per_page = acc.len().max(1) as u64;
+        let total_pages = total.div_ceil(per_page);
+
+        for page in 2..=total_pages {
+            let mut params = base_params.clone();
+            params.insert("pn".to_string(), Value::from(page));
+            // 随机延迟，避免请求过频
+            let delay: f64 =
+                rand::random_range(self.random_delay_range.0..self.random_delay_range.1);
+            std::thread::sleep(Duration::from_secs_f64(delay));
+
+            match self.get_json(url, &params, referer) {
+                Ok(v) => {
+                    if let Some(rows) = v
+                        .get("data")
+                        .and_then(|d| d.get("diff"))
+                        .and_then(Value::as_array)
+                    {
+                        acc.extend(rows.iter().cloned());
+                    } else {
+                        break; // 数据提前结束
+                    }
+                }
+                Err(_) => break, // 单页失败即停止，返回已获取部分
+            }
+        }
+        Ok(acc)
+    }
+
+    /// 当前 UA（调试/日志用）。
+    #[allow(dead_code)]
+    pub fn user_agent(&self) -> &str {
+        &self.user_agent
+    }
+
+    /// 当前超时（调试/日志用）。
+    #[allow(dead_code)]
+    pub fn timeout_secs(&self) -> u64 {
+        self.timeout_secs
+    }
+}
+
+/// 按字符集解码响应体：优先严格 UTF-8（JSON 响应均为 UTF-8），
+/// 失败则回退 GBK（交易所/新浪 HTML 页面常见编码）。
+fn decode_body(bytes: &[u8]) -> String {
+    match std::str::from_utf8(bytes) {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            // GBK 是中文财经站点最常见的非 UTF-8 编码
+            let (cow, _, _) = encoding_rs::GBK.decode(bytes);
+            cow.into_owned()
+        }
+    }
+}
+
+/// 检测反爬拦截与登录态特征，命中即报错（对应 akshare 抛异常语义，v1.0 无浏览器兜底）。
+fn detect_block_or_auth(url: &str, text: &str) -> Result<()> {
+    let lower = text.to_lowercase();
+    for marker in AUTH_MARKERS {
+        if lower.contains(&marker.to_lowercase()) && text.len() < 200_000 {
+            return Err(AkshareError::AuthRequired(format!(
+                "响应含登录态特征 '{marker}' (url: {url})"
+            )));
+        }
+    }
+    for marker in BLOCK_MARKERS {
+        if lower.contains(marker) {
+            return Err(AkshareError::Blocked(format!(
+                "响应含反爬特征 '{marker}' (url: {url})"
+            )));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detect_markers() {
+        let r = detect_block_or_auth("http://x", "Just a moment... verifying you are human");
+        assert!(matches!(r, Err(AkshareError::Blocked(_))));
+
+        let r = detect_block_or_auth("http://x", r#"{"error_code":400016}"#);
+        assert!(matches!(r, Err(AkshareError::AuthRequired(_))));
+
+        let r = detect_block_or_auth("http://x", "正常数据");
+        assert!(r.is_ok());
+    }
+
+    #[test]
+    fn gbk_decode() {
+        // "东方财富" GBK 编码
+        let gbk = vec![0xB6, 0xAB, 0xB7, 0xBD, 0xB2, 0xC6, 0xB8, 0xBB];
+        let text = decode_body(&gbk);
+        assert_eq!(text, "东方财富");
+    }
+}

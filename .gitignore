@@ -1,0 +1,6 @@
+/target
+*.pyc
+__pycache__/
+.idea/
+.vscode/
+*.swp
