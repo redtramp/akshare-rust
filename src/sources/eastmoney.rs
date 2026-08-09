@@ -290,6 +290,9 @@ pub fn normalize_dt(s: &str) -> String {
 ///   字符串比较与 pandas 标签切片语义等价）
 /// - 时间列归一化补秒
 /// - 按 `out_cols` 目标列序建表（从 `src_cols` 中取对应源列），`numeric_out` 转 f64
+///
+/// 约定：时间列必须位于每行首位（`line[0]`），且 `src_cols`/`out_cols` 中的时间列名为
+/// `"时间"`（与 akshare 各分钟级接口一致）。数据缺失（空行）时返回带目标列名的空表。
 pub fn min_kline_to_df(
     lines: &[Vec<String>],
     start: &str,
@@ -303,13 +306,17 @@ pub fn min_kline_to_df(
         let Some(t) = line.first() else {
             continue;
         };
-        if t.as_str() < start || t.as_str() > end {
+        // 先归一化（补秒）再与带秒的 start/end 比较：避免原始 16 字符行
+        // （如 "2024-01-02 09:30"）作为前缀比较小于 start（"2024-01-02 09:30:00"）
+        // 而被误过滤（pandas 标签切片会包含该行）。
+        let tn = normalize_dt(t);
+        if tn.as_str() < start || tn.as_str() > end {
             continue;
         }
         let mut row: Vec<Option<String>> = Vec::with_capacity(out_cols.len());
         for oc in out_cols {
             if *oc == "时间" {
-                row.push(Some(normalize_dt(t)));
+                row.push(Some(tn.clone()));
                 continue;
             }
             let src_idx = src_cols.iter().position(|c| c == oc);
@@ -333,7 +340,8 @@ pub(crate) fn finalize_spot(
     numeric: &[&str],
 ) -> Result<Df> {
     if df.height() == 0 {
-        return Ok(df);
+        // 空表也按最终列名构造，保证调用方拿到的列契约一致
+        return Df::from_string_rows(select, &[]);
     }
     for (from, to) in rename {
         let _ = df.inner_mut().rename(from, (*to).into());

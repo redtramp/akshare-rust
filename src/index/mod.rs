@@ -115,6 +115,9 @@ pub fn index_zh_a_hist(symbol: &str, period: &str, start_date: &str, end_date: &
 /// # 返回列
 /// period=1: `时间, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 均价`；
 /// 其余: `时间, 开盘, 收盘, 最高, 最低, 涨跌幅, 涨跌额, 成交量, 成交额, 振幅, 换手率`
+///
+/// 注：akshare 对非 `"1"` 的 period 值直接透传给服务端 `klt`；本实现额外校验
+/// 仅接受 `"5"`/`"15"`/`"30"`/`"60"`。分钟级数据为滚动窗口（约最近 8 个月）。
 pub fn index_zh_a_hist_min_em(
     symbol: &str,
     period: &str,
