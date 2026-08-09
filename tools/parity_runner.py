@@ -73,6 +73,9 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("fund_etf_spot_ths", [""], "loose", "同花顺 ETF 实时行情"),
     ("stock_hk_spot", [], "loose", "新浪港股实时行情"),
     ("stock_zh_a_minute", ["sh600519", "5", ""], "loose", "新浪A股分钟线"),
+    ("stock_margin_sse", ["20240801", "20240810"], "strict", "上交所融资融券汇总"),
+    ("stock_margin_detail_sse", ["20240809"], "strict", "上交所融资融券明细"),
+    ("stock_margin_szse", ["20240411"], "strict", "深交所融资融券汇总"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

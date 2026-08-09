@@ -192,6 +192,32 @@ impl Df {
         Ok(self)
     }
 
+    /// 移除指定列的千分位逗号（对应 akshare `str.replace(",", "")`）。
+    pub fn strip_commas(&mut self, cols: &[&str]) -> Result<&mut Self> {
+        for c in cols {
+            let series = match self.inner.column(c) {
+                Ok(s) => s.clone(),
+                Err(_) => continue,
+            };
+            let values: Vec<Option<String>> = series
+                .str()
+                .ok()
+                .map(|s| {
+                    (0..series.len())
+                        .map(|i| s.get(i).map(|v| v.replace(',', "")))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let chunked = StringChunked::from_iter_options(
+                PlSmallStr::from_str(c),
+                values.iter().map(|v| v.as_deref()),
+            );
+            let col: Column = chunked.into_series().into();
+            let _ = self.inner.replace(c, col);
+        }
+        Ok(self)
+    }
+
     /// 指定列转 f64（对应 akshare `pd.to_numeric(errors="coerce")`）。
     pub fn cast_numeric(&mut self, cols: &[&str]) -> Result<&mut Self> {
         for c in cols {

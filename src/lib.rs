@@ -20,6 +20,7 @@
 
 pub mod cninfo;
 pub mod core;
+pub mod exchange;
 pub mod fund;
 pub mod index;
 pub mod legu;

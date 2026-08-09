@@ -20,6 +20,7 @@ use akshare_rust::cninfo::{
     stock_profile_cninfo,
 };
 use akshare_rust::core::df::Df;
+use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
 use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
 };
@@ -177,6 +178,18 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_zh_a_minute" => {
             let [s, p, a] = take3(func, args)?;
             Ok(stock_zh_a_minute(s, p, a)?)
+        }
+        "stock_margin_sse" => {
+            let [d0, d1] = take2(func, args)?;
+            Ok(stock_margin_sse(d0, d1)?)
+        }
+        "stock_margin_detail_sse" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_margin_detail_sse(d)?)
+        }
+        "stock_margin_szse" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_margin_szse(d)?)
         }
         _ => Err(format!("未知函数: {func}").into()),
     }
