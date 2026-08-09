@@ -45,7 +45,7 @@ pub fn stock_hk_spot() -> Result<Df> {
             break;
         }
         all.extend(rows);
-        if all.len() % 600 == 0 {
+        if all.len().is_multiple_of(600) {
             // 每 10 页稍歇，避免触发限流
             std::thread::sleep(std::time::Duration::from_millis(200));
         }
