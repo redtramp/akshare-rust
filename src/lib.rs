@@ -22,6 +22,7 @@ pub mod cninfo;
 pub mod core;
 pub mod fund;
 pub mod index;
+pub mod legu;
 pub mod sources;
 pub mod stock;
 
