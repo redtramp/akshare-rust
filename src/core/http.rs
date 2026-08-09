@@ -157,6 +157,21 @@ impl HttpClient {
         Ok(text)
     }
 
+    /// 带重试的 GET，返回文本但**跳过反爬/登录态检测**。
+    ///
+    /// 用于建立会话 cookie 的首页访问（如雪球 `xueqiu.com/`）：
+    /// 该请求的目的只是写入 cookie，响应本身可能是 WAF 页或登录页，
+    /// 对内容做检测会产生误报（akshare 对这类请求也不检查内容）。
+    pub fn get_text_allow_blocked(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<String> {
+        let bytes = self.request_with_retry(url, params, referer)?;
+        Ok(decode_body(&bytes))
+    }
+
     /// 带重试的 POST（query 参数 + 自定义请求头），返回解析后的 JSON。
     ///
     /// 巨潮 cninfo 等源要求 POST + 自定义头（如 `Accept-Enckey`）。

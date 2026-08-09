@@ -34,6 +34,7 @@ use akshare_rust::stock::{
     stock_sz_a_spot_em, stock_zh_a_hist, stock_zh_a_hist_min_em, stock_zh_a_spot_em,
     stock_zt_pool_em,
 };
+use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
 
 type BoxErr = Box<dyn std::error::Error>;
@@ -190,6 +191,14 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_margin_szse" => {
             let [d] = take1(func, args)?;
             Ok(stock_margin_szse(d)?)
+        }
+        "stock_hot_follow_xq" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hot_follow_xq(s)?)
+        }
+        "stock_hot_tweet_xq" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hot_tweet_xq(s)?)
         }
         _ => Err(format!("未知函数: {func}").into()),
     }
