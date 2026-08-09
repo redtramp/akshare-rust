@@ -23,6 +23,7 @@ pub mod core;
 pub mod fund;
 pub mod index;
 pub mod legu;
+pub mod sina;
 pub mod sources;
 pub mod stock;
 

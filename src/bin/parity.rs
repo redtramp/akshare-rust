@@ -24,6 +24,7 @@ use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
 };
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
+use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
 use akshare_rust::stock::{
     fund_etf_hist_em, stock_bid_ask_em, stock_board_concept_cons_em, stock_board_concept_hist_em,
     stock_board_concept_name_em, stock_board_industry_cons_em, stock_board_industry_hist_em,
@@ -172,6 +173,11 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [d] = take1(func, args)?;
             Ok(fund_etf_spot_ths(d)?)
         }
+        "stock_hk_spot" => Ok(stock_hk_spot()?),
+        "stock_zh_a_minute" => {
+            let [s, p, a] = take3(func, args)?;
+            Ok(stock_zh_a_minute(s, p, a)?)
+        }
         _ => Err(format!("未知函数: {func}").into()),
     }
 }
@@ -188,6 +194,13 @@ fn take2<'a>(func: &str, args: &'a [String]) -> Result<[&'a str; 2], BoxErr> {
         return Err(format!("{func} 需要 2 个参数, 实际 {}", args.len()).into());
     }
     Ok([args[0].as_str(), args[1].as_str()])
+}
+
+fn take3<'a>(func: &str, args: &'a [String]) -> Result<[&'a str; 3], BoxErr> {
+    if args.len() != 3 {
+        return Err(format!("{func} 需要 3 个参数, 实际 {}", args.len()).into());
+    }
+    Ok([args[0].as_str(), args[1].as_str(), args[2].as_str()])
 }
 
 fn take4<'a>(func: &str, args: &'a [String]) -> Result<[&'a str; 4], BoxErr> {
