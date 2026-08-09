@@ -69,6 +69,8 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_ipo_summary_cninfo", ["600030"], "strict", "巨潮上市相关"),
     ("stock_dividend_cninfo", ["600009"], "strict", "巨潮历史分红"),
     ("stock_new_ipo_cninfo", [], "strict", "巨潮新股发行"),
+    ("fund_etf_category_ths", ["ETF", ""], "loose", "同花顺基金净值行情"),
+    ("fund_etf_spot_ths", [""], "loose", "同花顺 ETF 实时行情"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

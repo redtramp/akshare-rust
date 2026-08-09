@@ -259,7 +259,7 @@ impl Df {
 }
 
 /// 归一化日期字符串为 `YYYY-MM-DD`；无法解析返回 `None`。
-fn normalize_date(s: &str) -> Option<String> {
+pub(crate) fn normalize_date(s: &str) -> Option<String> {
     let s = s.trim();
     if s.is_empty() {
         return None;

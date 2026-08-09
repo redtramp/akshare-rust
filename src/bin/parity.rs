@@ -20,7 +20,9 @@ use akshare_rust::cninfo::{
     stock_profile_cninfo,
 };
 use akshare_rust::core::df::Df;
-use akshare_rust::fund::{fund_etf_spot_em, fund_lof_spot_em};
+use akshare_rust::fund::{
+    fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
+};
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::stock::{
     fund_etf_hist_em, stock_bid_ask_em, stock_board_concept_cons_em, stock_board_concept_hist_em,
@@ -162,6 +164,14 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         "stock_new_ipo_cninfo" => Ok(stock_new_ipo_cninfo()?),
         "stock_new_gh_cninfo" => Ok(stock_new_gh_cninfo()?),
+        "fund_etf_category_ths" => {
+            let [s, d] = take2(func, args)?;
+            Ok(fund_etf_category_ths(s, d)?)
+        }
+        "fund_etf_spot_ths" => {
+            let [d] = take1(func, args)?;
+            Ok(fund_etf_spot_ths(d)?)
+        }
         _ => Err(format!("未知函数: {func}").into()),
     }
 }

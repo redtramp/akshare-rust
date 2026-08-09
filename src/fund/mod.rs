@@ -231,3 +231,177 @@ pub fn fund_lof_spot_em() -> Result<Df> {
     ];
     crate::sources::eastmoney::finalize_spot(df, &rename, &select, &numeric)
 }
+
+/// 同花顺理财-基金数据-每日净值-实时行情（对应 akshare [`akshare.fund_etf_category_ths`]）。
+///
+/// `symbol`: `"股票型"/"债券型"/"混合型"/"ETF"/"LOF"/"QDII"/"保本型"/"指数型"/""`（"" 表示全部）；
+/// `date`: `YYYYMMDD`，空字符串表示最新。
+///
+/// 数据源为 `fund.10jqka.com.cn` 的 JSONP 接口（jsonp 解包 → 对象转表 → 重排）。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金名称, 当前-单位净值, 当前-累计净值, 前一日-单位净值,
+/// 前一日-累计净值, 增长值, 增长率, 赎回状态, 申购状态, 最新-交易日,
+/// 最新-单位净值, 最新-累计净值, 基金类型, 查询日期`
+pub fn fund_etf_category_ths(symbol: &str, date: &str) -> Result<Df> {
+    let inner_symbol = match symbol {
+        "股票型" => "gpx",
+        "债券型" => "zqx",
+        "混合型" => "hhx",
+        "ETF" => "ETF",
+        "LOF" => "LOF",
+        "QDII" => "QDII",
+        "保本型" => "bbx",
+        "指数型" => "zsx",
+        "" => "all",
+        _ => "ETF",
+    };
+    let inner_date = if date.is_empty() {
+        "0".to_string()
+    } else if date.len() == 8 {
+        format!("{}-{}-{}", &date[0..4], &date[4..6], &date[6..8])
+    } else {
+        return Err(crate::core::error::AkshareError::Param(format!(
+            "无效日期: {date}（应为 YYYYMMDD 或空字符串）"
+        )));
+    };
+    let url = format!(
+        "https://fund.10jqka.com.cn/data/Net/info/{inner_symbol}_rate_desc_{inner_date}_0_1_9999_0_0_0_jsonp_g.html"
+    );
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &Map::new(), None)?;
+    // jsonp 解包：`g({...})` → 去掉首 `g(` 与尾 `)`
+    let json_text = text
+        .trim()
+        .strip_prefix("g(")
+        .and_then(|t| t.strip_suffix(')'))
+        .ok_or_else(|| crate::core::error::AkshareError::Empty("ths jsonp 响应格式异常".into()))?;
+    let data: Value = serde_json::from_str(json_text)
+        .map_err(|e| crate::core::error::AkshareError::json(&url, e.to_string()))?;
+    let rows = data
+        .get("data")
+        .and_then(|d| d.get("data"))
+        .and_then(Value::as_object)
+        .ok_or_else(|| crate::core::error::AkshareError::Empty("ths 响应缺少 data.data".into()))?;
+
+    // 对象转行数组（对应 pandas DataFrame(data_json["data"]["data"]).T）
+    let mut out_rows: Vec<Value> = Vec::with_capacity(rows.len());
+    for v in rows.values() {
+        out_rows.push(v.clone());
+    }
+    let mut df = Df::from_json_rows(&out_rows)?;
+
+    // 序号列：1..n（对应 reset_index + index+1）
+    let n = df.height();
+    let seq: Vec<Option<String>> = (1..=n).map(|i| Some(i.to_string())).collect();
+    df.with_column("index", &seq)?;
+
+    // 重命名
+    let rename = [
+        ("index", "序号"),
+        ("code", "基金代码"),
+        ("typename", "基金类型"),
+        ("net", "当前-单位净值"),
+        ("name", "基金名称"),
+        ("totalnet", "当前-累计净值"),
+        ("newnet", "最新-单位净值"),
+        ("newtotalnet", "最新-累计净值"),
+        ("newdate", "最新-交易日"),
+        ("net1", "前一日-单位净值"),
+        ("totalnet1", "前一日-累计净值"),
+        ("ranges", "增长值"),
+        ("rate", "增长率"),
+        ("shstat", "赎回状态"),
+        ("sgstat", "申购状态"),
+    ];
+    let cur = df.column_names();
+    let renamed: Vec<String> = cur
+        .iter()
+        .map(|c| {
+            rename
+                .iter()
+                .find(|(k, _)| *k == c)
+                .map(|(_, v)| v.to_string())
+                .unwrap_or_else(|| c.clone())
+        })
+        .collect();
+    let refs: Vec<&str> = renamed.iter().map(String::as_str).collect();
+    df.rename_columns(&refs)?;
+
+    // 重排到 akshare 输出列序
+    let selected = df.select(&[
+        "序号",
+        "基金代码",
+        "基金名称",
+        "当前-单位净值",
+        "当前-累计净值",
+        "前一日-单位净值",
+        "前一日-累计净值",
+        "增长值",
+        "增长率",
+        "赎回状态",
+        "申购状态",
+        "最新-交易日",
+        "最新-单位净值",
+        "最新-累计净值",
+        "基金类型",
+    ])?;
+    let mut out = selected;
+
+    // 查询日期：date 非空则用入参，否则用首行最新-交易日
+    let query_date = if date.is_empty() {
+        out.inner()
+            .column("最新-交易日")
+            .ok()
+            .and_then(|c| c.str().ok())
+            .and_then(|s| s.get(0))
+            .unwrap_or("")
+            .to_string()
+    } else {
+        date.to_string()
+    };
+    let qd = crate::core::df::normalize_date(&query_date);
+    let qd_col: Vec<Option<String>> = (0..out.height()).map(|_| qd.clone()).collect();
+    out.with_column("查询日期", &qd_col)?;
+
+    out.cast_date(&["最新-交易日", "查询日期"])?;
+    out.cast_numeric(&[
+        "序号",
+        "当前-单位净值",
+        "当前-累计净值",
+        "前一日-单位净值",
+        "前一日-累计净值",
+        "增长值",
+        "增长率",
+        "最新-单位净值",
+        "最新-累计净值",
+    ])?;
+    Ok(out)
+}
+
+/// 同花顺理财-基金数据-ETF 实时行情（对应 akshare [`akshare.fund_etf_spot_ths`]）。
+pub fn fund_etf_spot_ths(date: &str) -> Result<Df> {
+    fund_etf_category_ths("ETF", date)
+}
+
+#[cfg(test)]
+mod ths_tests {
+    use super::*;
+
+    #[test]
+    fn jsonp_unwrap_ok() {
+        let raw = r#"g({"data":{"info":{},"data":{"f1":{"code":"1"}}}})"#;
+        let t = raw
+            .trim()
+            .strip_prefix("g(")
+            .and_then(|t| t.strip_suffix(')'))
+            .unwrap();
+        let v: Value = serde_json::from_str(t).unwrap();
+        assert!(v.get("data").is_some());
+    }
+
+    #[test]
+    fn date_validation() {
+        assert!(fund_etf_category_ths("ETF", "2024062").is_err());
+    }
+}
