@@ -9,7 +9,8 @@ use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{
-    fetch_clist, fetch_datacenter_pages, finalize_report, finalize_spot, push2_urls,
+    fetch_clist, fetch_datacenter_pages, fetch_eastmoney_pages, finalize_report, finalize_spot,
+    push2_urls,
 };
 use serde_json::{json, Map, Value};
 
@@ -4884,6 +4885,516 @@ pub fn stock_sy_hy_em(date: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ===== 新股申购与中签查询（stock_xgsglb_em）=====
+// 北交所分支：RPT_NEEQ_ISSUEINFO_LIST（source=NEEQSELECT，需 quoteColumns 补充简称），无 序号列。
+// 其余分支：RPTA_APP_IPOAPPLY（source=WEB），按 symbol 选择市场过滤，无 序号列。
+// 列名逐字对齐 akshare（akshare 对该函数使用 key 重命名 + 位置选择，无 序号）。
+const XGSG_NEEQ_QUOTE: &str = "f14~01~SECURITY_CODE~SECURITY_NAME_ABBR";
+const XGSG_NEEQ_RENAME: [(&str, &str); 22] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "简称"),
+    ("APPLY_CODE", "申购代码"),
+    ("EXPECT_ISSUE_NUM", "发行总数"),
+    ("ONLINE_ISSUE_NUM", "网上-发行数量"),
+    ("APPLY_NUM_UPPER", "网上-申购上限"),
+    ("APPLY_AMT_UPPER", "网上-顶格所需资金"),
+    ("ISSUE_PRICE", "发行价格"),
+    ("APPLY_DATE", "申购日"),
+    ("ONLINE_ISSUE_LWR", "中签率"),
+    ("APPLY_AMT_100", "稳获百股需配资金"),
+    ("NEWEST_PRICE", "最新价格-价格"),
+    // 最新价格-累计涨幅 为计算列 = 首日收盘价 / 最新价格-价格，预写入每行的 COMPUTED_CUMCHG 键
+    ("COMPUTED_CUMCHG", "最新价格-累计涨幅"),
+    ("SELECT_LISTING_DATE", "上市首日-上市日"),
+    ("AVERAGE_PRICE", "上市首日-均价"),
+    ("LD_CLOSE_CHANGE", "上市首日-涨幅"),
+    ("PER_SHARES_INCOME", "上市首日-每百股获利"),
+    ("CAPTURE_PROFIT", "上市首日-约合年化收益"),
+    ("ISSUE_PE_RATIO", "发行市盈率"),
+    ("INDUSTRY_PE_RATIO", "行业市盈率"),
+    ("VA_AMT", "参与申购资金"),
+    ("ORG_VAN", "参与申购人数"),
+];
+const XGSG_NEEQ_SELECT: [&str; 22] = [
+    "代码",
+    "简称",
+    "申购代码",
+    "发行总数",
+    "网上-发行数量",
+    "网上-申购上限",
+    "网上-顶格所需资金",
+    "发行价格",
+    "申购日",
+    "中签率",
+    "稳获百股需配资金",
+    "最新价格-价格",
+    "最新价格-累计涨幅",
+    "上市首日-上市日",
+    "上市首日-均价",
+    "上市首日-涨幅",
+    "上市首日-每百股获利",
+    "上市首日-约合年化收益",
+    "发行市盈率",
+    "行业市盈率",
+    "参与申购资金",
+    "参与申购人数",
+];
+const XGSG_NEEQ_NUMERIC: [&str; 17] = [
+    "发行总数",
+    "网上-发行数量",
+    "网上-申购上限",
+    "网上-顶格所需资金",
+    "发行价格",
+    "中签率",
+    "稳获百股需配资金",
+    "最新价格-价格",
+    "最新价格-累计涨幅",
+    "上市首日-均价",
+    "上市首日-涨幅",
+    "上市首日-每百股获利",
+    "上市首日-约合年化收益",
+    "发行市盈率",
+    "行业市盈率",
+    "参与申购资金",
+    "参与申购人数",
+];
+const XGSG_NEEQ_DATE: [&str; 2] = ["申购日", "上市首日-上市日"];
+
+const XGSG_IPO_COLUMNS: &str = "SECURITY_CODE,SECURITY_NAME,TRADE_MARKET_CODE,APPLY_CODE,TRADE_MARKET,MARKET_TYPE,ORG_TYPE,ISSUE_NUM,ONLINE_ISSUE_NUM,OFFLINE_PLACING_NUM,TOP_APPLY_MARKETCAP,PREDICT_ONFUND_UPPER,ONLINE_APPLY_UPPER,PREDICT_ONAPPLY_UPPER,ISSUE_PRICE,LATELY_PRICE,CLOSE_PRICE,APPLY_DATE,BALLOT_NUM_DATE,BALLOT_PAY_DATE,LISTING_DATE,AFTER_ISSUE_PE,ONLINE_ISSUE_LWR,INITIAL_MULTIPLE,INDUSTRY_PE_NEW,OFFLINE_EP_OBJECT,CONTINUOUS_1WORD_NUM,TOTAL_CHANGE,PROFIT,LIMIT_UP_PRICE,INFO_CODE,OPEN_PRICE,LD_OPEN_PREMIUM,LD_CLOSE_CHANGE,TURNOVERRATE,LD_HIGH_CHANG,LD_AVERAGE_PRICE,OPEN_DATE,OPEN_AVERAGE_PRICE,PREDICT_PE,PREDICT_ISSUE_PRICE2,PREDICT_ISSUE_PRICE,PREDICT_ISSUE_PRICE1,PREDICT_ISSUE_PE,PREDICT_PE_THREE,ONLINE_APPLY_PRICE,MAIN_BUSINESS";
+const XGSG_IPO_RENAME: [(&str, &str); 24] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME", "股票简称"),
+    ("APPLY_CODE", "申购代码"),
+    ("TRADE_MARKET", "交易所"),
+    ("MARKET_TYPE", "板块"),
+    ("ISSUE_NUM", "发行总数"),
+    ("ONLINE_ISSUE_NUM", "网上发行"),
+    ("TOP_APPLY_MARKETCAP", "顶格申购需配市值"),
+    ("ONLINE_APPLY_UPPER", "申购上限"),
+    ("ISSUE_PRICE", "发行价格"),
+    ("LATELY_PRICE", "最新价"),
+    ("CLOSE_PRICE", "首日收盘价"),
+    ("APPLY_DATE", "申购日期"),
+    ("BALLOT_NUM_DATE", "中签号公布日"),
+    ("BALLOT_PAY_DATE", "中签缴款日期"),
+    ("LISTING_DATE", "上市日期"),
+    ("AFTER_ISSUE_PE", "发行市盈率"),
+    ("ONLINE_ISSUE_LWR", "中签率"),
+    ("INITIAL_MULTIPLE", "询价累计报价倍数"),
+    ("INDUSTRY_PE_NEW", "行业市盈率"),
+    ("OFFLINE_EP_OBJECT", "配售对象报价家数"),
+    ("CONTINUOUS_1WORD_NUM", "连续一字板数量"),
+    ("TOTAL_CHANGE", "涨幅"),
+    ("PROFIT", "每中一签获利"),
+];
+const XGSG_IPO_SELECT: [&str; 24] = [
+    "股票代码",
+    "股票简称",
+    "申购代码",
+    "交易所",
+    "板块",
+    "发行总数",
+    "网上发行",
+    "顶格申购需配市值",
+    "申购上限",
+    "发行价格",
+    "最新价",
+    "首日收盘价",
+    "申购日期",
+    "中签号公布日",
+    "中签缴款日期",
+    "上市日期",
+    "发行市盈率",
+    "行业市盈率",
+    "中签率",
+    "询价累计报价倍数",
+    "配售对象报价家数",
+    "连续一字板数量",
+    "涨幅",
+    "每中一签获利",
+];
+const XGSG_IPO_NUMERIC: [&str; 14] = [
+    "发行总数",
+    "网上发行",
+    "顶格申购需配市值",
+    "申购上限",
+    "发行价格",
+    "最新价",
+    "首日收盘价",
+    "发行市盈率",
+    "行业市盈率",
+    "中签率",
+    "询价累计报价倍数",
+    "配售对象报价家数",
+    "涨幅",
+    "每中一签获利",
+];
+const XGSG_IPO_DATE: [&str; 4] = ["申购日期", "中签号公布日", "中签缴款日期", "上市日期"];
+
+/// 新股申购与中签查询（对应 akshare [`akshare.stock_xgsglb_em`]）。
+///
+/// - `symbol="北交所"`：走 `RPT_NEEQ_ISSUEINFO_LIST`（datacenter-web，`source=NEEQSELECT`，
+///   通过 `quoteColumns` 补充股票简称）；无 序号列；含计算列 `最新价格-累计涨幅`
+///   （= 首日收盘价 / 最新价格-价格）。
+/// - `symbol` 为 `全部股票`/`沪市主板`/`科创板`/`深市主板`/`创业板`：走 `RPTA_APP_IPOAPPLY`
+///   （datacenter-web，`source=WEB`），按市场过滤；无 序号列。
+///
+/// # 参数
+/// `symbol`：可选 `全部股票`/`沪市主板`/`科创板`/`深市主板`/`创业板`/`北交所`。
+///
+/// # 返回列
+/// - 北交所（22 列）：`代码, 简称, 申购代码, 发行总数, 网上-发行数量, 网上-申购上限,
+///   网上-顶格所需资金, 发行价格, 申购日, 中签率, 稳获百股需配资金, 最新价格-价格,
+///   最新价格-累计涨幅, 上市首日-上市日, 上市首日-均价, 上市首日-涨幅, 上市首日-每百股获利,
+///   上市首日-约合年化收益, 发行市盈率, 行业市盈率, 参与申购资金, 参与申购人数`
+/// - 其余（24 列）：`股票代码, 股票简称, 申购代码, 交易所, 板块, 发行总数, 网上发行,
+///   顶格申购需配市值, 申购上限, 发行价格, 最新价, 首日收盘价, 申购日期, 中签号公布日,
+///   中签缴款日期, 上市日期, 发行市盈率, 行业市盈率, 中签率, 询价累计报价倍数,
+///   配售对象报价家数, 连续一字板数量, 涨幅, 每中一签获利`
+pub fn stock_xgsglb_em(symbol: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    if symbol == "北交所" {
+        let extra = report_extra("APPLY_DATE", "-1", None, Some(XGSG_NEEQ_QUOTE), None, None);
+        let mut rows = fetch_eastmoney_pages(
+            &http,
+            "https://datacenter-web.eastmoney.com/api/data/v1/get",
+            "RPT_NEEQ_ISSUEINFO_LIST",
+            "ALL",
+            &extra,
+            "500",
+            "NEEQSELECT",
+            "WEB",
+        )?;
+        // 预计算 最新价格-累计涨幅 = 首日收盘价 / 最新价格-价格
+        let to_f = |v: &Value| -> Option<f64> {
+            v.as_f64()
+                .or_else(|| v.as_str().and_then(|s| s.trim().parse::<f64>().ok()))
+        };
+        for row in &mut rows {
+            if let Some(obj) = row.as_object_mut() {
+                let close = obj.get("CLOSE_PRICE").and_then(to_f);
+                let newest = obj.get("NEWEST_PRICE").and_then(to_f);
+                let v = match (close, newest) {
+                    (Some(c), Some(n)) if n != 0.0 => (c / n).to_string(),
+                    _ => String::new(),
+                };
+                obj.insert("COMPUTED_CUMCHG".into(), Value::String(v));
+            }
+        }
+        let mut df = finalize_report(
+            &rows,
+            &XGSG_NEEQ_RENAME,
+            &XGSG_NEEQ_SELECT,
+            &XGSG_NEEQ_NUMERIC,
+            None,
+        )?;
+        df.cast_date(&XGSG_NEEQ_DATE)?;
+        Ok(df)
+    } else {
+        let filter = match symbol {
+            "全部股票" => "(APPLY_DATE>'2010-01-01')",
+            "沪市主板" => "(APPLY_DATE>'2010-01-01')(SECURITY_TYPE_CODE in (\"058001001\",\"058001008\"))(TRADE_MARKET_CODE in (\"069001001001\",\"069001001003\",\"069001001006\"))",
+            "科创板" => "(APPLY_DATE>'2010-01-01')(SECURITY_TYPE_CODE in (\"058001001\",\"058001008\"))(TRADE_MARKET_CODE=\"069001001006\")",
+            "深市主板" => "(APPLY_DATE>'2010-01-01')(SECURITY_TYPE_CODE=\"058001001\")(TRADE_MARKET_CODE in (\"069001002001\",\"069001002002\",\"069001002003\",\"069001002005\"))",
+            "创业板" => "(APPLY_DATE>'2010-01-01')(SECURITY_TYPE_CODE=\"058001001\")(TRADE_MARKET_CODE=\"069001002002\")",
+            other => {
+                return Err(AkshareError::Param(format!(
+                    "未知 symbol: {other}（可选：全部股票/沪市主板/科创板/深市主板/创业板/北交所）"
+                )))
+            }
+        };
+        let extra = report_extra(
+            "APPLY_DATE,SECURITY_CODE",
+            "-1,-1",
+            Some(filter),
+            None,
+            None,
+            None,
+        );
+        let rows = fetch_eastmoney_pages(
+            &http,
+            "https://datacenter-web.eastmoney.com/api/data/v1/get",
+            "RPTA_APP_IPOAPPLY",
+            XGSG_IPO_COLUMNS,
+            &extra,
+            "5000",
+            "WEB",
+            "WEB",
+        )?;
+        let mut df = finalize_report(
+            &rows,
+            &XGSG_IPO_RENAME,
+            &XGSG_IPO_SELECT,
+            &XGSG_IPO_NUMERIC,
+            None,
+        )?;
+        df.cast_date(&XGSG_IPO_DATE)?;
+        Ok(df)
+    }
+}
+
+// ===== 东方财富分析师指数（stock_analyst_rank_em / stock_analyst_detail_em）=====
+// 这两个接口使用与 datacenter-web 不同的 host：
+// - 排名：`https://data.eastmoney.com/dataapi/invest/list`（reportName=RPT_ANALYST_INDEX_RANK）
+// - 详情：`https://datacenter.eastmoney.com/special/api/data/v1/get`
+// 排名的 `{year}年收益率` / `{year}最新个股评级-*` 为随 year 参数变化的动态列，
+// 列契约由 [`analyst_rank_cols`] 依 year 动态构造。详情三分支列名固定。
+
+/// 分析师指数排名的动态列契约（依 `year` 构造）。
+///
+/// 返回 `(rename, select, numeric, date)`，其中 `rename` 的 `{year}` 前缀列名为动态生成，
+/// 以 `String` 持有；调用方需以 `as_str()` 借用后传入 [`finalize_report`]。
+/// 序号列由 [`finalize_report`] 的 `index_name=Some("序号")` 生成。
+#[allow(clippy::type_complexity)]
+fn analyst_rank_cols(year: &str) -> (Vec<(String, String)>, Vec<String>, Vec<String>, String) {
+    let year_yield = format!("{year}年收益率");
+    let year_name = format!("{year}最新个股评级-股票名称");
+    let year_code = format!("{year}最新个股评级-股票代码");
+    let rename = vec![
+        ("ANALYST_CODE".to_string(), "分析师ID".to_string()),
+        ("ANALYST_NAME".to_string(), "分析师名称".to_string()),
+        ("TRADE_DATE".to_string(), "更新日期".to_string()),
+        ("YEAR".to_string(), "年度".to_string()),
+        ("ORG_NAME".to_string(), "分析师单位".to_string()),
+        ("INDEX_VALUE".to_string(), "年度指数".to_string()),
+        ("YEAR_YIELD".to_string(), year_yield.clone()),
+        ("YIELD_3".to_string(), "3个月收益率".to_string()),
+        ("YIELD_6".to_string(), "6个月收益率".to_string()),
+        ("YIELD_12".to_string(), "12个月收益率".to_string()),
+        ("SECURITY_COUNT".to_string(), "成分股个数".to_string()),
+        ("SECURITY_NAME_ABBR".to_string(), year_name.clone()),
+        ("SECURITY_CODE".to_string(), year_code.clone()),
+        ("INDUSTRY_CODE".to_string(), "行业代码".to_string()),
+        ("INDUSTRY_NAME".to_string(), "行业".to_string()),
+    ];
+    let select = vec![
+        "分析师名称".to_string(),
+        "分析师单位".to_string(),
+        "年度指数".to_string(),
+        year_yield.clone(),
+        "3个月收益率".to_string(),
+        "6个月收益率".to_string(),
+        "12个月收益率".to_string(),
+        "成分股个数".to_string(),
+        year_name.clone(),
+        year_code.clone(),
+        "分析师ID".to_string(),
+        "行业代码".to_string(),
+        "行业".to_string(),
+        "更新日期".to_string(),
+        "年度".to_string(),
+    ];
+    let numeric = vec![
+        "年度指数".to_string(),
+        year_yield.clone(),
+        "3个月收益率".to_string(),
+        "6个月收益率".to_string(),
+        "12个月收益率".to_string(),
+        "成分股个数".to_string(),
+    ];
+    (rename, select, numeric, "更新日期".to_string())
+}
+
+/// 东方财富分析师指数排名（对应 akshare [`akshare.stock_analyst_rank_em`]）。
+///
+/// 走 `https://data.eastmoney.com/dataapi/invest/list`，`RPT_ANALYST_INDEX_RANK`，
+/// 按 `YEAR="{year}"` 过滤、按 `YEAR_YIELD` 降序取 top100（去重 `ANALYST_CODE`）。
+/// 含动态列 `{year}年收益率` / `{year}最新个股评级-股票名称` / `{year}最新个股评级-股票代码`
+/// （由 [`analyst_rank_cols`] 依 `year` 生成）。生成 1-based 序号列。
+///
+/// # 参数
+/// `year`：年份字符串，如 `"2024"`（2015 年至今）。
+///
+/// # 返回列（16 列）
+/// `序号, 分析师名称, 分析师单位, 年度指数, {year}年收益率, 3个月收益率, 6个月收益率,
+/// 12个月收益率, 成分股个数, {year}最新个股评级-股票名称, {year}最新个股评级-股票代码,
+/// 分析师ID, 行业代码, 行业, 更新日期, 年度`
+pub fn stock_analyst_rank_em(year: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let url = "https://data.eastmoney.com/dataapi/invest/list";
+    let mut extra = Map::new();
+    extra.insert("sortColumns".into(), json!("YEAR_YIELD"));
+    extra.insert("sortTypes".into(), json!("-1"));
+    extra.insert("filter".into(), json!(format!(r#"(YEAR="{year}")"#)));
+    extra.insert("distinct".into(), json!("ANALYST_CODE"));
+    extra.insert("limit".into(), json!("top100"));
+    let rows = fetch_eastmoney_pages(
+        &http,
+        url,
+        "RPT_ANALYST_INDEX_RANK",
+        "ALL",
+        &extra,
+        "500",
+        "WEB",
+        "WEB",
+    )?;
+
+    let (rename, select, numeric, date) = analyst_rank_cols(year);
+    let rename_ref: Vec<(&str, &str)> = rename
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    let select_ref: Vec<&str> = select.iter().map(|s| s.as_str()).collect();
+    let numeric_ref: Vec<&str> = numeric.iter().map(|s| s.as_str()).collect();
+    let date_ref: Vec<&str> = vec![date.as_str()];
+
+    let mut df = finalize_report(&rows, &rename_ref, &select_ref, &numeric_ref, Some("序号"))?;
+    df.cast_date(&date_ref)?;
+    Ok(df)
+}
+
+// 分析师详情三分支列契约（详情接口为位置重命名，此处按 live JSON 键序对齐）。
+const ANALYST_NTCS_RENAME: [(&str, &str); 8] = [
+    ("RATING_DATE", "最新评级日期"),
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票名称"),
+    ("CHANGE_DATE", "调入日期"),
+    ("RATING_NAME", "当前评级名称"),
+    ("CLOSE_FORWARD_ADJPRICE", "成交价格(前复权)"),
+    ("NEW_PRICE", "最新价格"),
+    ("CURRENT_CHANGE", "阶段涨跌幅"),
+];
+const ANALYST_NTCS_SELECT: [&str; 8] = [
+    "股票代码",
+    "股票名称",
+    "调入日期",
+    "最新评级日期",
+    "当前评级名称",
+    "成交价格(前复权)",
+    "最新价格",
+    "阶段涨跌幅",
+];
+const ANALYST_NTCS_NUMERIC: [&str; 3] = ["成交价格(前复权)", "最新价格", "阶段涨跌幅"];
+const ANALYST_NTCS_DATE: [&str; 2] = ["调入日期", "最新评级日期"];
+
+const ANALYST_HISCS_RENAME: [(&str, &str); 7] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票名称"),
+    ("CHANGE_DATE", "调入日期"),
+    ("BFCHANGE_DATE", "调出日期"),
+    ("RATING_NAME", "调入时评级名称"),
+    ("REASON", "调出原因"),
+    ("CHANGE_RATE", "累计涨跌幅"),
+];
+const ANALYST_HISCS_SELECT: [&str; 7] = [
+    "股票代码",
+    "股票名称",
+    "调入日期",
+    "调出日期",
+    "调入时评级名称",
+    "调出原因",
+    "累计涨跌幅",
+];
+const ANALYST_HISCS_NUMERIC: [&str; 1] = ["累计涨跌幅"];
+const ANALYST_HISCS_DATE: [&str; 2] = ["调入日期", "调出日期"];
+
+const ANALYST_HISIDX_RENAME: [(&str, &str); 2] =
+    [("TRADE_DATE", "date"), ("INDEX_HVALUE", "value")];
+const ANALYST_HISIDX_SELECT: [&str; 2] = ["date", "value"];
+const ANALYST_HISIDX_NUMERIC: [&str; 1] = ["value"];
+const ANALYST_HISIDX_DATE: [&str; 1] = ["date"];
+
+/// 分析师详情（对应 akshare [`akshare.stock_analyst_detail_em`]）。
+///
+/// 走 `https://datacenter.eastmoney.com/special/api/data/v1/get`，按 `indicator` 选择
+/// reportName：
+/// - `最新跟踪成分股` → `RPT_RESEARCHER_NTCSTOCK`（含 序号列）
+/// - `历史跟踪成分股` → `RPT_RESEARCHER_HISTORYSTOCK`（含 序号列）
+/// - `历史指数` → `RPT_RESEARCHER_DETAILS`（无 序号列，按 date 升序，列名为 `date, value`）
+///
+/// # 参数
+/// `analyst_id`：分析师 ID（来自 [`stock_analyst_rank_em`]）；`indicator`：可选
+/// `最新跟踪成分股`/`历史跟踪成分股`/`历史指数`。
+///
+/// # 返回列
+/// - 最新跟踪成分股（9 列）：`序号, 股票代码, 股票名称, 调入日期, 最新评级日期,
+///   当前评级名称, 成交价格(前复权), 最新价格, 阶段涨跌幅`
+/// - 历史跟踪成分股（8 列）：`序号, 股票代码, 股票名称, 调入日期, 调出日期,
+///   调入时评级名称, 调出原因, 累计涨跌幅`
+/// - 历史指数（2 列）：`date, value`
+pub fn stock_analyst_detail_em(analyst_id: &str, indicator: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let url = "https://datacenter.eastmoney.com/special/api/data/v1/get";
+    let filter = format!(r#"(ANALYST_CODE="{analyst_id}")"#);
+    match indicator {
+        "最新跟踪成分股" => {
+            let extra = report_extra("CHANGE_DATE", "-1", Some(&filter), None, None, None);
+            let rows = fetch_eastmoney_pages(
+                &http,
+                url,
+                "RPT_RESEARCHER_NTCSTOCK",
+                "ALL",
+                &extra,
+                "1000",
+                "WEB",
+                "WEB",
+            )?;
+            let mut df = finalize_report(
+                &rows,
+                &ANALYST_NTCS_RENAME,
+                &ANALYST_NTCS_SELECT,
+                &ANALYST_NTCS_NUMERIC,
+                Some("序号"),
+            )?;
+            df.cast_date(&ANALYST_NTCS_DATE)?;
+            Ok(df)
+        }
+        "历史跟踪成分股" => {
+            let extra = report_extra("CHANGE_DATE", "-1", Some(&filter), None, None, None);
+            let rows = fetch_eastmoney_pages(
+                &http,
+                url,
+                "RPT_RESEARCHER_HISTORYSTOCK",
+                "ALL",
+                &extra,
+                "1000",
+                "WEB",
+                "WEB",
+            )?;
+            let mut df = finalize_report(
+                &rows,
+                &ANALYST_HISCS_RENAME,
+                &ANALYST_HISCS_SELECT,
+                &ANALYST_HISCS_NUMERIC,
+                Some("序号"),
+            )?;
+            df.cast_date(&ANALYST_HISCS_DATE)?;
+            Ok(df)
+        }
+        "历史指数" => {
+            // akshare 请求无 pageSize（返回全量），并本地按 date 升序；故 page_size="0"。
+            let extra = report_extra("TRADE_DATE", "-1", Some(&filter), None, None, None);
+            let mut rows = fetch_eastmoney_pages(
+                &http,
+                url,
+                "RPT_RESEARCHER_DETAILS",
+                "ALL",
+                &extra,
+                "0",
+                "WEB",
+                "WEB",
+            )?;
+            rows.sort_by(|a, b| {
+                let ka = a.get("TRADE_DATE").and_then(Value::as_str).unwrap_or("");
+                let kb = b.get("TRADE_DATE").and_then(Value::as_str).unwrap_or("");
+                ka.cmp(kb)
+            });
+            let mut df = finalize_report(
+                &rows,
+                &ANALYST_HISIDX_RENAME,
+                &ANALYST_HISIDX_SELECT,
+                &ANALYST_HISIDX_NUMERIC,
+                None,
+            )?;
+            df.cast_date(&ANALYST_HISIDX_DATE)?;
+            Ok(df)
+        }
+        other => Err(AkshareError::Param(format!(
+            "未知 indicator: {other}（可选：最新跟踪成分股/历史跟踪成分股/历史指数）"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -6706,5 +7217,216 @@ mod tests {
             }
             Err(e) => println!("GDHS network/blocked: {e}"),
         }
+    }
+
+    /// 离线验证 北交所 新股申购列契约 + 计算列 最新价格-累计涨幅。
+    #[test]
+    fn xgsglb_neeq_offline() {
+        let rows = json!([{
+            "SECURITY_CODE":"920002","SECUCODE":"920002.BJ","SECURITY_NAME_ABBR":"测试股",
+            "APPLY_CODE":"920002","EXPECT_ISSUE_NUM":"20000000","ISSUE_PRICE":"10.5",
+            "ISSUE_PE_RATIO":"20.0","APPLY_DATE":"2024-01-02T00:00:00",
+            "RESULT_NOTICE_DATE":"2024-01-03","SELECT_LISTING_DATE":"2024-01-10T00:00:00",
+            "ONLINE_ISSUE_NUM":"16000000","APPLY_AMT_UPPER":"5000000","APPLY_NUM_UPPER":"16000",
+            "ONLINE_PAY_DATE":"2024-01-05","ONLINE_REFUND_DATE":"2024-01-08",
+            "ONLINE_ISSUE_LWR":"0.02","NEWEST_PRICE":25.0,"CLOSE_PRICE":30.0,
+            "PER_SHARES_INCOME":"150.0","LD_CLOSE_CHANGE":"42.8","TURNOVERRATE":"0.5",
+            "AMPLITUDE":"12.0","MAIN_BUSINESS":"主营","INDUSTRY_PE_RATIO":"18.0",
+            "APPLY_AMT_100":"250000","TAKE_UP_TIME":"3","CAPTURE_PROFIT":"5.0",
+            "APPLY_SHARE_100":"8000","AVERAGE_PRICE":"28.0","ORG_VAN":"5000","VA_AMT":"1000000"
+        }]);
+        let mut rows = rows.as_array().unwrap().clone();
+        // 预计算 最新价格-累计涨幅 = 首日收盘价 / 最新价格-价格
+        for row in &mut rows {
+            let obj = row.as_object_mut().unwrap();
+            let c = obj.get("CLOSE_PRICE").and_then(Value::as_f64).unwrap();
+            let n = obj.get("NEWEST_PRICE").and_then(Value::as_f64).unwrap();
+            obj.insert("COMPUTED_CUMCHG".into(), Value::String((c / n).to_string()));
+        }
+        let mut df = finalize_report(
+            &rows,
+            &XGSG_NEEQ_RENAME,
+            &XGSG_NEEQ_SELECT,
+            &XGSG_NEEQ_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&XGSG_NEEQ_DATE).unwrap();
+        assert_eq!(df.column_names(), XGSG_NEEQ_SELECT);
+        assert_eq!(df.height(), 1);
+        // 累计涨幅 = 30 / 25 = 1.2
+        let cum = df
+            .inner()
+            .column("最新价格-累计涨幅")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(cum.get(0), Some(1.2));
+        let px = df.inner().column("发行价格").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(10.5));
+        let d = df.inner().column("申购日").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-01-02"));
+    }
+
+    /// 离线验证 非北交所 新股申购列契约（24 列，无 序号）。
+    #[test]
+    fn xgsglb_ipo_offline() {
+        let rows = json!([{
+            "SECURITY_CODE":"001234","SECURITY_NAME":"测试新股","TRADE_MARKET":"深圳","MARKET_TYPE":"主板",
+            "ISSUE_NUM":"50000000","ONLINE_ISSUE_NUM":"40000000","TOP_APPLY_MARKETCAP":"300000",
+            "ONLINE_APPLY_UPPER":"40000","ISSUE_PRICE":"15.0","LATELY_PRICE":"28.0","CLOSE_PRICE":"32.0",
+            "APPLY_DATE":"2024-02-01T00:00:00","BALLOT_NUM_DATE":"2024-02-03T00:00:00",
+            "BALLOT_PAY_DATE":"2024-02-05T00:00:00","LISTING_DATE":"2024-02-10T00:00:00",
+            "AFTER_ISSUE_PE":"22.0","ONLINE_ISSUE_LWR":"0.03","INITIAL_MULTIPLE":"1200.0",
+            "INDUSTRY_PE_NEW":"19.0","OFFLINE_EP_OBJECT":"300","CONTINUOUS_1WORD_NUM":"3",
+            "TOTAL_CHANGE":"114.0","PROFIT":"8500.0"
+        }]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &XGSG_IPO_RENAME,
+            &XGSG_IPO_SELECT,
+            &XGSG_IPO_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&XGSG_IPO_DATE).unwrap();
+        assert_eq!(df.column_names(), XGSG_IPO_SELECT);
+        assert_eq!(df.height(), 1);
+        let profit = df.inner().column("每中一签获利").unwrap().f64().unwrap();
+        assert_eq!(profit.get(0), Some(8500.0));
+        let listing = df.inner().column("上市日期").unwrap().str().unwrap();
+        assert_eq!(listing.get(0), Some("2024-02-10"));
+    }
+
+    /// 离线验证 分析师排名动态列契约（year=2024，含动态 {year} 列 + 序号）。
+    #[test]
+    fn analyst_rank_offline() {
+        let (rename, select, numeric, date) = analyst_rank_cols("2024");
+        let rename_ref: Vec<(&str, &str)> = rename
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let select_ref: Vec<&str> = select.iter().map(|s| s.as_str()).collect();
+        let numeric_ref: Vec<&str> = numeric.iter().map(|s| s.as_str()).collect();
+        let date_ref: Vec<&str> = vec![date.as_str()];
+
+        let rows = json!([{
+            "ANALYST_CODE":"11000200926","ANALYST_NAME":"张三","TRADE_DATE":"2024-03-01T00:00:00",
+            "YEAR":"2024","ORG_NAME":"某券商","ORG_CODE":"x","INDEX_VALUE":"1200.5",
+            "YEAR_YIELD":"0.35","YIELD_3":"0.05","YIELD_6":"0.12","YIELD_12":"0.20",
+            "SECURITY_COUNT":"5","SECURITY_NAME_ABBR":"股票A","SECUCODE":"000001",
+            "SECURITY_CODE":"000001","NEWEST_STOCK_RATING":"买入","INDUSTRY_CODE":"C39","INDUSTRY_NAME":"医药"
+        }]);
+        let mut df = finalize_report(
+            &rows.as_array().unwrap().clone(),
+            &rename_ref,
+            &select_ref,
+            &numeric_ref,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&date_ref).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec![
+                "序号",
+                "分析师名称",
+                "分析师单位",
+                "年度指数",
+                "2024年收益率",
+                "3个月收益率",
+                "6个月收益率",
+                "12个月收益率",
+                "成分股个数",
+                "2024最新个股评级-股票名称",
+                "2024最新个股评级-股票代码",
+                "分析师ID",
+                "行业代码",
+                "行业",
+                "更新日期",
+                "年度"
+            ]
+        );
+        assert_eq!(df.height(), 1);
+        let y = df.inner().column("2024年收益率").unwrap().f64().unwrap();
+        assert_eq!(y.get(0), Some(0.35));
+        let idx = df.inner().column("序号").unwrap().f64().unwrap();
+        assert_eq!(idx.get(0), Some(1.0));
+        let d = df.inner().column("更新日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-03-01"));
+    }
+
+    /// 离线验证 分析师详情-最新跟踪成分股 列契约（9 列含 序号）。
+    #[test]
+    fn analyst_detail_ntcs_offline() {
+        let rows = json!([{
+            "RATING_DATE":"2024-02-01T00:00:00","TRADE_MARKET_CODE":"1","ANALYST_CODE":"11000200926",
+            "ANALYST_NAME":"张三","TRADE_DATE":"2024-01-01T00:00:00","SECURITY_CODE":"000001",
+            "SECUCODE":"000001.SZ","SECURITY_NAME_ABBR":"平安银行","CHANGE_DATE":"2024-01-15T00:00:00",
+            "RATING_NAME":"买入","CLOSE_FORWARD_ADJPRICE":"12.5","NEW_PRICE":"13.0","CURRENT_CHANGE":"4.0"
+        }]);
+        let mut df = finalize_report(
+            &rows.as_array().unwrap().clone(),
+            &ANALYST_NTCS_RENAME,
+            &ANALYST_NTCS_SELECT,
+            &ANALYST_NTCS_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&ANALYST_NTCS_DATE).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec![
+                "序号",
+                "股票代码",
+                "股票名称",
+                "调入日期",
+                "最新评级日期",
+                "当前评级名称",
+                "成交价格(前复权)",
+                "最新价格",
+                "阶段涨跌幅"
+            ]
+        );
+        assert_eq!(df.height(), 1);
+        let p = df.inner().column("最新价格").unwrap().f64().unwrap();
+        assert_eq!(p.get(0), Some(13.0));
+        let idx = df.inner().column("序号").unwrap().f64().unwrap();
+        assert_eq!(idx.get(0), Some(1.0));
+    }
+
+    /// 离线验证 分析师详情-历史指数 列契约（2 列 date/value，按 date 升序）。
+    #[test]
+    fn analyst_detail_hisidx_offline() {
+        let mut rows = json!([
+            {"TRADE_DATE":"2024-03-01T00:00:00","INDEX_HVALUE":"1100.5"},
+            {"TRADE_DATE":"2024-01-01T00:00:00","INDEX_HVALUE":"1000.0"},
+            {"TRADE_DATE":"2024-02-01T00:00:00","INDEX_HVALUE":"1050.0"},
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        rows.sort_by(|a, b| {
+            let ka = a.get("TRADE_DATE").and_then(Value::as_str).unwrap_or("");
+            let kb = b.get("TRADE_DATE").and_then(Value::as_str).unwrap_or("");
+            ka.cmp(kb)
+        });
+        let mut df = finalize_report(
+            &rows,
+            &ANALYST_HISIDX_RENAME,
+            &ANALYST_HISIDX_SELECT,
+            &ANALYST_HISIDX_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&ANALYST_HISIDX_DATE).unwrap();
+        assert_eq!(df.column_names(), vec!["date", "value"]);
+        assert_eq!(df.height(), 3);
+        let d = df.inner().column("date").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-01-01"));
+        assert_eq!(d.get(2), Some("2024-03-01"));
+        let v = df.inner().column("value").unwrap().f64().unwrap();
+        assert_eq!(v.get(0), Some(1000.0));
     }
 }

@@ -679,28 +679,39 @@ fn parse_datacenter_response(text: &str, url: &str) -> Result<Value> {
     serde_json::from_str::<Value>(text).map_err(|e| AkshareError::json(url, e.to_string()))
 }
 
-/// datacenter-web 分页数据（对应 akshare 各 `datacenter-web.eastmoney.com/api/data/v1/get`
-/// 函数：按 `result.pages` 循环翻页；页数据为空时提前终止——
-/// 服务端 `pages` 数值偶有虚高（如 5000 行/页却返回 300+ 页），空页终止
-/// 在结果等价的前提下避免无效请求）。
-pub(crate) fn fetch_datacenter_pages(
+/// 东财 data-api 通用分页抓取（datacenter-web / data.eastmoney.com/dataapi /
+/// datacenter.eastmoney.com/special 共用）：按 `result.pages` 循环翻页；页数据为空时提前终止。
+///
+/// - `url`：请求地址（datacenter-web 常规为 `https://datacenter-web.eastmoney.com/api/data/v1/get`；
+///   分析师排名用 `https://data.eastmoney.com/dataapi/invest/list`；分析师详情用
+///   `https://datacenter.eastmoney.com/special/api/data/v1/get`）。
+/// - `page_size` 为 `"0"` 时表示单页请求（不附加 `pageSize`/`pageNumber`，对应个别接口
+///   默认返回全量，如分析师历史指数 `RPT_RESEARCHER_DETAILS`）。
+/// - `source`/`client` 透传（datacenter-web 常规为 `WEB`；北交所申购为 `NEEQSELECT`）。
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn fetch_eastmoney_pages(
     http: &HttpClient,
+    url: &str,
     report_name: &str,
     columns: &str,
     extra: &Map<String, Value>,
     page_size: &str,
+    source: &str,
+    client: &str,
 ) -> Result<Vec<Value>> {
-    let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
     let mut all: Vec<Value> = Vec::new();
     let mut page: i64 = 1;
+    let paginate = page_size != "0";
     loop {
         let mut params = extra.clone();
         params.insert("reportName".into(), Value::String(report_name.into()));
         params.insert("columns".into(), Value::String(columns.into()));
-        params.insert("pageSize".into(), Value::String(page_size.into()));
-        params.insert("pageNumber".into(), Value::from(page));
-        params.insert("source".into(), Value::String("WEB".into()));
-        params.insert("client".into(), Value::String("WEB".into()));
+        if paginate {
+            params.insert("pageSize".into(), Value::String(page_size.into()));
+            params.insert("pageNumber".into(), Value::from(page));
+        }
+        params.insert("source".into(), Value::String(source.into()));
+        params.insert("client".into(), Value::String(client.into()));
         let text = http.get_text(url, &params, None)?;
         let value = parse_datacenter_response(&text, url)?;
         let data = value
@@ -719,12 +730,32 @@ pub(crate) fn fetch_datacenter_pages(
             .and_then(Value::as_i64)
             .unwrap_or(1);
         all.extend(data.iter().cloned());
-        if page >= pages {
+        if !paginate || page >= pages {
             break;
         }
         page += 1;
     }
     Ok(all)
+}
+
+/// datacenter-web 分页数据（见 [`fetch_eastmoney_pages`]，固定 `source=WEB`/`client=WEB`）。
+pub(crate) fn fetch_datacenter_pages(
+    http: &HttpClient,
+    report_name: &str,
+    columns: &str,
+    extra: &Map<String, Value>,
+    page_size: &str,
+) -> Result<Vec<Value>> {
+    fetch_eastmoney_pages(
+        http,
+        "https://datacenter-web.eastmoney.com/api/data/v1/get",
+        report_name,
+        columns,
+        extra,
+        page_size,
+        "WEB",
+        "WEB",
+    )
 }
 
 /// 日期截断：`"2026-08-05 00:00:00"` → `"2026-08-05"`（对应 akshare `dt.date`）。
