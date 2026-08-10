@@ -29,15 +29,18 @@ use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
 use akshare_rust::stock::{
     fund_etf_hist_em, stock_bid_ask_em, stock_board_concept_cons_em, stock_board_concept_hist_em,
     stock_board_concept_name_em, stock_board_industry_cons_em, stock_board_industry_hist_em,
-    stock_board_industry_name_em, stock_gpzy_profile_em, stock_hsgt_fund_flow_summary_em,
-    stock_individual_fund_flow, stock_individual_info_em, stock_lhb_detail_em, stock_sh_a_spot_em,
-    stock_sz_a_spot_em, stock_zh_a_hist, stock_zh_a_hist_min_em, stock_zh_a_spot_em,
-    stock_zt_pool_em,
+    stock_board_industry_name_em, stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow,
+    stock_individual_info_em, stock_lhb_detail_em, stock_sh_a_spot_em, stock_sz_a_spot_em,
+    stock_zh_a_hist, stock_zh_a_hist_min_em, stock_zh_a_spot_em, stock_zt_pool_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
-    stock_cy_a_spot_em, stock_hk_ggt_components_em, stock_hk_main_board_spot_em,
-    stock_kc_a_spot_em, stock_new_a_spot_em, stock_zh_a_gdhs, stock_zh_b_spot_em,
+    stock_cy_a_spot_em, stock_dxsyl_em, stock_gddh_em, stock_gdfx_free_holding_analyse_em,
+    stock_gdfx_free_holding_detail_em, stock_gdfx_holding_analyse_em, stock_gdfx_holding_detail_em,
+    stock_gpzy_industry_data_em, stock_gpzy_pledge_ratio_em, stock_gpzy_profile_em,
+    stock_hk_ggt_components_em, stock_hk_main_board_spot_em, stock_kc_a_spot_em,
+    stock_margin_account_info, stock_new_a_spot_em, stock_qsjy_em, stock_sy_profile_em,
+    stock_value_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_b_spot_em,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
@@ -144,7 +147,6 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(stock_lhb_detail_em(d0, d1)?)
         }
         "stock_hsgt_fund_flow_summary_em" => Ok(stock_hsgt_fund_flow_summary_em()?),
-        "stock_gpzy_profile_em" => Ok(stock_gpzy_profile_em()?),
         "stock_zh_a_spot_em" => Ok(stock_zh_a_spot_em()?),
         "stock_sh_a_spot_em" => Ok(stock_sh_a_spot_em()?),
         "stock_sz_a_spot_em" => Ok(stock_sz_a_spot_em()?),
@@ -218,6 +220,44 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(stock_zh_a_gdhs(s)?)
         }
+        "stock_margin_account_info" => Ok(stock_margin_account_info()?),
+        "stock_gdfx_free_holding_detail_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_gdfx_free_holding_detail_em(d)?)
+        }
+        "stock_gdfx_holding_detail_em" => {
+            let [d, ind, sym] = take3(func, args)?;
+            Ok(stock_gdfx_holding_detail_em(d, ind, sym)?)
+        }
+        "stock_gdfx_free_holding_analyse_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_gdfx_free_holding_analyse_em(d)?)
+        }
+        "stock_gdfx_holding_analyse_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_gdfx_holding_analyse_em(d)?)
+        }
+        "stock_qsjy_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_qsjy_em(d)?)
+        }
+        "stock_gpzy_profile_em" => Ok(stock_gpzy_profile_em()?),
+        "stock_gpzy_pledge_ratio_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_gpzy_pledge_ratio_em(d)?)
+        }
+        "stock_gpzy_industry_data_em" => Ok(stock_gpzy_industry_data_em()?),
+        "stock_value_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_value_em(s)?)
+        }
+        "stock_gddh_em" => Ok(stock_gddh_em()?),
+        "stock_zdhtmx_em" => {
+            let [s, e] = take2(func, args)?;
+            Ok(stock_zdhtmx_em(s, e)?)
+        }
+        "stock_dxsyl_em" => Ok(stock_dxsyl_em()?),
+        "stock_sy_profile_em" => Ok(stock_sy_profile_em()?),
         _ => Err(format!("未知函数: {func}").into()),
     }
 }

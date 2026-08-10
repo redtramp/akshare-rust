@@ -89,6 +89,21 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_hk_main_board_spot_em", [], "loose", "港股主板实时行情"),
     ("stock_hk_ggt_components_em", [], "loose", "港股通成份股"),
     ("stock_zh_a_gdhs", ["最新"], "loose", "股东户数"),
+    # stock_feature 东财 datacenter RPT_* 报表（Batch 1 Stage 1b）
+    ("stock_margin_account_info", [], "loose", "融资融券账户信息"),
+    ("stock_gdfx_free_holding_detail_em", ["20210930"], "loose", "股东自由流通持股明细"),
+    ("stock_gdfx_holding_detail_em", ["20230331", "个人", "新进"], "loose", "股东持股明细"),
+    ("stock_gdfx_free_holding_analyse_em", ["20230930"], "loose", "股东自由流通持股分析"),
+    ("stock_gdfx_holding_analyse_em", ["20230331"], "loose", "股东持股分析"),
+    ("stock_qsjy_em", ["20200731"], "loose", "券商业绩"),
+    ("stock_gpzy_profile_em", [], "loose", "股权质押总览"),
+    ("stock_gpzy_pledge_ratio_em", ["20240906"], "loose", "个股股权质押比例"),
+    ("stock_gpzy_industry_data_em", [], "loose", "行业股权质押统计"),
+    ("stock_value_em", ["300766"], "loose", "个股估值分析"),
+    ("stock_gddh_em", [], "loose", "股东大会"),
+    ("stock_zdhtmx_em", ["20200819", "20230819"], "loose", "重大合同明细"),
+    ("stock_dxsyl_em", [], "loose", "打新收益率"),
+    ("stock_sy_profile_em", [], "loose", "商誉市场统计"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

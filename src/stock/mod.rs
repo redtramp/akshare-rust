@@ -10,9 +10,9 @@ use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{
     a_share_market_code, board_name_pairs, fetch_clist, fetch_datacenter_pages, fetch_kline,
     fetch_kline_ext, fetch_kline_min, fetch_trends, finalize_board_cons, finalize_board_name,
-    finalize_fflow, finalize_gpzy, finalize_hsgt, finalize_lhb, finalize_zt_pool,
-    json_value_to_string, kline_to_df, min_kline_to_df, push2_urls, require_kline_data,
-    BOARD_HIST_SELECT, KLINE_COLS, KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_SELECT,
+    finalize_fflow, finalize_hsgt, finalize_lhb, finalize_zt_pool, json_value_to_string,
+    kline_to_df, min_kline_to_df, push2_urls, require_kline_data, BOARD_HIST_SELECT, KLINE_COLS,
+    KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_SELECT,
 };
 use serde_json::{json, Map, Value};
 
@@ -775,24 +775,6 @@ pub fn stock_hsgt_fund_flow_summary_em() -> Result<Df> {
         return Err(AkshareError::empty("无沪深港通资金流向数据"));
     }
     finalize_hsgt(&rows)
-}
-
-/// 股权质押市场概况（对应 akshare [`akshare.stock_gpzy_profile_em`]）。
-///
-/// # 返回列
-/// `交易日期, A股质押总比例, 质押公司数量, 质押笔数, 质押总股数, 质押总市值,
-/// 沪深300指数, 涨跌幅`（A股质押总比例 ÷100，与 akshare 一致；按交易日期升序）
-pub fn stock_gpzy_profile_em() -> Result<Df> {
-    let mut extra = Map::new();
-    extra.insert("sortColumns".into(), json!("TRADE_DATE"));
-    extra.insert("sortTypes".into(), json!("-1"));
-    extra.insert("quoteColumns".into(), json!(""));
-    let http = HttpClient::default();
-    let rows = fetch_datacenter_pages(&http, "RPT_CSDC_STATISTICS", "ALL", &extra, "500")?;
-    if rows.is_empty() {
-        return Err(AkshareError::empty("无股权质押市场概况数据"));
-    }
-    finalize_gpzy(&rows)
 }
 
 /// `"20230403"` → `"2023-04-03"`（对应 akshare 的日期格式化）。

@@ -354,22 +354,41 @@ pub(crate) fn finalize_spot(
 /// 东财 datacenter `RPT_*` 报表的通用收尾：按「json 字段键 → 中文列名」映射表，从每行抽取 `select` 顺序的中文列，并对 `numeric` 列做数值化。
 ///
 /// 对应 akshare 的 `big_df.columns = [...]`（键→中文重命名）+ `df[cols]`（选择）+ `pd.to_numeric(errors="coerce")`。与 [`finalize_spot`] 不同，本函数按**字段键**而非 f-字段码重命名（如 `SECURITY_CODE`），因此对响应列序不敏感，映射更稳健。
+///
+/// `index_name`：若 `Some(name)`，则在最前列生成一列名为 `name` 的 1-based 序号（对应 akshare `df.reset_index()` + `index+1`，服务端响应本身不含 `index` 字段）。
 pub(crate) fn finalize_report(
     rows: &[Value],
     rename: &[(&str, &str)],
     select: &[&str],
     numeric: &[&str],
+    index_name: Option<&str>,
 ) -> Result<Df> {
+    let full_select: Vec<&str> = match index_name {
+        Some(n) => {
+            let mut v = Vec::with_capacity(select.len() + 1);
+            v.push(n);
+            v.extend(select.iter().copied());
+            v
+        }
+        None => select.to_vec(),
+    };
+    let mut full_numeric: Vec<&str> = numeric.to_vec();
+    if let Some(n) = index_name {
+        full_numeric.insert(0, n);
+    }
     if rows.is_empty() {
         // 空表也按最终列名构造，保证调用方拿到的列契约一致
-        return Df::from_string_rows(select, &[]);
+        return Df::from_string_rows(&full_select, &[]);
     }
     let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
-    for row in rows {
+    for (i, row) in rows.iter().enumerate() {
         let Some(obj) = row.as_object() else {
             return Err(AkshareError::Empty("报表行不是 JSON 对象".into()));
         };
-        let mut r: Vec<Option<String>> = Vec::with_capacity(select.len());
+        let mut r: Vec<Option<String>> = Vec::with_capacity(full_select.len());
+        if index_name.is_some() {
+            r.push(Some((i + 1).to_string()));
+        }
         for col in select {
             let key = rename.iter().find(|(_, c)| c == col).map(|(k, _)| *k);
             let val = key.and_then(|k| obj.get(k)).and_then(json_value_to_string);
@@ -377,8 +396,8 @@ pub(crate) fn finalize_report(
         }
         out.push(r);
     }
-    let mut df = Df::from_string_rows(select, &out)?;
-    df.cast_numeric(numeric)?;
+    let mut df = Df::from_string_rows(&full_select, &out)?;
+    df.cast_numeric(&full_numeric)?;
     Ok(df)
 }
 
@@ -539,18 +558,6 @@ pub(crate) const HSGT_SELECT: [&str; 13] = [
     "下跌数",
     "相关指数",
     "指数涨跌幅",
-];
-
-/// 股权质押市场概况列契约（对应 akshare `stock_gpzy_profile_em` 的最终 select）。
-pub(crate) const GPZY_SELECT: [&str; 8] = [
-    "交易日期",
-    "A股质押总比例",
-    "质押公司数量",
-    "质押笔数",
-    "质押总股数",
-    "质押总市值",
-    "沪深300指数",
-    "涨跌幅",
 ];
 
 /// 板块名称/概念列表公共加工：按字段名重命名 + 选择 + 数值化。
@@ -930,46 +937,6 @@ pub(crate) fn finalize_hsgt(rows: &[Value]) -> Result<Df> {
     Ok(df)
 }
 
-/// 股权质押市场概况加工（8 列；A股质押总比例 ÷100；按交易日期升序）。
-pub(crate) fn finalize_gpzy(rows: &[Value]) -> Result<Df> {
-    let mut out: Vec<(String, Vec<Option<String>>)> = Vec::with_capacity(rows.len());
-    for item in rows {
-        let date = item
-            .get("TRADE_DATE")
-            .and_then(json_value_to_string)
-            .map(|s| date_only(&s).to_string());
-        out.push((
-            date.clone().unwrap_or_default(),
-            vec![
-                date,
-                item.get("PM_RATIO").and_then(|v| num_div(v, 100.0)),
-                item.get("PLEDGE_CO_NUM").and_then(json_value_to_string),
-                item.get("DAILY_STATISTICS").and_then(json_value_to_string),
-                item.get("TOTAL_PLEDGED_SHARES")
-                    .and_then(json_value_to_string),
-                item.get("PLEDGE_MARKET_VALUE")
-                    .and_then(json_value_to_string),
-                item.get("CSI_300_INDEX").and_then(json_value_to_string),
-                item.get("CSI_300_CHG").and_then(json_value_to_string),
-            ],
-        ));
-    }
-    // 交易日期为 "YYYY-MM-DD" 定宽字符串，字典序即时间序（对应 akshare sort_values）。
-    out.sort_by(|a, b| a.0.cmp(&b.0));
-    let rows: Vec<Vec<Option<String>>> = out.into_iter().map(|(_, r)| r).collect();
-    let mut df = Df::from_string_rows(&GPZY_SELECT, &rows)?;
-    df.cast_numeric(&[
-        "A股质押总比例",
-        "质押公司数量",
-        "质押笔数",
-        "质押总股数",
-        "质押总市值",
-        "沪深300指数",
-        "涨跌幅",
-    ])?;
-    Ok(df)
-}
-
 /// JSON 值转字符串（null → None）。
 pub(crate) fn json_value_to_string(v: &Value) -> Option<String> {
     match v {
@@ -1195,33 +1162,6 @@ mod tests_b3 {
         assert_eq!(net.get(0), Some(12345.6789));
         let day = df.inner().column("交易日").unwrap().str().unwrap();
         assert_eq!(day.get(0), Some("2026-08-07"));
-    }
-
-    /// 股权质押：A股质押总比例 ÷100、按交易日期升序。
-    #[test]
-    fn gpzy_offline_sorted_and_scaled() {
-        let rows = json!([
-            {
-                "TRADE_DATE": "2026-08-07 00:00:00", "TOTAL_PLEDGED_SHARES": 28246885.95,
-                "PLEDGE_MARKET_VALUE": 268064333.8584, "CSI_300_INDEX": 4694.4365,
-                "CSI_300_CHG": 2.3155, "PM_RATIO": 275.497, "PLEDGE_CO_NUM": 2214,
-                "DAILY_STATISTICS": 13513,
-            },
-            {
-                "TRADE_DATE": "2026-07-31 00:00:00", "TOTAL_PLEDGED_SHARES": 28323510.24,
-                "PLEDGE_MARKET_VALUE": 254220794.3112, "CSI_300_INDEX": 4588.1968,
-                "CSI_300_CHG": -1.3119, "PM_RATIO": 270.646, "PLEDGE_CO_NUM": 2211,
-                "DAILY_STATISTICS": 13486,
-            }
-        ]);
-        let df = finalize_gpzy(rows.as_array().unwrap()).unwrap();
-        assert_eq!(df.column_names(), GPZY_SELECT);
-        // 升序：7-31 在前
-        let day = df.inner().column("交易日期").unwrap().str().unwrap();
-        assert_eq!(day.get(0), Some("2026-07-31"));
-        assert_eq!(day.get(1), Some("2026-08-07"));
-        let ratio = df.inner().column("A股质押总比例").unwrap().f64().unwrap();
-        assert_eq!(ratio.get(1), Some(2.75497));
     }
 
     /// 板块名称/概念列表公共加工：字段语义映射 + 12 列契约。

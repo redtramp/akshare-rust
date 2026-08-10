@@ -230,6 +230,26 @@ impl Df {
         Ok(self)
     }
 
+    /// 指定列除以缩放因子（对应 akshare `df[col] = df[col] / N`）。
+    ///
+    /// 列先转 f64，逐元素除以 `factor`；列不存在或非数值时忽略。
+    pub fn scale(&mut self, col: &str, factor: f64) -> Result<&mut Self> {
+        let series = match self.inner.column(col) {
+            Ok(s) => s.clone(),
+            Err(_) => return Ok(self),
+        };
+        let f64s = match series.cast(&DataType::Float64) {
+            Ok(c) => c,
+            Err(_) => return Ok(self),
+        };
+        let scaled: Column = match f64s.f64() {
+            Ok(ca) => ca.apply_values(|v| v / factor).into_series().into(),
+            Err(_) => f64s.into_column(),
+        };
+        let _ = self.inner.replace(col, scaled);
+        Ok(self)
+    }
+
     /// 前 n 行文本预览（对应 akshare `df.head(n)` 打印）。
     pub fn head_preview(&self, n: usize) -> String {
         self.inner.head(Some(n)).to_string()

@@ -14,11 +14,12 @@ use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
 use akshare_rust::stock::{
     stock_bid_ask_em, stock_board_concept_hist_em, stock_board_concept_name_em,
     stock_board_industry_cons_em, stock_board_industry_hist_em, stock_board_industry_name_em,
-    stock_gpzy_profile_em, stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow,
-    stock_individual_info_em, stock_lhb_detail_em, stock_zh_a_hist, stock_zh_a_hist_min_em,
-    stock_zh_a_spot_em, stock_zt_pool_em,
+    stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow, stock_individual_info_em,
+    stock_lhb_detail_em, stock_zh_a_hist, stock_zh_a_hist_min_em, stock_zh_a_spot_em,
+    stock_zt_pool_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
+use akshare_rust::stock_feature::stock_gpzy_profile_em;
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 
 type BoxErr = Box<dyn std::error::Error>;
