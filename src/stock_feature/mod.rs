@@ -2045,6 +2045,300 @@ pub fn stock_account_statistics_em() -> Result<Df> {
     Ok(df)
 }
 
+// ===== 业绩报表（RPT_LICO_FN_CPD）=====
+// 序号由 Rust 生成。列序参照 akshare `big_df.columns`（columns=ALL，38 个位置，序号占 0 位，
+// 原始 JSON 键紧随其后）与实时拉取的 JSON 键序逐位对齐：JSON 键 0-based 序号 k 对应位置 k+1。
+// 仅保留 select 中的列（akshare 已丢弃 "_" 列）。
+const YJBB_RENAME: [(&str, &str); 15] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("UPDATE_DATE", "最新公告日期"),
+    ("BASIC_EPS", "每股收益"),
+    ("TOTAL_OPERATE_INCOME", "营业总收入-营业总收入"),
+    ("PARENT_NETPROFIT", "净利润-净利润"),
+    ("WEIGHTAVG_ROE", "净资产收益率"),
+    ("YSTZ", "营业总收入-同比增长"),
+    ("SJLTZ", "净利润-同比增长"),
+    ("BPS", "每股净资产"),
+    ("MGJYXJJE", "每股经营现金流量"),
+    ("XSMLL", "销售毛利率"),
+    ("YSHZ", "营业总收入-季度环比增长"),
+    ("SJLHZ", "净利润-季度环比增长"),
+    ("PUBLISHNAME", "所处行业"),
+];
+const YJBB_SELECT: [&str; 15] = [
+    "股票代码",
+    "股票简称",
+    "每股收益",
+    "营业总收入-营业总收入",
+    "营业总收入-同比增长",
+    "营业总收入-季度环比增长",
+    "净利润-净利润",
+    "净利润-同比增长",
+    "净利润-季度环比增长",
+    "每股净资产",
+    "净资产收益率",
+    "每股经营现金流量",
+    "销售毛利率",
+    "所处行业",
+    "最新公告日期",
+];
+const YJBB_NUMERIC: [&str; 11] = [
+    "每股收益",
+    "营业总收入-营业总收入",
+    "营业总收入-同比增长",
+    "营业总收入-季度环比增长",
+    "净利润-净利润",
+    "净利润-同比增长",
+    "净利润-季度环比增长",
+    "每股净资产",
+    "净资产收益率",
+    "每股经营现金流量",
+    "销售毛利率",
+];
+const YJBB_DATE: [&str; 1] = ["最新公告日期"];
+
+/// 业绩报表（对应 akshare [`akshare.stock_yjbb_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（如 `"20200331"`、`"20200630"`、`"20200930"`、`"20201231"`，从 20100331 开始）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 每股收益, 营业总收入-营业总收入, 营业总收入-同比增长,
+/// 营业总收入-季度环比增长, 净利润-净利润, 净利润-同比增长, 净利润-季度环比增长,
+/// 每股净资产, 净资产收益率, 每股经营现金流量, 销售毛利率, 所处行业, 最新公告日期`
+pub fn stock_yjbb_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(REPORTDATE='{d}')");
+    let extra = report_extra(
+        "UPDATE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_LICO_FN_CPD", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &YJBB_RENAME,
+        &YJBB_SELECT,
+        &YJBB_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&YJBB_DATE)?;
+    Ok(df)
+}
+
+// ===== 业绩快报（RPT_FCI_PERFORMANCEE）=====
+// 序号由 Rust 生成。列序参照 akshare `big_df.columns`（columns=ALL，29 个位置，序号占 0 位，
+// 原始 JSON 键紧随其后）与实时拉取的 JSON 键序逐位对齐：JSON 键 0-based 序号 k 对应位置 k+1。
+const YJKB_RENAME: [(&str, &str); 15] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("UPDATE_DATE", "公告日期"),
+    ("BASIC_EPS", "每股收益"),
+    ("TOTAL_OPERATE_INCOME", "营业收入-营业收入"),
+    ("TOTAL_OPERATE_INCOME_SQ", "营业收入-去年同期"),
+    ("PARENT_NETPROFIT", "净利润-净利润"),
+    ("PARENT_NETPROFIT_SQ", "净利润-去年同期"),
+    ("PARENT_BVPS", "每股净资产"),
+    ("WEIGHTAVG_ROE", "净资产收益率"),
+    ("YSTZ", "营业收入-同比增长"),
+    ("JLRTBZCL", "净利润-同比增长"),
+    ("DJDYSHZ", "营业收入-季度环比增长"),
+    ("DJDJLHZ", "净利润-季度环比增长"),
+    ("PUBLISHNAME", "所处行业"),
+];
+const YJKB_SELECT: [&str; 15] = [
+    "股票代码",
+    "股票简称",
+    "每股收益",
+    "营业收入-营业收入",
+    "营业收入-去年同期",
+    "营业收入-同比增长",
+    "营业收入-季度环比增长",
+    "净利润-净利润",
+    "净利润-去年同期",
+    "净利润-同比增长",
+    "净利润-季度环比增长",
+    "每股净资产",
+    "净资产收益率",
+    "所处行业",
+    "公告日期",
+];
+const YJKB_NUMERIC: [&str; 11] = [
+    "每股收益",
+    "营业收入-营业收入",
+    "营业收入-去年同期",
+    "营业收入-同比增长",
+    "营业收入-季度环比增长",
+    "净利润-净利润",
+    "净利润-去年同期",
+    "净利润-同比增长",
+    "净利润-季度环比增长",
+    "每股净资产",
+    "净资产收益率",
+];
+const YJKB_DATE: [&str; 1] = ["公告日期"];
+
+/// 业绩快报（对应 akshare [`akshare.stock_yjkb_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（如 `"20200331"`、`"20200630"`、`"20200930"`、`"20201231"`，从 20100331 开始）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 每股收益, 营业收入-营业收入, 营业收入-去年同期, 营业收入-同比增长,
+/// 营业收入-季度环比增长, 净利润-净利润, 净利润-去年同期, 净利润-同比增长, 净利润-季度环比增长,
+/// 每股净资产, 净资产收益率, 所处行业, 公告日期`
+pub fn stock_yjkb_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!(
+        "(SECURITY_TYPE_CODE in (\"058001001\",\"058001008\"))(TRADE_MARKET_CODE!=\"069001017\")(REPORT_DATE='{d}')"
+    );
+    let extra = report_extra(
+        "UPDATE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_FCI_PERFORMANCEE", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &YJKB_RENAME,
+        &YJKB_SELECT,
+        &YJKB_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&YJKB_DATE)?;
+    Ok(df)
+}
+
+// ===== 业绩预告（RPT_PUBLIC_OP_NEWPREDICT）=====
+// 序号由 Rust 生成。列序参照 akshare `big_df.columns`（columns=ALL，28 个位置，序号占 0 位，
+// 原始 JSON 键紧随其后）与实时拉取的 JSON 键序逐位对齐：JSON 键 0-based 序号 k 对应位置 k+1。
+const YJYG_RENAME: [(&str, &str); 10] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("NOTICE_DATE", "公告日期"),
+    ("PREDICT_FINANCE", "预测指标"),
+    ("PREDICT_CONTENT", "业绩变动"),
+    ("CHANGE_REASON_EXPLAIN", "业绩变动原因"),
+    ("PREDICT_TYPE", "预告类型"),
+    ("PREYEAR_SAME_PERIOD", "上年同期值"),
+    ("INCREASE_JZ", "业绩变动幅度"),
+    ("FORECAST_JZ", "预测数值"),
+];
+const YJYG_SELECT: [&str; 10] = [
+    "股票代码",
+    "股票简称",
+    "预测指标",
+    "业绩变动",
+    "预测数值",
+    "业绩变动幅度",
+    "业绩变动原因",
+    "预告类型",
+    "上年同期值",
+    "公告日期",
+];
+const YJYG_NUMERIC: [&str; 3] = ["业绩变动幅度", "预测数值", "上年同期值"];
+const YJYG_DATE: [&str; 1] = ["公告日期"];
+
+/// 业绩预告（对应 akshare [`akshare.stock_yjyg_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（如 `"20200331"`、`"20200630"`、`"20200930"`、`"20201231"`，从 20081231 开始）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 预测指标, 业绩变动, 预测数值, 业绩变动幅度,
+/// 业绩变动原因, 预告类型, 上年同期值, 公告日期`
+pub fn stock_yjyg_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(REPORT_DATE='{d}')");
+    let extra = report_extra(
+        "NOTICE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_PUBLIC_OP_NEWPREDICT", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &YJYG_RENAME,
+        &YJYG_SELECT,
+        &YJYG_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&YJYG_DATE)?;
+    Ok(df)
+}
+
+// ===== 预约披露时间（RPT_PUBLIC_BS_APPOIN）=====
+// 序号由 Rust 生成。列名直接来自 akshare `big_df.rename(columns={...})`（键→中文显式映射）。
+const YYSJ_RENAME: [(&str, &str); 7] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("FIRST_APPOINT_DATE", "首次预约时间"),
+    ("FIRST_CHANGE_DATE", "一次变更日期"),
+    ("SECOND_CHANGE_DATE", "二次变更日期"),
+    ("THIRD_CHANGE_DATE", "三次变更日期"),
+    ("ACTUAL_PUBLISH_DATE", "实际披露时间"),
+];
+const YYSJ_SELECT: [&str; 7] = [
+    "股票代码",
+    "股票简称",
+    "首次预约时间",
+    "一次变更日期",
+    "二次变更日期",
+    "三次变更日期",
+    "实际披露时间",
+];
+const YYSJ_NUMERIC: [&str; 0] = [];
+const YYSJ_DATE: [&str; 5] = [
+    "首次预约时间",
+    "一次变更日期",
+    "二次变更日期",
+    "三次变更日期",
+    "实际披露时间",
+];
+
+/// 预约披露时间（对应 akshare [`akshare.stock_yysj_em`]）。
+///
+/// `symbol`：市场分类（默认 `"沪深A股"`；亦可取 `"沪市A股"`、`"科创板"`、`"深市A股"`、`"创业板"`、`"京市A股"`、`"ST板"`）。
+/// `date`：报告期 `YYYYMMDD`（如 `"20190331"`、`"20190630"`、`"20190930"`、`"20191231"`，从 20081231 开始）。
+///
+/// 本实现对应 akshare 默认的 `"沪深A股"` 分支（其余分支过滤条件不同，列契约一致）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 首次预约时间, 一次变更日期, 二次变更日期, 三次变更日期, 实际披露时间`
+pub fn stock_yysj_em(symbol: &str, date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    // 默认分支（沪深A股）：在全市场 A 股（剔除北交所 069001017）范围内按报告期过滤。
+    let filter = format!(
+        "(SECURITY_TYPE_CODE in (\"058001001\",\"058001008\"))(TRADE_MARKET_CODE!=\"069001017\")(REPORT_DATE='{d}')"
+    );
+    let _ = symbol;
+    let extra = report_extra(
+        "FIRST_APPOINT_DATE,SECURITY_CODE",
+        "1,1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_PUBLIC_BS_APPOIN", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &YYSJ_RENAME,
+        &YYSJ_SELECT,
+        &YYSJ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&YYSJ_DATE)?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2522,6 +2816,127 @@ mod tests {
         assert_eq!(add.get(0), Some(2000000.0));
         let d = df.inner().column("数据日期").unwrap().str().unwrap();
         assert_eq!(d.get(0), Some("2026-03-31"));
+    }
+
+    /// 离线验证业绩报表列契约（序号 + 数值 + 日期）。
+    #[test]
+    fn yjbb_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技","UPDATE_DATE":"2026-04-10 00:00:00",
+                "BASIC_EPS":"1.5","TOTAL_OPERATE_INCOME":"5000000000","PARENT_NETPROFIT":"600000000",
+                "WEIGHTAVG_ROE":"12.3","YSTZ":"25.0","SJLTZ":"30.0","BPS":"10.0","MGJYXJJE":"0.8",
+                "XSMLL":"18.5","YSHZ":"5.0","SJLHZ":"6.0","PUBLISHNAME":"电池"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &YJBB_RENAME,
+            &YJBB_SELECT,
+            &YJBB_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&YJBB_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], YJBB_SELECT);
+        let eps = df.inner().column("每股收益").unwrap().f64().unwrap();
+        assert_eq!(eps.get(0), Some(1.5));
+        let notice = df.inner().column("最新公告日期").unwrap().str().unwrap();
+        assert_eq!(notice.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证业绩快报列契约（序号 + 数值 + 日期）。
+    #[test]
+    fn yjkb_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技","UPDATE_DATE":"2026-04-10 00:00:00",
+                "BASIC_EPS":"1.5","TOTAL_OPERATE_INCOME":"5000000000","TOTAL_OPERATE_INCOME_SQ":"4000000000",
+                "PARENT_NETPROFIT":"600000000","PARENT_NETPROFIT_SQ":"500000000","PARENT_BVPS":"10.0",
+                "WEIGHTAVG_ROE":"12.3","YSTZ":"25.0","JLRTBZCL":"20.0","DJDYSHZ":"5.0","DJDJLHZ":"6.0",
+                "PUBLISHNAME":"电池"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &YJKB_RENAME,
+            &YJKB_SELECT,
+            &YJKB_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&YJKB_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], YJKB_SELECT);
+        let income = df
+            .inner()
+            .column("营业收入-营业收入")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(income.get(0), Some(5000000000.0));
+        let notice = df.inner().column("公告日期").unwrap().str().unwrap();
+        assert_eq!(notice.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证业绩预告列契约（序号 + 数值 + 日期，无通用序号外数值）。
+    #[test]
+    fn yjyg_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技","NOTICE_DATE":"2026-04-10 00:00:00",
+                "PREDICT_FINANCE":"净利润","PREDICT_CONTENT":"大幅上升","CHANGE_REASON_EXPLAIN":"需求旺盛",
+                "PREDICT_TYPE":"预增","PREYEAR_SAME_PERIOD":"500000000","INCREASE_JZ":"50.0","FORECAST_JZ":"750000000"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &YJYG_RENAME,
+            &YJYG_SELECT,
+            &YJYG_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&YJYG_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], YJYG_SELECT);
+        let pre = df.inner().column("预测数值").unwrap().f64().unwrap();
+        assert_eq!(pre.get(0), Some(750000000.0));
+        let notice = df.inner().column("公告日期").unwrap().str().unwrap();
+        assert_eq!(notice.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证预约披露时间列契约（序号 + 纯日期列，无数值列）。
+    #[test]
+    fn yysj_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技",
+                "FIRST_APPOINT_DATE":"2026-04-20 00:00:00","FIRST_CHANGE_DATE":"2026-04-15 00:00:00",
+                "SECOND_CHANGE_DATE":null,"THIRD_CHANGE_DATE":null,"ACTUAL_PUBLISH_DATE":"2026-04-18 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &YYSJ_RENAME,
+            &YYSJ_SELECT,
+            &YYSJ_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&YYSJ_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], YYSJ_SELECT);
+        // 无数值列；日期需正确截断，且 null 保持 null
+        let first = df.inner().column("首次预约时间").unwrap().str().unwrap();
+        assert_eq!(first.get(0), Some("2026-04-20"));
+        let third = df.inner().column("三次变更日期").unwrap().str().unwrap();
+        assert_eq!(third.get(0), None);
     }
 
     /// 真实网络冒烟：拉取实时列契约，与 akshare 实测列序核对（需联网，默认忽略）。

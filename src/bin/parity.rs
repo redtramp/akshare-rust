@@ -43,7 +43,8 @@ use akshare_rust::stock_feature::{
     stock_hk_ggt_components_em, stock_hk_main_board_spot_em, stock_jgdy_detail_em,
     stock_jgdy_tj_em, stock_kc_a_spot_em, stock_margin_account_info, stock_new_a_spot_em,
     stock_pg_em, stock_qbzf_em, stock_qsjy_em, stock_sy_profile_em, stock_tfp_em, stock_value_em,
-    stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_b_spot_em,
+    stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em, stock_zdhtmx_em, stock_zh_a_gdhs,
+    stock_zh_b_spot_em,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
@@ -293,6 +294,22 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_qbzf_em" => Ok(stock_qbzf_em()?),
         "stock_pg_em" => Ok(stock_pg_em()?),
         "stock_account_statistics_em" => Ok(stock_account_statistics_em()?),
+        "stock_yjbb_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_yjbb_em(d)?)
+        }
+        "stock_yjkb_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_yjkb_em(d)?)
+        }
+        "stock_yjyg_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_yjyg_em(d)?)
+        }
+        "stock_yysj_em" => {
+            let [s, d] = take2(func, args)?;
+            Ok(stock_yysj_em(s, d)?)
+        }
         _ => Err(format!("未知函数: {func}").into()),
     }
 }
