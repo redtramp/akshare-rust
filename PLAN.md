@@ -71,8 +71,8 @@
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **68**（`cargo check` 全绿，非 stub）|
-| 整体覆盖率 | **≈ 6.2%** |
+| Rust 已实现并验证函数数 | **76**（`cargo check` 全绿，非 stub）|
+| 整体覆盖率 | **≈ 6.9%** |
 | 已触及功能大类 | **4 / 47**（按 API 前缀分类）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -83,14 +83,14 @@
 | stock | 36 | 407 | 8.8% |
 | fund | 5 | 74 | 6.8% |
 | index | 3 | 79 | 3.8% |
-| stock_feature | 24 | 211 | 11.4% |
+| stock_feature | 32 | 211 | 15.2% |
 
-**完全未覆盖大类（0%）：** economic(226)、stock_feature(余 187)、futures(70)、stock_fundamental(57)、option(47)、bond(46)，以及其余长尾 24 类（spot/futures_derivative/movie/energy/currency/news/fx/fortune/cal/qdii/reits/event/forex/crypto/rate/nlp/tool/hf/interest_rate/bank/pro/other/article/air/qhkc_web）全部为 0。
+**完全未覆盖大类（0%）：** economic(226)、stock_feature(余 179)、futures(70)、stock_fundamental(57)、option(47)、bond(46)，以及其余长尾 24 类（spot/futures_derivative/movie/energy/currency/news/fx/fortune/cal/qdii/reits/event/forex/crypto/rate/nlp/tool/hf/interest_rate/bank/pro/other/article/air/qhkc_web）全部为 0。
 
-**已落地的 65 个函数（按类别）：**
+**已落地的 73 个函数（按类别）：**
 
 - **stock（36）**：`stock_zh_a_hist`、`stock_zh_a_spot_em`、`stock_sh_a_spot_em`、`stock_sz_a_spot_em`、`stock_bj_a_spot_em`、`stock_zh_a_hist_min_em`、`stock_individual_info_em`、`stock_bid_ask_em`、`stock_board_industry_name_em`、`stock_board_concept_name_em`、`stock_board_industry_cons_em`、`stock_board_concept_cons_em`、`stock_board_industry_hist_em`、`stock_board_concept_hist_em`、`stock_zt_pool_em`、`stock_individual_fund_flow`、`stock_lhb_detail_em`、`stock_hsgt_fund_flow_summary_em`、`stock_zh_a_st_em`、`stock_zh_a_new_em`、`stock_hk_spot_em`、`stock_profile_cninfo`、`stock_ipo_summary_cninfo`、`stock_dividend_cninfo`、`stock_new_ipo_cninfo`、`stock_new_gh_cninfo`、`stock_margin_sse`、`stock_margin_detail_sse`、`stock_margin_szse`、`stock_hot_follow_xq`、`stock_hot_tweet_xq`、`stock_hk_spot`、`stock_zh_a_minute`、`stock_a_gxl_lg`、`stock_hk_gxl_lg`、`stock_a_ttm_lyr`
-- **stock_feature（24 · 批次 1 阶段 1a + 1b + 1c）**：`stock_cy_a_spot_em`、`stock_kc_a_spot_em`、`stock_zh_b_spot_em`、`stock_new_a_spot_em`、`stock_hk_main_board_spot_em`、`stock_hk_ggt_components_em`、`stock_zh_a_gdhs`（阶段 1a，7 个）；`stock_margin_account_info`、`stock_gdfx_free_holding_detail_em`、`stock_gdfx_holding_detail_em`、`stock_gdfx_free_holding_analyse_em`、`stock_gdfx_holding_analyse_em`、`stock_qsjy_em`、`stock_gpzy_profile_em`、`stock_gpzy_pledge_ratio_em`、`stock_gpzy_industry_data_em`、`stock_value_em`、`stock_gddh_em`、`stock_zdhtmx_em`、`stock_dxsyl_em`、`stock_sy_profile_em`（阶段 1b，14 个；其中 `stock_gpzy_profile_em` 由 `stock` 模块迁入，非净新增）；`stock_gpzy_pledge_ratio_detail_em`、`stock_gpzy_individual_pledge_ratio_detail_em`、`stock_ggcg_em`（阶段 1c，3 个）
+- **stock_feature（32 · 批次 1 阶段 1a + 1b + 1c + 1d）**：`stock_cy_a_spot_em`、`stock_kc_a_spot_em`、`stock_zh_b_spot_em`、`stock_new_a_spot_em`、`stock_hk_main_board_spot_em`、`stock_hk_ggt_components_em`、`stock_zh_a_gdhs`（阶段 1a，7 个）；`stock_margin_account_info`、`stock_gdfx_free_holding_detail_em`、`stock_gdfx_holding_detail_em`、`stock_gdfx_free_holding_analyse_em`、`stock_gdfx_holding_analyse_em`、`stock_qsjy_em`、`stock_gpzy_profile_em`、`stock_gpzy_pledge_ratio_em`、`stock_gpzy_industry_data_em`、`stock_value_em`、`stock_gddh_em`、`stock_zdhtmx_em`、`stock_dxsyl_em`、`stock_sy_profile_em`（阶段 1b，14 个；其中 `stock_gpzy_profile_em` 由 `stock` 模块迁入，非净新增）；`stock_gpzy_pledge_ratio_detail_em`、`stock_gpzy_individual_pledge_ratio_detail_em`、`stock_ggcg_em`（阶段 1c，3 个）；`stock_jgdy_tj_em`、`stock_jgdy_detail_em`、`stock_fhps_em`、`stock_fhps_detail_em`、`stock_tfp_em`、`stock_qbzf_em`、`stock_pg_em`、`stock_account_statistics_em`（阶段 1d，8 个）
 - **fund（5）**：`fund_etf_hist_em`、`fund_etf_spot_em`、`fund_lof_spot_em`、`fund_etf_category_ths`、`fund_etf_spot_ths`
 - **index（3）**：`index_code_id_map_em`、`index_zh_a_hist`、`index_zh_a_hist_min_em`
 
@@ -98,6 +98,7 @@
 > - **批次 1 · 阶段 1a（stock_feature 东财系快照 + 股东户数）**：✅ 已完成并验证（2026-08-10）。`stock_zh_a_gdhs('最新')` 差分对账通过（16 列 × 5544 行，与 akshare 逐字一致）；6 个 push2 clist 快照函数列契约与已对账的 `stock_zh_a_spot_em` 同构（`finalize_clist`→`finalize_spot` + 共享重命名表，仅 `fs`/`fid` 不同），本机东财 clist 接口临时限流未能生成 golden，环境恢复后补对账。
 > - **批次 1 · 阶段 1b（stock_feature 东财 datacenter `RPT_*` 报表，14 个）**：✅ 已完成并验证（2026-08-10）。14 个函数在 `stock_feature/mod.rs` 落地，复用 `fetch_datacenter_pages` + `finalize_report`；`序号` 列由 Rust 生成（东财原始 JSON 无 index 键，已实测），`stock_gpzy_profile_em` 的 `A股质押总比例 = PM_RATIO/100` 经 `Df::scale` 缩放。14 个函数全部生成 golden fixture 并差分对账通过（列名/列数/dtype 与 akshare 逐字一致）；其中 8 个需 `序号` 的函数经 `--check` 验证 序号 正确处理。`stock_gpzy_profile_em` 由 `stock` 模块迁入 `stock_feature`（消除了重复实现）。
 > - **批次 1 · 阶段 1c（stock_feature 东财股权质押/高管持股 datacenter，3 个）**：✅ 已完成并验证（2026-08-10）。在 `stock_feature/mod.rs` 落地 `stock_gpzy_pledge_ratio_detail_em`（RPTA_APP_ACCUMDETAILS 全市场质押明细）、`stock_gpzy_individual_pledge_ratio_detail_em(symbol)`（个股质押明细，支持 `(SECURITY_CODE="...")` 过滤）、`stock_ggcg_em(symbol)`（高管持股变动，RPT_SHARE_HOLDER_INCREASE + quoteColumns 取最新价/涨跌幅）。复用 `fetch_datacenter_pages` + `finalize_report`；质押明细带 `序号` 列（index_name=Some("序号")），高管持股不带。`stock_ggcg_em` 的 symbol 限定为 `全部/股东增持/股东减持`（其余报错）。3 个函数全部生成 golden fixture 并差分对账通过（列名/列数/dtype 与 akshare 逐字一致，loose 模式）；其中 `stock_gpzy_pledge_ratio_detail_em` 15 列 × 126139 行、`stock_ggcg_em` 16 列 × 145919 行。注：`stock_gpzy_em.py` 下还有 `stock_gpzy_distribute_statistics_company_em` / `_bank_em` 两个函数——其 akshare 过滤条件（`(PFORG_TYPE="证券")` / `"银行"`）与当前东财数据（`证券Ⅱ` / `银行Ⅱ`）已漂移，akshare 实测返回空 df（无列），为忠实契约**跳过**这两个函数。
+> - **批次 1 · 阶段 1d（stock_feature 东财 datacenter 机构调研/分红/停复牌/增发配股/账户，8 个）**：✅ 已完成并验证（2026-08-10）。在 `stock_feature/mod.rs` 落地 `stock_jgdy_tj_em`(RPT_ORG_SURVEYNEW)、`stock_jgdy_detail_em`(RPT_ORG_SURVEY)、`stock_fhps_em`(RPT_SHAREBONUS_DET)、`stock_fhps_detail_em`(RPT_SHAREBONUS_DET)、`stock_tfp_em`(RPT_CUSTOM_SUSPEND_DATA_INTERFACE)、`stock_qbzf_em`(RPT_SEO_DETAIL)、`stock_pg_em`(RPT_IPO_ALLOTMENT)、`stock_account_statistics_em`(RPT_STOCK_OPEN_DATA)。复用 `fetch_datacenter_pages` + `finalize_report`；`序号` 列由 Rust 生成（机构调研统计/详细、停复牌信息 3 个函数 index_name=Some("序号")，其余 5 个无序号）；`quoteColumns` 注入最新价/涨跌幅（机构调研、增发、配股）；日期列经 `Df::cast_date` 截断到 `YYYY-MM-DD`。重命名映射对 columns=ALL 的函数由「实时拉取 JSON 键序 × akshare 位置列名」逐位推导（序号函数偏移 +1），对显式 columns / rename 字典函数直接采用 akshare 键名。8 个函数全部生成 golden fixture 并差分对账通过（列名/列数/dtype 与 akshare 逐字一致，loose 模式）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 全绿（含 8 个离线列契约测试）。
 > - **批次 1 · 后续阶段**：stock_feature 其余东财 datacenter `RPT_*` 报表（财务/股本类）、同花顺 `ths.js` 系、乐咕/新浪系。
 
 **关键判断：**

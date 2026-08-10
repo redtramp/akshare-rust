@@ -1525,6 +1525,526 @@ pub fn stock_ggcg_em(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ===== 机构调研统计（RPT_ORG_SURVEYNEW）=====
+// 序号由 Rust 生成（东财原始 JSON 无 index 键，与 akshare reset_index 一致）。
+// 列序参照 akshare `big_df.columns` 与实时拉取的 JSON 键序（columns=ALL +
+// quoteColumns 追加 CLOSE_PRICE/CHANGE_RATE）逐位对齐。
+const JGDY_TJ_RENAME: [(&str, &str); 10] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("NOTICE_DATE", "公告日期"),
+    ("RECEIVE_START_DATE", "接待日期"),
+    ("RECEIVE_PLACE", "接待地点"),
+    ("RECEIVE_WAY_EXPLAIN", "接待方式"),
+    ("RECEPTIONIST", "接待人员"),
+    ("SUM", "接待机构数量"),
+    ("CLOSE_PRICE", "最新价"),
+    ("CHANGE_RATE", "涨跌幅"),
+];
+const JGDY_TJ_SELECT: [&str; 10] = [
+    "代码",
+    "名称",
+    "最新价",
+    "涨跌幅",
+    "接待机构数量",
+    "接待方式",
+    "接待人员",
+    "接待地点",
+    "接待日期",
+    "公告日期",
+];
+const JGDY_TJ_NUMERIC: [&str; 3] = ["最新价", "涨跌幅", "接待机构数量"];
+const JGDY_TJ_DATE: [&str; 2] = ["接待日期", "公告日期"];
+
+/// 机构调研统计（对应 akshare [`akshare.stock_jgdy_tj_em`]）。
+///
+/// `date`：开始时间 `YYYYMMDD`（如 `"20220101"`），仅返回该日之后有机构调研记录的股票。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌幅, 接待机构数量, 接待方式, 接待人员,
+/// 接待地点, 接待日期, 公告日期`
+pub fn stock_jgdy_tj_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(NUMBERNEW=\"1\")(IS_SOURCE=\"1\")(NOTICE_DATE>'{d}')");
+    let extra = report_extra(
+        "NOTICE_DATE,SUM,RECEIVE_START_DATE,SECURITY_CODE",
+        "-1,-1,-1,1",
+        Some(&filter),
+        Some("f2~01~SECURITY_CODE~CLOSE_PRICE,f3~01~SECURITY_CODE~CHANGE_RATE"),
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_ORG_SURVEYNEW", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &JGDY_TJ_RENAME,
+        &JGDY_TJ_SELECT,
+        &JGDY_TJ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&JGDY_TJ_DATE)?;
+    Ok(df)
+}
+
+// ===== 机构调研详细（RPT_ORG_SURVEY）=====
+// 序号由 Rust 生成（东财原始 JSON 无 index 键）。columns 为显式字符串，键序即列序；
+// quoteColumns 追加 CLOSE_PRICE/CHANGE_RATE（位于显式键之后）。
+const JGDY_DETAIL_RENAME: [(&str, &str); 12] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("NOTICE_DATE", "公告日期"),
+    ("RECEIVE_START_DATE", "调研日期"),
+    ("RECEIVE_OBJECT", "调研机构"),
+    ("RECEIVE_PLACE", "接待地点"),
+    ("RECEIVE_WAY_EXPLAIN", "接待方式"),
+    ("INVESTIGATORS", "调研人员"),
+    ("RECEPTIONIST", "接待人员"),
+    ("ORG_TYPE", "机构类型"),
+    ("CLOSE_PRICE", "最新价"),
+    ("CHANGE_RATE", "涨跌幅"),
+];
+const JGDY_DETAIL_SELECT: [&str; 12] = [
+    "代码",
+    "名称",
+    "最新价",
+    "涨跌幅",
+    "调研机构",
+    "机构类型",
+    "调研人员",
+    "接待方式",
+    "接待人员",
+    "接待地点",
+    "调研日期",
+    "公告日期",
+];
+const JGDY_DETAIL_NUMERIC: [&str; 2] = ["最新价", "涨跌幅"];
+const JGDY_DETAIL_DATE: [&str; 2] = ["调研日期", "公告日期"];
+
+/// 机构调研详细（对应 akshare [`akshare.stock_jgdy_detail_em`]）。
+///
+/// `date`：开始时间 `YYYYMMDD`（如 `"20241211"`），仅返回该日之后有调研记录的明细。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌幅, 调研机构, 机构类型, 调研人员, 接待方式,
+/// 接待人员, 接待地点, 调研日期, 公告日期`
+pub fn stock_jgdy_detail_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(IS_SOURCE=\"1\")(RECEIVE_START_DATE>'{d}')");
+    let extra = report_extra(
+        "NOTICE_DATE,RECEIVE_START_DATE,SECURITY_CODE,NUMBERNEW",
+        "-1,-1,1,-1",
+        Some(&filter),
+        Some("f2~01~SECURITY_CODE~CLOSE_PRICE,f3~01~SECURITY_CODE~CHANGE_RATE"),
+        None,
+        Some("0"),
+    );
+    let columns = "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,NOTICE_DATE,RECEIVE_START_DATE,RECEIVE_OBJECT,RECEIVE_PLACE,RECEIVE_WAY_EXPLAIN,INVESTIGATORS,RECEPTIONIST,ORG_TYPE";
+    let rows = datacenter("RPT_ORG_SURVEY", columns, &extra, "50")?;
+    let mut df = finalize_report(
+        &rows,
+        &JGDY_DETAIL_RENAME,
+        &JGDY_DETAIL_SELECT,
+        &JGDY_DETAIL_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&JGDY_DETAIL_DATE)?;
+    Ok(df)
+}
+
+// ===== 分红送配（RPT_SHAREBONUS_DET）=====
+// 无序号列。列序参照 akshare `big_df.columns`（columns=ALL）与实时拉取的 JSON 键序逐位对齐。
+const FHPS_RENAME: [(&str, &str); 18] = [
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("SECURITY_CODE", "代码"),
+    ("BONUS_IT_RATIO", "送转股份-送转总比例"),
+    ("BONUS_RATIO", "送转股份-送转比例"),
+    ("IT_RATIO", "送转股份-转股比例"),
+    ("PRETAX_BONUS_RMB", "现金分红-现金分红比例"),
+    ("PLAN_NOTICE_DATE", "预案公告日"),
+    ("EQUITY_RECORD_DATE", "股权登记日"),
+    ("EX_DIVIDEND_DATE", "除权除息日"),
+    ("ASSIGN_PROGRESS", "方案进度"),
+    ("NOTICE_DATE", "最新公告日期"),
+    ("BASIC_EPS", "每股收益"),
+    ("BVPS", "每股净资产"),
+    ("PER_CAPITAL_RESERVE", "每股公积金"),
+    ("PER_UNASSIGN_PROFIT", "每股未分配利润"),
+    ("PNP_YOY_RATIO", "净利润同比增长"),
+    ("TOTAL_SHARES", "总股本"),
+    ("DIVIDENT_RATIO", "现金分红-股息率"),
+];
+const FHPS_SELECT: [&str; 18] = [
+    "代码",
+    "名称",
+    "送转股份-送转总比例",
+    "送转股份-送转比例",
+    "送转股份-转股比例",
+    "现金分红-现金分红比例",
+    "现金分红-股息率",
+    "每股收益",
+    "每股净资产",
+    "每股公积金",
+    "每股未分配利润",
+    "净利润同比增长",
+    "总股本",
+    "预案公告日",
+    "股权登记日",
+    "除权除息日",
+    "方案进度",
+    "最新公告日期",
+];
+const FHPS_NUMERIC: [&str; 11] = [
+    "送转股份-送转总比例",
+    "送转股份-送转比例",
+    "送转股份-转股比例",
+    "现金分红-现金分红比例",
+    "现金分红-股息率",
+    "每股收益",
+    "每股净资产",
+    "每股公积金",
+    "每股未分配利润",
+    "净利润同比增长",
+    "总股本",
+];
+const FHPS_DATE: [&str; 4] = ["预案公告日", "股权登记日", "除权除息日", "最新公告日期"];
+
+/// 分红送配（对应 akshare [`akshare.stock_fhps_em`]）。
+///
+/// `date`：分红送配报告期 `YYYYMMDD`（如 `"20231231"`）。
+///
+/// # 返回列
+/// `代码, 名称, 送转股份-送转总比例, 送转股份-送转比例, 送转股份-转股比例,
+/// 现金分红-现金分红比例, 现金分红-股息率, 每股收益, 每股净资产, 每股公积金,
+/// 每股未分配利润, 净利润同比增长, 总股本, 预案公告日, 股权登记日, 除权除息日, 方案进度, 最新公告日期`
+pub fn stock_fhps_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(REPORT_DATE='{d}')");
+    let extra = report_extra(
+        "PLAN_NOTICE_DATE",
+        "-1",
+        Some(&filter),
+        Some(""),
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_SHAREBONUS_DET", "ALL", &extra, "500")?;
+    let mut df = finalize_report(&rows, &FHPS_RENAME, &FHPS_SELECT, &FHPS_NUMERIC, None)?;
+    df.cast_date(&FHPS_DATE)?;
+    Ok(df)
+}
+
+// ===== 分红送配详情（RPT_SHAREBONUS_DET，按个股过滤）=====
+// 无序号列。与 [`stock_fhps_em`] 同报表但 akshare 使用了不同的中文列名/顺序。
+const FHPS_DETAIL_RENAME: [(&str, &str); 19] = [
+    ("BONUS_IT_RATIO", "送转股份-送转总比例"),
+    ("BONUS_RATIO", "送转股份-送股比例"),
+    ("IT_RATIO", "送转股份-转股比例"),
+    ("PRETAX_BONUS_RMB", "现金分红-现金分红比例"),
+    ("PLAN_NOTICE_DATE", "业绩披露日期"),
+    ("EQUITY_RECORD_DATE", "股权登记日"),
+    ("EX_DIVIDEND_DATE", "除权除息日"),
+    ("REPORT_DATE", "报告期"),
+    ("ASSIGN_PROGRESS", "方案进度"),
+    ("IMPL_PLAN_PROFILE", "现金分红-现金分红比例描述"),
+    ("NOTICE_DATE", "最新公告日期"),
+    ("BASIC_EPS", "每股收益"),
+    ("BVPS", "每股净资产"),
+    ("PER_CAPITAL_RESERVE", "每股公积金"),
+    ("PER_UNASSIGN_PROFIT", "每股未分配利润"),
+    ("PNP_YOY_RATIO", "净利润同比增长"),
+    ("TOTAL_SHARES", "总股本"),
+    ("PUBLISH_DATE", "预案公告日"),
+    ("DIVIDENT_RATIO", "现金分红-股息率"),
+];
+const FHPS_DETAIL_SELECT: [&str; 19] = [
+    "报告期",
+    "业绩披露日期",
+    "送转股份-送转总比例",
+    "送转股份-送股比例",
+    "送转股份-转股比例",
+    "现金分红-现金分红比例",
+    "现金分红-现金分红比例描述",
+    "现金分红-股息率",
+    "每股收益",
+    "每股净资产",
+    "每股公积金",
+    "每股未分配利润",
+    "净利润同比增长",
+    "总股本",
+    "预案公告日",
+    "股权登记日",
+    "除权除息日",
+    "方案进度",
+    "最新公告日期",
+];
+const FHPS_DETAIL_NUMERIC: [&str; 11] = [
+    "送转股份-送转总比例",
+    "送转股份-送股比例",
+    "送转股份-转股比例",
+    "现金分红-现金分红比例",
+    "现金分红-股息率",
+    "每股收益",
+    "每股净资产",
+    "每股公积金",
+    "每股未分配利润",
+    "净利润同比增长",
+    "总股本",
+];
+const FHPS_DETAIL_DATE: [&str; 6] = [
+    "报告期",
+    "业绩披露日期",
+    "预案公告日",
+    "股权登记日",
+    "除权除息日",
+    "最新公告日期",
+];
+
+/// 分红送配详情（对应 akshare [`akshare.stock_fhps_detail_em`]）。
+///
+/// `symbol`：股票代码（如 `"300073"`），按 `SECURITY_CODE` 过滤。
+///
+/// # 返回列
+/// `报告期, 业绩披露日期, 送转股份-送转总比例, 送转股份-送股比例, 送转股份-转股比例,
+/// 现金分红-现金分红比例, 现金分红-现金分红比例描述, 现金分红-股息率, 每股收益,
+/// 每股净资产, 每股公积金, 每股未分配利润, 净利润同比增长, 总股本, 预案公告日,
+/// 股权登记日, 除权除息日, 方案进度, 最新公告日期`
+pub fn stock_fhps_detail_em(symbol: &str) -> Result<Df> {
+    let filter = format!("(SECURITY_CODE=\"{symbol}\")");
+    let extra = report_extra("REPORT_DATE", "-1", Some(&filter), Some(""), None, None);
+    let rows = datacenter("RPT_SHAREBONUS_DET", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &FHPS_DETAIL_RENAME,
+        &FHPS_DETAIL_SELECT,
+        &FHPS_DETAIL_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&FHPS_DETAIL_DATE)?;
+    Ok(df)
+}
+
+// ===== 停复牌信息（RPT_CUSTOM_SUSPEND_DATA_INTERFACE）=====
+// 序号由 Rust 生成。列序参照 akshare `big_df.columns` 与实时拉取的 JSON 键序逐位对齐。
+const TFP_RENAME: [(&str, &str); 8] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("SUSPEND_START_TIME", "停牌时间"),
+    ("SUSPEND_END_TIME", "停牌截止时间"),
+    ("SUSPEND_EXPIRE", "停牌期限"),
+    ("SUSPEND_REASON", "停牌原因"),
+    ("TRADE_MARKET", "所属市场"),
+    ("PREDICT_RESUME_DATE", "预计复牌时间"),
+];
+const TFP_SELECT: [&str; 8] = [
+    "代码",
+    "名称",
+    "停牌时间",
+    "停牌截止时间",
+    "停牌期限",
+    "停牌原因",
+    "所属市场",
+    "预计复牌时间",
+];
+const TFP_NUMERIC: [&str; 0] = [];
+const TFP_DATE: [&str; 3] = ["停牌时间", "停牌截止时间", "预计复牌时间"];
+
+/// 停复牌信息（对应 akshare [`akshare.stock_tfp_em`]）。
+///
+/// `date`：查询日期 `YYYYMMDD`（如 `"20240426"`），返回该日全市场停复牌记录。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 停牌时间, 停牌截止时间, 停牌期限, 停牌原因, 所属市场, 预计复牌时间`
+pub fn stock_tfp_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(MARKET=\"全部\")(DATETIME='{d}')");
+    let extra = report_extra("SUSPEND_START_DATE", "-1", Some(&filter), None, None, None);
+    let rows = datacenter("RPT_CUSTOM_SUSPEND_DATA_INTERFACE", "ALL", &extra, "500")?;
+    let mut df = finalize_report(&rows, &TFP_RENAME, &TFP_SELECT, &TFP_NUMERIC, Some("序号"))?;
+    df.cast_date(&TFP_DATE)?;
+    Ok(df)
+}
+
+// ===== 全部增发（RPT_SEO_DETAIL）=====
+// 无序号列。列名直接来自 akshare `big_df.rename(columns={...})`；quoteColumns 注入最新价。
+const QBZF_RENAME: [(&str, &str); 11] = [
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("SECURITY_CODE", "股票代码"),
+    ("CORRECODE", "增发代码"),
+    ("SEO_TYPE", "发行方式"),
+    ("ISSUE_NUM", "发行总数"),
+    ("ONLINE_ISSUE_NUM", "网上发行"),
+    ("ISSUE_PRICE", "发行价格"),
+    ("NEW_PRICE", "最新价"),
+    ("ISSUE_DATE", "发行日期"),
+    ("ISSUE_LISTING_DATE", "增发上市日期"),
+    ("LOCKIN_PERIOD", "锁定期"),
+];
+const QBZF_SELECT: [&str; 11] = [
+    "股票代码",
+    "股票简称",
+    "增发代码",
+    "发行方式",
+    "发行总数",
+    "网上发行",
+    "发行价格",
+    "最新价",
+    "发行日期",
+    "增发上市日期",
+    "锁定期",
+];
+const QBZF_NUMERIC: [&str; 3] = ["发行总数", "发行价格", "最新价"];
+const QBZF_DATE: [&str; 2] = ["发行日期", "增发上市日期"];
+
+/// 全部增发（对应 akshare [`akshare.stock_qbzf_em`]）。
+///
+/// 拉取全市场增发记录（无参数）；`发行方式` 由东财原始 `SEO_TYPE`（1=定向增发/2=公开增发）映射。
+///
+/// # 返回列
+/// `股票代码, 股票简称, 增发代码, 发行方式, 发行总数, 网上发行, 发行价格,
+/// 最新价, 发行日期, 增发上市日期, 锁定期`
+pub fn stock_qbzf_em() -> Result<Df> {
+    let extra = report_extra(
+        "ISSUE_DATE",
+        "-1",
+        None,
+        Some("f2~01~SECURITY_CODE~NEW_PRICE"),
+        None,
+        Some("0"),
+    );
+    let rows = datacenter("RPT_SEO_DETAIL", "ALL", &extra, "500")?;
+    let mut df = finalize_report(&rows, &QBZF_RENAME, &QBZF_SELECT, &QBZF_NUMERIC, None)?;
+    df.cast_date(&QBZF_DATE)?;
+    Ok(df)
+}
+
+// ===== 配股（RPT_IPO_ALLOTMENT）=====
+// 无序号列。列序参照 akshare `big_df.columns`（columns=ALL）与实时拉取的 JSON 键序逐位对齐；
+// quoteColumns 注入最新价（位于键序末尾）。
+const PG_RENAME: [(&str, &str); 13] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("CORRECODE", "配售代码"),
+    ("PLACING_RATIO", "配股比例"),
+    ("ISSUE_PRICE", "配股价"),
+    ("TOTAL_SHARES_BEFORE", "配股前总股本"),
+    ("ISSUE_NUM", "配股数量"),
+    ("TOTAL_SHARES_AFTER", "配股后总股本"),
+    ("EQUITY_RECORD_DATE", "股权登记日"),
+    ("PAY_START_DATE", "缴款起始日期"),
+    ("PAY_END_DATE", "缴款截止日期"),
+    ("LISTING_DATE", "上市日"),
+    ("NEW_PRICE", "最新价"),
+];
+const PG_SELECT: [&str; 13] = [
+    "股票代码",
+    "股票简称",
+    "配售代码",
+    "配股数量",
+    "配股比例",
+    "配股价",
+    "最新价",
+    "配股前总股本",
+    "配股后总股本",
+    "股权登记日",
+    "缴款起始日期",
+    "缴款截止日期",
+    "上市日",
+];
+const PG_NUMERIC: [&str; 5] = [
+    "配股数量",
+    "配股价",
+    "最新价",
+    "配股前总股本",
+    "配股后总股本",
+];
+const PG_DATE: [&str; 4] = ["股权登记日", "缴款起始日期", "缴款截止日期", "上市日"];
+
+/// 配股（对应 akshare [`akshare.stock_pg_em`]）。
+///
+/// 拉取全市场配股记录（无参数）。akshare 将 `配股比例` 前缀为 `"10配"` 文本，本实现保留原始数值。
+///
+/// # 返回列
+/// `股票代码, 股票简称, 配售代码, 配股数量, 配股比例, 配股价, 最新价, 配股前总股本,
+/// 配股后总股本, 股权登记日, 缴款起始日期, 缴款截止日期, 上市日`
+pub fn stock_pg_em() -> Result<Df> {
+    let extra = report_extra(
+        "EQUITY_RECORD_DATE",
+        "-1",
+        None,
+        Some("f2~01~SECURITY_CODE~NEW_PRICE"),
+        None,
+        Some("0"),
+    );
+    let rows = datacenter("RPT_IPO_ALLOTMENT", "ALL", &extra, "50000")?;
+    let mut df = finalize_report(&rows, &PG_RENAME, &PG_SELECT, &PG_NUMERIC, None)?;
+    df.cast_date(&PG_DATE)?;
+    Ok(df)
+}
+
+// ===== 股票账户统计（RPT_STOCK_OPEN_DATA）=====
+// 无序号列。列序参照 akshare `big_df.columns`（columns=ALL）与实时拉取的 JSON 键序逐位对齐。
+const ACCOUNT_RENAME: [(&str, &str); 11] = [
+    ("STATISTICS_DATE", "数据日期"),
+    ("ADD_INVESTOR", "新增投资者-数量"),
+    ("ADD_INVESTOR_QOQ", "新增投资者-环比"),
+    ("ADD_INVESTOR_YOY", "新增投资者-同比"),
+    ("END_INVESTOR", "期末投资者-总量"),
+    ("END_INVESTOR_A", "期末投资者-A股账户"),
+    ("END_INVESTOR_B", "期末投资者-B股账户"),
+    ("CLOSE_PRICE", "上证指数-收盘"),
+    ("CHANGE_RATE", "上证指数-涨跌幅"),
+    ("TOTAL_MARKET_CAP", "沪深总市值"),
+    ("AVERAGE_MARKET_CAP", "沪深户均市值"),
+];
+const ACCOUNT_SELECT: [&str; 11] = [
+    "数据日期",
+    "新增投资者-数量",
+    "新增投资者-环比",
+    "新增投资者-同比",
+    "期末投资者-总量",
+    "期末投资者-A股账户",
+    "期末投资者-B股账户",
+    "沪深总市值",
+    "沪深户均市值",
+    "上证指数-收盘",
+    "上证指数-涨跌幅",
+];
+const ACCOUNT_NUMERIC: [&str; 10] = [
+    "新增投资者-数量",
+    "新增投资者-环比",
+    "新增投资者-同比",
+    "期末投资者-总量",
+    "期末投资者-A股账户",
+    "期末投资者-B股账户",
+    "沪深总市值",
+    "沪深户均市值",
+    "上证指数-收盘",
+    "上证指数-涨跌幅",
+];
+const ACCOUNT_DATE: [&str; 1] = ["数据日期"];
+
+/// 股票账户统计（对应 akshare [`akshare.stock_account_statistics_em`]）。
+///
+/// 拉取股票账户统计数据（无参数），按数据日期倒序。
+///
+/// # 返回列
+/// `数据日期, 新增投资者-数量, 新增投资者-环比, 新增投资者-同比, 期末投资者-总量,
+/// 期末投资者-A股账户, 期末投资者-B股账户, 沪深总市值, 沪深户均市值,
+/// 上证指数-收盘, 上证指数-涨跌幅`
+pub fn stock_account_statistics_em() -> Result<Df> {
+    let extra = report_extra("STATISTICS_DATE", "-1", None, None, None, None);
+    let rows = datacenter("RPT_STOCK_OPEN_DATA", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &ACCOUNT_RENAME,
+        &ACCOUNT_SELECT,
+        &ACCOUNT_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&ACCOUNT_DATE)?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1786,6 +2306,222 @@ mod tests {
             .str()
             .unwrap();
         assert_eq!(dir.get(0), Some("减持"));
+    }
+
+    /// 离线验证机构调研统计列契约：序号生成 + 列序 + 数值/日期列。
+    #[test]
+    fn jgdy_tj_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技","NOTICE_DATE":"2026-08-08 00:00:00",
+                "RECEIVE_START_DATE":"2026-08-05 00:00:00","RECEIVE_PLACE":"公司会议室",
+                "RECEIVE_WAY_EXPLAIN":"实地调研","RECEPTIONIST":"董秘","SUM":"35",
+                "CLOSE_PRICE":"45.6","CHANGE_RATE":"-1.23"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &JGDY_TJ_RENAME,
+            &JGDY_TJ_SELECT,
+            &JGDY_TJ_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&JGDY_TJ_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        let idx = df.inner().column("序号").unwrap().f64().unwrap();
+        assert_eq!(idx.get(0), Some(1.0));
+        assert_eq!(df.column_names()[1..], JGDY_TJ_SELECT);
+        let price = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(price.get(0), Some(45.6));
+        let notice = df.inner().column("公告日期").unwrap().str().unwrap();
+        assert_eq!(notice.get(0), Some("2026-08-08"));
+    }
+
+    /// 离线验证机构调研详细列契约。
+    #[test]
+    fn jgdy_detail_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技","NOTICE_DATE":"2026-08-08 00:00:00",
+                "RECEIVE_START_DATE":"2026-08-05 00:00:00","RECEIVE_OBJECT":"券商资管","RECEIVE_PLACE":"北京",
+                "RECEIVE_WAY_EXPLAIN":"电话会议","INVESTIGATORS":"基金经理","RECEPTIONIST":"董秘",
+                "ORG_TYPE":"证券公司","CLOSE_PRICE":"45.6","CHANGE_RATE":"-1.23"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &JGDY_DETAIL_RENAME,
+            &JGDY_DETAIL_SELECT,
+            &JGDY_DETAIL_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&JGDY_DETAIL_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], JGDY_DETAIL_SELECT);
+        let rate = df.inner().column("涨跌幅").unwrap().f64().unwrap();
+        assert_eq!(rate.get(0), Some(-1.23));
+        let d = df.inner().column("调研日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-08-05"));
+    }
+
+    /// 离线验证分红送配列契约（无序号）。
+    #[test]
+    fn fhps_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技","BONUS_IT_RATIO":"3.0",
+                "BONUS_RATIO":"2.0","IT_RATIO":"1.0","PRETAX_BONUS_RMB":"5.0","PLAN_NOTICE_DATE":"2026-03-31 00:00:00",
+                "EQUITY_RECORD_DATE":"2026-04-10 00:00:00","EX_DIVIDEND_DATE":"2026-04-11 00:00:00",
+                "ASSIGN_PROGRESS":"实施","NOTICE_DATE":"2026-04-12 00:00:00","BASIC_EPS":"1.5",
+                "BVPS":"10.0","PER_CAPITAL_RESERVE":"5.0","PER_UNASSIGN_PROFIT":"3.0","PNP_YOY_RATIO":"12.0",
+                "TOTAL_SHARES":"500000000","DIVIDENT_RATIO":"1.2"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &FHPS_RENAME, &FHPS_SELECT, &FHPS_NUMERIC, None).unwrap();
+        df.cast_date(&FHPS_DATE).unwrap();
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), FHPS_SELECT);
+        let total = df.inner().column("总股本").unwrap().f64().unwrap();
+        assert_eq!(total.get(0), Some(500000000.0));
+        let notice = df.inner().column("最新公告日期").unwrap().str().unwrap();
+        assert_eq!(notice.get(0), Some("2026-04-12"));
+    }
+
+    /// 离线验证分红送配详情列契约（无序号）。
+    #[test]
+    fn fhps_detail_offline() {
+        let rows = json!([
+            {
+                "BONUS_IT_RATIO":"3.0","BONUS_RATIO":"2.0","IT_RATIO":"1.0","PRETAX_BONUS_RMB":"5.0",
+                "PLAN_NOTICE_DATE":"2026-03-31 00:00:00","EQUITY_RECORD_DATE":"2026-04-10 00:00:00",
+                "EX_DIVIDEND_DATE":"2026-04-11 00:00:00","REPORT_DATE":"2025-12-31 00:00:00",
+                "ASSIGN_PROGRESS":"实施","IMPL_PLAN_PROFILE":"10派5元","NOTICE_DATE":"2026-04-12 00:00:00",
+                "BASIC_EPS":"1.5","BVPS":"10.0","PER_CAPITAL_RESERVE":"5.0","PER_UNASSIGN_PROFIT":"3.0",
+                "PNP_YOY_RATIO":"12.0","TOTAL_SHARES":"500000000","PUBLISH_DATE":"2026-03-30 00:00:00",
+                "DIVIDENT_RATIO":"1.2"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &FHPS_DETAIL_RENAME,
+            &FHPS_DETAIL_SELECT,
+            &FHPS_DETAIL_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&FHPS_DETAIL_DATE).unwrap();
+        assert_eq!(df.column_names(), FHPS_DETAIL_SELECT);
+        let bonus = df
+            .inner()
+            .column("现金分红-现金分红比例")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(bonus.get(0), Some(5.0));
+        let report = df.inner().column("报告期").unwrap().str().unwrap();
+        assert_eq!(report.get(0), Some("2025-12-31"));
+    }
+
+    /// 离线验证停复牌信息列契约：序号生成 + 空数值列 + 日期列。
+    #[test]
+    fn tfp_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技",
+                "SUSPEND_START_TIME":"2026-08-05 00:00:00","SUSPEND_END_TIME":"2026-08-10 00:00:00",
+                "SUSPEND_EXPIRE":"连续停牌","SUSPEND_REASON":"重大事项","TRADE_MARKET":"创业板",
+                "PREDICT_RESUME_DATE":"2026-08-11 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &TFP_RENAME, &TFP_SELECT, &TFP_NUMERIC, Some("序号")).unwrap();
+        df.cast_date(&TFP_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], TFP_SELECT);
+        // 无数值列，日期需正确截断
+        let start = df.inner().column("停牌时间").unwrap().str().unwrap();
+        assert_eq!(start.get(0), Some("2026-08-05"));
+    }
+
+    /// 离线验证全部增发列契约（无序号，含 quote 最新价）。
+    #[test]
+    fn qbzf_offline() {
+        let rows = json!([
+            {
+                "SECURITY_NAME_ABBR":"当升科技","SECURITY_CODE":"300073","CORRECODE":"380073",
+                "SEO_TYPE":"1","ISSUE_NUM":"10000000","ONLINE_ISSUE_NUM":"3000000",
+                "ISSUE_PRICE":"20.5","NEW_PRICE":"45.6","ISSUE_DATE":"2026-03-31 00:00:00",
+                "ISSUE_LISTING_DATE":"2026-04-15 00:00:00","LOCKIN_PERIOD":"6个月"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &QBZF_RENAME, &QBZF_SELECT, &QBZF_NUMERIC, None).unwrap();
+        df.cast_date(&QBZF_DATE).unwrap();
+        assert_eq!(df.column_names(), QBZF_SELECT);
+        let price = df.inner().column("发行价格").unwrap().f64().unwrap();
+        assert_eq!(price.get(0), Some(20.5));
+        let listing = df.inner().column("增发上市日期").unwrap().str().unwrap();
+        assert_eq!(listing.get(0), Some("2026-04-15"));
+    }
+
+    /// 离线验证配股列契约（无序号，含 quote 最新价）。
+    #[test]
+    fn pg_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"600030","SECURITY_NAME_ABBR":"中信证券","CORRECODE":"700030",
+                "PLACING_RATIO":"0.3","ISSUE_PRICE":"14.0","TOTAL_SHARES_BEFORE":"1000000000",
+                "ISSUE_NUM":"300000000","TOTAL_SHARES_AFTER":"1300000000",
+                "EQUITY_RECORD_DATE":"2026-04-10 00:00:00","PAY_START_DATE":"2026-04-15 00:00:00",
+                "PAY_END_DATE":"2026-04-20 00:00:00","LISTING_DATE":"2026-05-10 00:00:00",
+                "NEW_PRICE":"25.0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(&rows, &PG_RENAME, &PG_SELECT, &PG_NUMERIC, None).unwrap();
+        df.cast_date(&PG_DATE).unwrap();
+        assert_eq!(df.column_names(), PG_SELECT);
+        let num = df.inner().column("配股数量").unwrap().f64().unwrap();
+        assert_eq!(num.get(0), Some(300000000.0));
+        let listing = df.inner().column("上市日").unwrap().str().unwrap();
+        assert_eq!(listing.get(0), Some("2026-05-10"));
+    }
+
+    /// 离线验证股票账户统计列契约（无序号）。
+    #[test]
+    fn account_offline() {
+        let rows = json!([
+            {
+                "STATISTICS_DATE":"2026-03-31 00:00:00","ADD_INVESTOR":"2000000","ADD_INVESTOR_QOQ":"5.1",
+                "ADD_INVESTOR_YOY":"3.2","END_INVESTOR":"220000000","END_INVESTOR_A":"210000000",
+                "END_INVESTOR_B":"10000000","CLOSE_PRICE":"3200.5","CHANGE_RATE":"-0.5",
+                "TOTAL_MARKET_CAP":"80000000000000","AVERAGE_MARKET_CAP":"360000"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &ACCOUNT_RENAME,
+            &ACCOUNT_SELECT,
+            &ACCOUNT_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&ACCOUNT_DATE).unwrap();
+        assert_eq!(df.column_names(), ACCOUNT_SELECT);
+        let add = df.inner().column("新增投资者-数量").unwrap().f64().unwrap();
+        assert_eq!(add.get(0), Some(2000000.0));
+        let d = df.inner().column("数据日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-03-31"));
     }
 
     /// 真实网络冒烟：拉取实时列契约，与 akshare 实测列序核对（需联网，默认忽略）。
