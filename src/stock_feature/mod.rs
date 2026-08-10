@@ -2801,6 +2801,330 @@ pub fn stock_gdfx_holding_change_em(date: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ===== 千股千评-主力控盘-机构参与度（RPT_DMSK_TS_STOCKEVALUATE）=====
+// 无 序号（akshare 仅 reset_index(drop=True)）。机构参与度在 akshare 中 ×100。
+const COMMENT_JGCYD_RENAME: [(&str, &str); 2] =
+    [("TRADE_DATE", "交易日"), ("ORG_PARTICIPATE", "机构参与度")];
+const COMMENT_JGCYD_SELECT: [&str; 2] = ["交易日", "机构参与度"];
+const COMMENT_JGCYD_NUMERIC: [&str; 1] = ["机构参与度"];
+const COMMENT_JGCYD_DATE: [&str; 1] = ["交易日"];
+
+/// 千股千评-主力控盘-机构参与度（对应 akshare [`akshare.stock_comment_detail_zlkp_jgcyd_em`]）。
+///
+/// `symbol`：股票代码（默认 `"600000"`）。
+///
+/// # 返回列
+/// `交易日, 机构参与度`（机构参与度 = akshare `ORG_PARTICIPATE × 100`）
+pub fn stock_comment_detail_zlkp_jgcyd_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(SECURITY_CODE="{symbol}")"#);
+    let extra = report_extra(
+        "TRADE_DATE",
+        "-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_DMSK_TS_STOCKEVALUATE", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &COMMENT_JGCYD_RENAME,
+        &COMMENT_JGCYD_SELECT,
+        &COMMENT_JGCYD_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&COMMENT_JGCYD_DATE)?;
+    // akshare: ORG_PARTICIPATE * 100（scale 语义为 ÷factor，故 0.01 即 ×100）
+    df.scale("机构参与度", 0.01)?;
+    Ok(df)
+}
+
+// ===== 千股千评-综合评价-历史评分（RPT_STOCK_HISTORYMARK）=====
+// 无 序号（akshare 仅 reset_index(drop=True)）。
+const COMMENT_LSPF_RENAME: [(&str, &str); 2] =
+    [("DIAGNOSE_DATE", "交易日"), ("TOTAL_SCORE", "评分")];
+const COMMENT_LSPF_SELECT: [&str; 2] = ["交易日", "评分"];
+const COMMENT_LSPF_NUMERIC: [&str; 1] = ["评分"];
+const COMMENT_LSPF_DATE: [&str; 1] = ["交易日"];
+
+/// 千股千评-综合评价-历史评分（对应 akshare [`akshare.stock_comment_detail_zhpj_lspf_em`]）。
+///
+/// `symbol`：股票代码（默认 `"600000"`）。
+///
+/// # 返回列
+/// `交易日, 评分`
+pub fn stock_comment_detail_zhpj_lspf_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(SECURITY_CODE="{symbol}")"#);
+    let extra = report_extra(
+        "DIAGNOSE_DATE",
+        "1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_STOCK_HISTORYMARK", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &COMMENT_LSPF_RENAME,
+        &COMMENT_LSPF_SELECT,
+        &COMMENT_LSPF_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&COMMENT_LSPF_DATE)?;
+    Ok(df)
+}
+
+// ===== 沪深港通持股-每日个股统计（北向持股，RPT_MUTUAL_STOCK_NORTHSTA）=====
+// 对应 akshare [`akshare.stock_hsgt_stock_statistics_em`] 默认 北向持股 分支。
+// 无 序号（akshare 北向分支仅 DataFrame + 列重命名，无 index 列）。
+// 列集与 南向 HOLDRANKS 报表一致：SECURITY_CODE/SECURITY_NAME 分别对应 股票代码/股票简称
+// （北向/南向两套报表的 JSON 键序不同，但键名一致，故 RENAME 复用同一组键名）。
+const HSGT_STAT_RENAME: [(&str, &str); 11] = [
+    ("TRADE_DATE", "持股日期"),
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME", "股票简称"),
+    ("CLOSE_PRICE", "当日收盘价"),
+    ("CHANGE_RATE", "当日涨跌幅"),
+    ("HOLD_SHARES", "持股数量"),
+    ("HOLD_MARKET_CAP", "持股市值"),
+    ("HOLD_SHARES_RATIO", "持股数量占发行股百分比"),
+    ("HOLD_MARKETCAP_CHG1", "持股市值变化-1日"),
+    ("HOLD_MARKETCAP_CHG5", "持股市值变化-5日"),
+    ("HOLD_MARKETCAP_CHG10", "持股市值变化-10日"),
+];
+const HSGT_STAT_SELECT: [&str; 11] = [
+    "持股日期",
+    "股票代码",
+    "股票简称",
+    "当日收盘价",
+    "当日涨跌幅",
+    "持股数量",
+    "持股市值",
+    "持股数量占发行股百分比",
+    "持股市值变化-1日",
+    "持股市值变化-5日",
+    "持股市值变化-10日",
+];
+const HSGT_STAT_NUMERIC: [&str; 8] = [
+    "当日收盘价",
+    "当日涨跌幅",
+    "持股数量",
+    "持股市值",
+    "持股数量占发行股百分比",
+    "持股市值变化-1日",
+    "持股市值变化-5日",
+    "持股市值变化-10日",
+];
+const HSGT_STAT_DATE: [&str; 1] = ["持股日期"];
+
+/// 沪深港通持股-每日个股统计（北向持股，对应 akshare [`akshare.stock_hsgt_stock_statistics_em`] 默认 北向持股 分支）。
+///
+/// `start_date` / `end_date`：开始/结束日期 `YYYYMMDD`。
+///
+/// 注：akshare 原版该接口签名为 `(symbol, start_date, end_date)`，此处实现其
+/// **默认** 北向持股分支 `RPT_MUTUAL_STOCK_NORTHSTA`，滤网
+/// `(INTERVAL_TYPE="1")(MUTUAL_TYPE in ("001","003"))(TRADE_DATE>='<start>')(TRADE_DATE<='<end>')`
+/// （南向 `RPT_MUTUAL_STOCK_HOLDRANKS` 为非默认分支，未实现）。
+///
+/// # 返回列
+/// `持股日期, 股票代码, 股票简称, 当日收盘价, 当日涨跌幅, 持股数量, 持股市值,
+/// 持股数量占发行股百分比, 持股市值变化-1日, 持股市值变化-5日, 持股市值变化-10日`
+pub fn stock_hsgt_stock_statistics_em(start_date: &str, end_date: &str) -> Result<Df> {
+    let s = fmt_ymd(start_date)?;
+    let e = fmt_ymd(end_date)?;
+    let filter = format!(
+        r#"(INTERVAL_TYPE="1")(MUTUAL_TYPE in ("001","003"))(TRADE_DATE>='{s}')(TRADE_DATE<='{e}')"#
+    );
+    let extra = report_extra(
+        "TRADE_DATE",
+        "-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_MUTUAL_STOCK_NORTHSTA", "ALL", &extra, "1000")?;
+    let mut df = finalize_report(
+        &rows,
+        &HSGT_STAT_RENAME,
+        &HSGT_STAT_SELECT,
+        &HSGT_STAT_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&HSGT_STAT_DATE)?;
+    Ok(df)
+}
+
+/// 交易市场代码 → 中文名（对应 akshare `交易市场.map({...})`，仅商誉类报表用到）。
+///
+/// `key` 为原始 JSON 键名（`sy_yq` 用 `TRADE_MARKET`，`sy_jz` 用 `TRADE_BOARD`）；
+/// 未知代码保持原值（对应 akshare `.map` 未命中 → NaN 兜底）。
+fn map_trade_market(rows: &[Value], key: &str) -> Vec<Value> {
+    rows.iter()
+        .map(|r| {
+            let mut r = r.clone();
+            if let Some(obj) = r.as_object_mut() {
+                if let Some(v) = obj.get_mut(key) {
+                    if let Some(s) = v.as_str() {
+                        let mapped = match s {
+                            "shzb" => "沪市主板",
+                            "kcb" => "科创板",
+                            "szzb" => "深市主板",
+                            "cyb" => "创业板",
+                            other => other,
+                        };
+                        *v = Value::String(mapped.to_string());
+                    }
+                }
+            }
+            r
+        })
+        .collect()
+}
+
+// ===== 商誉-商誉减值预期明细（RPT_GOODWILL_STOCKPREDICT）=====
+// 序号由 Rust 生成。列序参照 akshare rename + select 逐位对齐。
+const SY_YQ_RENAME: [(&str, &str); 13] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("TRADE_MARKET", "交易市场"),
+    ("NOTICE_DATE", "公告日期"),
+    ("PREDICT_NETPROFIT_LOWER", "预计净利润-下限"),
+    ("PREDICT_NETPROFIT_UPPER", "预计净利润-上限"),
+    ("PERFORM_CHANGE_UPPER", "业绩变动幅度-上限"),
+    ("PERFORM_CHANGE_LOWER", "业绩变动幅度-下限"),
+    ("PERFORM_CHANGE_EXPLAIN", "业绩变动原因"),
+    ("PE_SAMEREPORT_NETPROFIT", "上年度同期净利润"),
+    ("PE_GOODWILL", "上年商誉"),
+    ("NEWEST_REPORT_DATE", "最新商誉报告期"),
+    ("NEWEST_GOODWILL", "最新一期商誉"),
+];
+const SY_YQ_SELECT: [&str; 13] = [
+    "股票代码",
+    "股票简称",
+    "业绩变动原因",
+    "最新商誉报告期",
+    "最新一期商誉",
+    "上年商誉",
+    "预计净利润-下限",
+    "预计净利润-上限",
+    "业绩变动幅度-下限",
+    "业绩变动幅度-上限",
+    "上年度同期净利润",
+    "公告日期",
+    "交易市场",
+];
+const SY_YQ_NUMERIC: [&str; 7] = [
+    "最新一期商誉",
+    "上年商誉",
+    "预计净利润-下限",
+    "预计净利润-上限",
+    "业绩变动幅度-下限",
+    "业绩变动幅度-上限",
+    "上年度同期净利润",
+];
+const SY_YQ_DATE: [&str; 2] = ["最新商誉报告期", "公告日期"];
+
+/// 商誉-商誉减值预期明细（对应 akshare [`akshare.stock_sy_yq_em`]）。
+///
+/// `date`：数据日期 `YYYYMMDD`（默认 `"20240630"`）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 业绩变动原因, 最新商誉报告期, 最新一期商誉, 上年商誉,
+/// 预计净利润-下限, 预计净利润-上限, 业绩变动幅度-下限, 业绩变动幅度-上限,
+/// 上年度同期净利润, 公告日期, 交易市场`
+pub fn stock_sy_yq_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(REPORT_DATE='{d}')");
+    let extra = report_extra(
+        "NOTICE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_GOODWILL_STOCKPREDICT", "ALL", &extra, "5000")?;
+    let rows = map_trade_market(&rows, "TRADE_MARKET");
+    let mut df = finalize_report(
+        &rows,
+        &SY_YQ_RENAME,
+        &SY_YQ_SELECT,
+        &SY_YQ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&SY_YQ_DATE)?;
+    Ok(df)
+}
+
+// ===== 商誉-个股商誉减值明细（RPT_GOODWILL_STOCKDETAILS）=====
+// 序号由 Rust 生成。列序参照 akshare rename + select 逐位对齐。
+const SY_JZ_RENAME: [(&str, &str); 10] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("TRADE_BOARD", "交易市场"),
+    ("GOODWILL", "商誉"),
+    ("GOODWILL_CHANGE", "商誉减值"),
+    ("SUMSHEQUITY_RATIO", "商誉占净资产比例"),
+    ("SE_CHANGE_RATIO", "商誉减值占净资产比例"),
+    ("PARENTNETPROFIT", "净利润"),
+    ("PNP_CHANGE_RATIO", "商誉减值占净利润比例"),
+    ("NOTICE_DATE", "公告日期"),
+];
+const SY_JZ_SELECT: [&str; 10] = [
+    "股票代码",
+    "股票简称",
+    "商誉",
+    "商誉减值",
+    "商誉占净资产比例",
+    "商誉减值占净资产比例",
+    "净利润",
+    "商誉减值占净利润比例",
+    "公告日期",
+    "交易市场",
+];
+const SY_JZ_NUMERIC: [&str; 6] = [
+    "商誉",
+    "商誉减值",
+    "商誉占净资产比例",
+    "商誉减值占净资产比例",
+    "净利润",
+    "商誉减值占净利润比例",
+];
+const SY_JZ_DATE: [&str; 1] = ["公告日期"];
+
+/// 商誉-个股商誉减值明细（对应 akshare [`akshare.stock_sy_jz_em`]）。
+///
+/// `date`：数据日期 `YYYYMMDD`（默认 `"20240630"`）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 商誉, 商誉减值, 商誉占净资产比例, 商誉减值占净资产比例,
+/// 净利润, 商誉减值占净利润比例, 公告日期, 交易市场`
+pub fn stock_sy_jz_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(REPORT_DATE='{d}')");
+    let extra = report_extra(
+        "GOODWILL_CHANGE",
+        "-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_GOODWILL_STOCKDETAILS", "ALL", &extra, "5000")?;
+    let rows = map_trade_market(&rows, "TRADE_BOARD");
+    let mut df = finalize_report(
+        &rows,
+        &SY_JZ_RENAME,
+        &SY_JZ_SELECT,
+        &SY_JZ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&SY_JZ_DATE)?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3568,6 +3892,250 @@ mod tests {
     /// 真实网络冒烟：拉取实时列契约，与 akshare 实测列序核对（需联网，默认忽略）。
     /// 东财 push2 对本机 IP 偶发 TLS 重置（与 akshare Python 同样受影响），故不 `expect`，
     /// 仅打印结果以便人工核对。
+    /// 离线验证千股千评-主力控盘-机构参与度列契约（无 序号；机构参与度 ×100）。
+    #[test]
+    fn comment_jgcyd_offline() {
+        let rows = json!([
+            {
+                "TRADE_DATE":"2026-04-10 00:00:00","ORG_PARTICIPATE":"0.5"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &COMMENT_JGCYD_RENAME,
+            &COMMENT_JGCYD_SELECT,
+            &COMMENT_JGCYD_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&COMMENT_JGCYD_DATE).unwrap();
+        df.scale("机构参与度", 0.01).unwrap();
+        // 无 序号 列
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), COMMENT_JGCYD_SELECT);
+        // 机构参与度 = 0.5 × 100 = 50.0
+        let v = df.inner().column("机构参与度").unwrap().f64().unwrap();
+        assert_eq!(v.get(0), Some(50.0));
+        let d = df.inner().column("交易日").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证千股千评-综合评价-历史评分列契约（无 序号）。
+    #[test]
+    fn comment_lspf_offline() {
+        let rows = json!([
+            {
+                "DIAGNOSE_DATE":"2026-04-10 00:00:00","TOTAL_SCORE":"92.3"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &COMMENT_LSPF_RENAME,
+            &COMMENT_LSPF_SELECT,
+            &COMMENT_LSPF_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&COMMENT_LSPF_DATE).unwrap();
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), COMMENT_LSPF_SELECT);
+        let score = df.inner().column("评分").unwrap().f64().unwrap();
+        assert_eq!(score.get(0), Some(92.3));
+        let d = df.inner().column("交易日").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证沪深港通持股-每日个股统计（北向）列契约（无 序号 + 数值 + 日期截断）。
+    #[test]
+    fn hsgt_stat_offline() {
+        let rows = json!([
+            {
+                "TRADE_DATE":"2026-04-10 00:00:00","SECURITY_CODE":"06098",
+                "SECURITY_NAME":"碧桂园服务","CLOSE_PRICE":"6.11","CHANGE_RATE":"3.2095",
+                "HOLD_SHARES":"1029614338","HOLD_MARKET_CAP":"6290943605.18",
+                "HOLD_SHARES_RATIO":"30.79","HOLD_MARKETCAP_CHG1":null,
+                "HOLD_MARKETCAP_CHG5":null,"HOLD_MARKETCAP_CHG10":null
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &HSGT_STAT_RENAME,
+            &HSGT_STAT_SELECT,
+            &HSGT_STAT_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&HSGT_STAT_DATE).unwrap();
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), HSGT_STAT_SELECT);
+        let cap = df.inner().column("持股市值").unwrap().f64().unwrap();
+        assert_eq!(cap.get(0), Some(6290943605.18));
+        let shares = df.inner().column("持股数量").unwrap().f64().unwrap();
+        assert_eq!(shares.get(0), Some(1029614338.0));
+        let d = df.inner().column("持股日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证商誉-商誉减值预期明细列契约（序号 + 数值 + 日期截断）。
+    #[test]
+    fn sy_yq_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技","TRADE_MARKET":"cyb",
+                "NOTICE_DATE":"2026-04-10 00:00:00","PREDICT_NETPROFIT_LOWER":"50000000",
+                "PREDICT_NETPROFIT_UPPER":"60000000","PERFORM_CHANGE_UPPER":"25.0",
+                "PERFORM_CHANGE_LOWER":"20.0","PERFORM_CHANGE_EXPLAIN":"业绩预增",
+                "PE_SAMEREPORT_NETPROFIT":"40000000","PE_GOODWILL":"8000000",
+                "NEWEST_REPORT_DATE":"2025-12-31 00:00:00","NEWEST_GOODWILL":"9000000"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let rows = map_trade_market(&rows, "TRADE_MARKET");
+        let mut df = finalize_report(
+            &rows,
+            &SY_YQ_RENAME,
+            &SY_YQ_SELECT,
+            &SY_YQ_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&SY_YQ_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], SY_YQ_SELECT);
+        let g = df.inner().column("最新一期商誉").unwrap().f64().unwrap();
+        assert_eq!(g.get(0), Some(9000000.0));
+        let notice = df.inner().column("公告日期").unwrap().str().unwrap();
+        assert_eq!(notice.get(0), Some("2026-04-10"));
+        let report = df.inner().column("最新商誉报告期").unwrap().str().unwrap();
+        assert_eq!(report.get(0), Some("2025-12-31"));
+        // 交易市场 代码 → 中文名映射
+        let market = df.inner().column("交易市场").unwrap().str().unwrap();
+        assert_eq!(market.get(0), Some("创业板"));
+    }
+
+    /// 离线验证商誉-个股商誉减值明细列契约（序号 + 数值 + 日期截断）。
+    #[test]
+    fn sy_jz_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"300073","SECURITY_NAME_ABBR":"当升科技","TRADE_BOARD":"cyb",
+                "GOODWILL":"9000000","GOODWILL_CHANGE":"1000000","SUMSHEQUITY_RATIO":"5.0",
+                "SE_CHANGE_RATIO":"0.5","PARENTNETPROFIT":"60000000",
+                "PNP_CHANGE_RATIO":"1.5","NOTICE_DATE":"2026-04-10 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let rows = map_trade_market(&rows, "TRADE_BOARD");
+        let mut df = finalize_report(
+            &rows,
+            &SY_JZ_RENAME,
+            &SY_JZ_SELECT,
+            &SY_JZ_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&SY_JZ_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], SY_JZ_SELECT);
+        let g = df.inner().column("商誉").unwrap().f64().unwrap();
+        assert_eq!(g.get(0), Some(9000000.0));
+        let ratio = df
+            .inner()
+            .column("商誉占净资产比例")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(ratio.get(0), Some(5.0));
+        let d = df.inner().column("公告日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+        // 交易市场 代码 → 中文名映射
+        let market = df.inner().column("交易市场").unwrap().str().unwrap();
+        assert_eq!(market.get(0), Some("创业板"));
+    }
+
+    /// 离线验证千股千评-主力控盘-机构参与度列契约（无序号 + 机构参与度 ×100）。
+    #[test]
+    fn comment_detail_zlkp_offline() {
+        let rows = json!([
+            {
+                "TRADE_DATE":"2026-04-10 00:00:00","ORG_PARTICIPATE":"0.4457392"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &COMMENT_JGCYD_RENAME,
+            &COMMENT_JGCYD_SELECT,
+            &COMMENT_JGCYD_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&COMMENT_JGCYD_DATE).unwrap();
+        // akshare: ORG_PARTICIPATE × 100
+        df.scale("机构参与度", 0.01).unwrap();
+        assert_eq!(df.column_names(), COMMENT_JGCYD_SELECT);
+        let p = df.inner().column("机构参与度").unwrap().f64().unwrap();
+        assert_eq!(p.get(0), Some(44.57392));
+        let d = df.inner().column("交易日").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证千股千评-综合评价-历史评分列契约（无序号 + 数值化）。
+    #[test]
+    fn comment_detail_zhpj_offline() {
+        let rows = json!([
+            {
+                "DIAGNOSE_DATE":"2026-04-10 00:00:00","TOTAL_SCORE":"64.83121714"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &COMMENT_LSPF_RENAME,
+            &COMMENT_LSPF_SELECT,
+            &COMMENT_LSPF_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&COMMENT_LSPF_DATE).unwrap();
+        assert_eq!(df.column_names(), COMMENT_LSPF_SELECT);
+        let s = df.inner().column("评分").unwrap().f64().unwrap();
+        assert_eq!(s.get(0), Some(64.83121714));
+        let d = df.inner().column("交易日").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证沪深港通持股-每日个股统计（北向）列契约（无序号 + 数值化 + 日期截断）。
+    #[test]
+    fn hsgt_stock_statistics_offline() {
+        let rows = json!([
+            {
+                "TRADE_DATE":"2026-04-10 00:00:00","SECURITY_CODE":"000001","SECURITY_NAME":"平安银行",
+                "CLOSE_PRICE":"10.5","CHANGE_RATE":"9.9","HOLD_SHARES":"100000","HOLD_MARKET_CAP":"1050000",
+                "HOLD_SHARES_RATIO":"0.5","HOLD_MARKETCAP_CHG1":"100.0","HOLD_MARKETCAP_CHG5":"200.0",
+                "HOLD_MARKETCAP_CHG10":"300.0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &HSGT_STAT_RENAME,
+            &HSGT_STAT_SELECT,
+            &HSGT_STAT_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&HSGT_STAT_DATE).unwrap();
+        assert_eq!(df.column_names(), HSGT_STAT_SELECT);
+        let px = df.inner().column("当日收盘价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(10.5));
+        let d = df.inner().column("持股日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
     #[test]
     #[ignore]
     fn live_columns_smoke() {
