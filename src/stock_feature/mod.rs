@@ -820,6 +820,101 @@ const SY_PROFILE_NUMERIC: [&str; 7] = [
 ];
 const SY_PROFILE_DATE: [&str; 1] = ["报告期"];
 
+// ===== 重要股东股权质押明细（RPTA_APP_ACCUMDETAILS）=====
+// 序号由 Rust 生成（东财原始 JSON 无 index 键，与 akshare reset_index 一致）。
+const PLEDGE_DETAIL_RENAME: [(&str, &str); 14] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("HOLDER_NAME", "股东名称"),
+    ("NOTICE_DATE", "公告日期"),
+    ("PF_ORG", "质押机构"),
+    ("PF_NUM", "质押股份数量"),
+    ("PF_HOLD_RATIO", "占所持股份比例"),
+    ("PF_TSR", "占总股本比例"),
+    ("CLOSE_FORWARD_ADJPRICE", "质押日收盘价"),
+    ("PF_START_DATE", "质押开始日期"),
+    ("ACTUAL_UNFREEZE_DATE", "质押结束日期"),
+    ("UNFREEZE_STATE", "状态"),
+    ("WARNING_LINE", "预估平仓线"),
+    ("CLOSE_PRICE", "最新价"),
+];
+const PLEDGE_DETAIL_SELECT: [&str; 14] = [
+    "股票代码",
+    "股票简称",
+    "股东名称",
+    "质押股份数量",
+    "占所持股份比例",
+    "占总股本比例",
+    "质押机构",
+    "最新价",
+    "质押日收盘价",
+    "预估平仓线",
+    "质押开始日期",
+    "质押结束日期",
+    "状态",
+    "公告日期",
+];
+const PLEDGE_DETAIL_NUMERIC: [&str; 6] = [
+    "质押股份数量",
+    "占所持股份比例",
+    "占总股本比例",
+    "最新价",
+    "质押日收盘价",
+    "预估平仓线",
+];
+const PLEDGE_DETAIL_DATE: [&str; 3] = ["公告日期", "质押开始日期", "质押结束日期"];
+
+// ===== 高管持股变动（RPT_SHARE_HOLDER_INCREASE）=====
+// 含 quoteColumns 注入的最新价/涨跌幅；akshare 输出无「序号」列。
+const GGCG_RENAME: [(&str, &str); 16] = [
+    ("CHANGE_NUM", "持股变动信息-变动数量"),
+    ("NOTICE_DATE", "公告日"),
+    ("SECURITY_CODE", "代码"),
+    ("HOLDER_NAME", "股东名称"),
+    ("AFTER_CHANGE_RATE", "持股变动信息-占总股本比例"),
+    ("END_DATE", "变动截止日"),
+    ("AFTER_HOLDER_NUM", "变动后持股情况-持股总数"),
+    ("HOLD_RATIO", "变动后持股情况-占总股本比例"),
+    ("FREE_SHARES_RATIO", "变动后持股情况-占流通股比例"),
+    ("FREE_SHARES", "变动后持股情况-持流通股数"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("DIRECTION", "持股变动信息-增减"),
+    ("CHANGE_FREE_RATIO", "持股变动信息-占流通股比例"),
+    ("START_DATE", "变动开始日"),
+    ("NEWEST_PRICE", "最新价"),
+    ("CHANGE_RATE_QUOTES", "涨跌幅"),
+];
+const GGCG_SELECT: [&str; 16] = [
+    "代码",
+    "名称",
+    "最新价",
+    "涨跌幅",
+    "股东名称",
+    "持股变动信息-增减",
+    "持股变动信息-变动数量",
+    "持股变动信息-占总股本比例",
+    "持股变动信息-占流通股比例",
+    "变动后持股情况-持股总数",
+    "变动后持股情况-占总股本比例",
+    "变动后持股情况-持流通股数",
+    "变动后持股情况-占流通股比例",
+    "变动开始日",
+    "变动截止日",
+    "公告日",
+];
+const GGCG_NUMERIC: [&str; 9] = [
+    "最新价",
+    "涨跌幅",
+    "持股变动信息-变动数量",
+    "持股变动信息-占总股本比例",
+    "持股变动信息-占流通股比例",
+    "变动后持股情况-持股总数",
+    "变动后持股情况-占总股本比例",
+    "变动后持股情况-持流通股数",
+    "变动后持股情况-占流通股比例",
+];
+const GGCG_DATE: [&str; 3] = ["变动开始日", "变动截止日", "公告日"];
+
 /// 东财 datacenter-web 固定 token（akshare 源码硬编码常量）。
 const EM_TOKEN: &str = "894050c76af8597a853f5b408b759f5d";
 
@@ -1352,6 +1447,84 @@ pub fn stock_sy_profile_em() -> Result<Df> {
     Ok(df)
 }
 
+/// 重要股东股权质押明细（对应 akshare [`akshare.stock_gpzy_pledge_ratio_detail_em`]）。
+///
+/// 拉取全市场重要股东股权质押明细（无日期筛选），`序号` 由 Rust 生成。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 股东名称, 质押股份数量, 占所持股份比例, 占总股本比例,
+/// 质押机构, 最新价, 质押日收盘价, 预估平仓线, 质押开始日期, 质押结束日期, 状态, 公告日`
+pub fn stock_gpzy_pledge_ratio_detail_em() -> Result<Df> {
+    let extra = report_extra("NOTICE_DATE", "-1", None, Some(""), None, None);
+    let rows = datacenter("RPTA_APP_ACCUMDETAILS", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &PLEDGE_DETAIL_RENAME,
+        &PLEDGE_DETAIL_SELECT,
+        &PLEDGE_DETAIL_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&PLEDGE_DETAIL_DATE)?;
+    Ok(df)
+}
+
+/// 个股重要股东股权质押明细（对应 akshare [`akshare.stock_gpzy_individual_pledge_ratio_detail_em`]）。
+///
+/// `symbol`：股票代码（如 `"603132"`），按 `SECURITY_CODE` 过滤；`序号` 由 Rust 生成。
+///
+/// # 返回列
+/// 与 [`stock_gpzy_pledge_ratio_detail_em`] 一致。
+pub fn stock_gpzy_individual_pledge_ratio_detail_em(symbol: &str) -> Result<Df> {
+    let filter = format!("(SECURITY_CODE=\"{symbol}\")");
+    let extra = report_extra("NOTICE_DATE", "-1", Some(&filter), Some(""), None, None);
+    let rows = datacenter("RPTA_APP_ACCUMDETAILS", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &PLEDGE_DETAIL_RENAME,
+        &PLEDGE_DETAIL_SELECT,
+        &PLEDGE_DETAIL_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&PLEDGE_DETAIL_DATE)?;
+    Ok(df)
+}
+
+/// 高管持股变动（对应 akshare [`akshare.stock_ggcg_em`]）。
+///
+/// `symbol`：选择范围，取值 `全部` / `股东增持` / `股东减持`（其余值报错）。
+/// 通过 `quoteColumns` 注入最新价与涨跌幅；akshare 输出无「序号」列。
+///
+/// # 返回列
+/// `代码, 名称, 最新价, 涨跌幅, 股东名称, 持股变动信息-增减, 持股变动信息-变动数量,
+/// 持股变动信息-占总股本比例, 持股变动信息-占流通股比例, 变动后持股情况-持股总数,
+/// 变动后持股情况-占总股本比例, 变动后持股情况-持流通股数, 变动后持股情况-占流通股比例,
+/// 变动开始日, 变动截止日, 公告日`
+pub fn stock_ggcg_em(symbol: &str) -> Result<Df> {
+    let filter = match symbol {
+        "全部" => "",
+        "股东增持" => "(DIRECTION=\"增持\")",
+        "股东减持" => "(DIRECTION=\"减持\")",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}（应为 全部/股东增持/股东减持）"
+            )))
+        }
+    };
+    let quote = "f2~01~SECURITY_CODE~NEWEST_PRICE,f3~01~SECURITY_CODE~CHANGE_RATE_QUOTES";
+    let extra = report_extra(
+        "END_DATE,SECURITY_CODE,EITIME",
+        "-1,-1,-1",
+        Some(filter),
+        Some(quote),
+        None,
+        Some("0"),
+    );
+    let rows = datacenter("RPT_SHARE_HOLDER_INCREASE", "ALL", &extra, "500")?;
+    let mut df = finalize_report(&rows, &GGCG_RENAME, &GGCG_SELECT, &GGCG_NUMERIC, None)?;
+    df.cast_date(&GGCG_DATE)?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1537,6 +1710,82 @@ mod tests {
     fn bad_date_rejected() {
         assert!(stock_gdfx_free_holding_detail_em("202399").is_err());
         assert!(stock_gdfx_free_holding_detail_em("abcd").is_err());
+    }
+
+    /// 离线验证质押明细列契约：序号生成 + 列序 + 数值/日期列。
+    #[test]
+    fn pledge_detail_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000408","SECURITY_NAME_ABBR":"藏格矿业","HOLDER_NAME":"藏格集团",
+                "NOTICE_DATE":"2026-08-08 00:00:00","PF_ORG":"中信证券","PF_NUM":"17000000",
+                "PF_HOLD_RATIO":"10.24","PF_TSR":"1.08","CLOSE_FORWARD_ADJPRICE":"86.79",
+                "PF_START_DATE":"2026-08-06 00:00:00","ACTUAL_UNFREEZE_DATE":null,
+                "UNFREEZE_STATE":"未解押","WARNING_LINE":"69.432","CLOSE_PRICE":"89.2"
+            },
+            {
+                "SECURITY_CODE":"600030","SECURITY_NAME_ABBR":"中信证券","HOLDER_NAME":"某股东",
+                "NOTICE_DATE":"2026-07-01 00:00:00","PF_ORG":"券商","PF_NUM":"5000000",
+                "PF_HOLD_RATIO":"2.0","PF_TSR":"0.5","CLOSE_FORWARD_ADJPRICE":"20.0",
+                "PF_START_DATE":"2026-06-01 00:00:00","ACTUAL_UNFREEZE_DATE":"2026-12-01 00:00:00",
+                "UNFREEZE_STATE":"已解押","WARNING_LINE":"15.0","CLOSE_PRICE":"25.0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &PLEDGE_DETAIL_RENAME,
+            &PLEDGE_DETAIL_SELECT,
+            &PLEDGE_DETAIL_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&PLEDGE_DETAIL_DATE).unwrap();
+        // 序号在最前且 1-based
+        assert_eq!(df.column_names()[0], "序号");
+        let idx = df.inner().column("序号").unwrap().f64().unwrap();
+        assert_eq!(idx.get(0), Some(1.0));
+        assert_eq!(idx.get(1), Some(2.0));
+        // 列序与 akshare 一致（不含 序号 的 SELECT 在前）
+        assert_eq!(df.column_names()[1..], PLEDGE_DETAIL_SELECT);
+        // 数值列已转数值（含 序号）
+        let ratio = df.inner().column("占所持股份比例").unwrap().f64().unwrap();
+        assert_eq!(ratio.get(0), Some(10.24));
+        // 日期截断到 YYYY-MM-DD；空值保持 None
+        let end = df.inner().column("质押结束日期").unwrap().str().unwrap();
+        assert_eq!(end.get(0), None);
+        assert_eq!(end.get(1), Some("2026-12-01"));
+    }
+
+    /// 离线验证高管持股变动列契约（无 序号 列）。
+    #[test]
+    fn ggcg_offline() {
+        let rows = json!([
+            {
+                "CHANGE_NUM":"5.99","NOTICE_DATE":"2026-08-07 00:00:00","SECURITY_CODE":"920493",
+                "HOLDER_NAME":"某基金","AFTER_CHANGE_RATE":"0.098874326522","END_DATE":"2026-08-07 00:00:00",
+                "AFTER_HOLDER_NUM":"166.3851","HOLD_RATIO":"2.75","FREE_SHARES_RATIO":"3.73",
+                "FREE_SHARES":"166.3851","SECURITY_NAME_ABBR":"并行科技","DIRECTION":"减持",
+                "CHANGE_FREE_RATIO":"0.13","START_DATE":"2026-08-05 00:00:00",
+                "NEWEST_PRICE":"120.21","CHANGE_RATE_QUOTES":"-2.88"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &GGCG_RENAME, &GGCG_SELECT, &GGCG_NUMERIC, None).unwrap();
+        df.cast_date(&GGCG_DATE).unwrap();
+        // akshare 该接口无 序号 列
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), GGCG_SELECT);
+        let price = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(price.get(0), Some(120.21));
+        let dir = df
+            .inner()
+            .column("持股变动信息-增减")
+            .unwrap()
+            .str()
+            .unwrap();
+        assert_eq!(dir.get(0), Some("减持"));
     }
 
     /// 真实网络冒烟：拉取实时列契约，与 akshare 实测列序核对（需联网，默认忽略）。
