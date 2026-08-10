@@ -200,20 +200,25 @@ def py_contract(func: str, args: list[str]) -> dict:
 
 def rust_contract(func: str, args: list[str]) -> dict:
     """调用 Rust parity bin，解析契约 JSON。"""
-    proc = subprocess.run(
-        [
-            PARITY_BIN,
-            "--func",
-            func,
-            "--args",
-            json.dumps(args),
-            "--head",
-            str(HEAD_N),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                PARITY_BIN,
+                "--func",
+                func,
+                "--args",
+                json.dumps(args),
+                "--head",
+                str(HEAD_N),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        # 全市场类函数（如质押明细 ~12.6w 行、gdfx 全部 ~1.6M 行）分页耗时超过
+        # 120s，超时不应中断整轮 --check：记为失败并继续后续用例。
+        return {"ok": False, "error": "parity bin 超时（>120s，疑似全市场分页膨胀）"}
     if proc.returncode != 0:
         return {"ok": False, "error": f"parity bin 退出码 {proc.returncode}: {proc.stderr[:300]}"}
     try:
