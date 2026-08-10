@@ -2604,6 +2604,607 @@ pub fn stock_lhb_jgmmtj_em(start_date: &str, end_date: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ===== 龙虎榜明细/营业部/席位统计（批次1 阶段1j，RPT_* datacenter）=====
+// 序号由 Rust 生成（finalize_report 的 index_name）。各报表 RENAME 取自 akshare 的
+// 列重命名/列顺序，并对照实时拉取的 JSON 键序逐位对齐（positional 函数经 live 抓取验证）。
+
+/// 龙虎榜统计周期 `近一月/近三月/近六月/近一年` → 东财 `STATISTICSCYCLE` 编码。
+fn lhb_cycle(symbol: &str) -> Result<&'static str> {
+    Ok(match symbol {
+        "近一月" => "01",
+        "近三月" => "02",
+        "近六月" => "03",
+        "近一年" => "04",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "未知统计周期: {other}（应为 近一月/近三月/近六月/近一年）"
+            )))
+        }
+    })
+}
+
+// ===== 龙虎榜详情（RPT_DAILYBILLBOARD_DETAILSNEW）=====
+const LHB_DETAIL_RENAME: [(&str, &str); 20] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("TRADE_DATE", "上榜日"),
+    ("EXPLAIN", "解读"),
+    ("CLOSE_PRICE", "收盘价"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("BILLBOARD_NET_AMT", "龙虎榜净买额"),
+    ("BILLBOARD_BUY_AMT", "龙虎榜买入额"),
+    ("BILLBOARD_SELL_AMT", "龙虎榜卖出额"),
+    ("BILLBOARD_DEAL_AMT", "龙虎榜成交额"),
+    ("ACCUM_AMOUNT", "市场总成交额"),
+    ("DEAL_NET_RATIO", "净买额占总成交比"),
+    ("DEAL_AMOUNT_RATIO", "成交额占总成交比"),
+    ("TURNOVERRATE", "换手率"),
+    ("FREE_MARKET_CAP", "流通市值"),
+    ("EXPLANATION", "上榜原因"),
+    ("D1_CLOSE_ADJCHRATE", "上榜后1日"),
+    ("D2_CLOSE_ADJCHRATE", "上榜后2日"),
+    ("D5_CLOSE_ADJCHRATE", "上榜后5日"),
+    ("D10_CLOSE_ADJCHRATE", "上榜后10日"),
+];
+const LHB_DETAIL_SELECT: [&str; 20] = [
+    "代码",
+    "名称",
+    "上榜日",
+    "解读",
+    "收盘价",
+    "涨跌幅",
+    "龙虎榜净买额",
+    "龙虎榜买入额",
+    "龙虎榜卖出额",
+    "龙虎榜成交额",
+    "市场总成交额",
+    "净买额占总成交比",
+    "成交额占总成交比",
+    "换手率",
+    "流通市值",
+    "上榜原因",
+    "上榜后1日",
+    "上榜后2日",
+    "上榜后5日",
+    "上榜后10日",
+];
+const LHB_DETAIL_NUMERIC: [&str; 15] = [
+    "收盘价",
+    "涨跌幅",
+    "龙虎榜净买额",
+    "龙虎榜买入额",
+    "龙虎榜卖出额",
+    "龙虎榜成交额",
+    "市场总成交额",
+    "净买额占总成交比",
+    "成交额占总成交比",
+    "换手率",
+    "流通市值",
+    "上榜后1日",
+    "上榜后2日",
+    "上榜后5日",
+    "上榜后10日",
+];
+const LHB_DETAIL_DATE: [&str; 1] = ["上榜日"];
+
+/// 龙虎榜详情（对应 akshare [`akshare.stock_lhb_detail_em`]）。
+///
+/// `start_date` / `end_date`：开始/结束日期 `YYYYMMDD`（默认 `"20230403"`/`"20230417"`）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 上榜日, 解读, 收盘价, 涨跌幅, 龙虎榜净买额, 龙虎榜买入额,
+/// 龙虎榜卖出额, 龙虎榜成交额, 市场总成交额, 净买额占总成交比, 成交额占总成交比,
+/// 换手率, 流通市值, 上榜原因, 上榜后1日, 上榜后2日, 上榜后5日, 上榜后10日`
+pub fn stock_lhb_detail_em(start_date: &str, end_date: &str) -> Result<Df> {
+    let s = fmt_ymd(start_date)?;
+    let e = fmt_ymd(end_date)?;
+    let filter = format!("(TRADE_DATE<='{e}')(TRADE_DATE>='{s}')");
+    let extra = report_extra(
+        "SECURITY_CODE,TRADE_DATE",
+        "1,-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter(
+        "RPT_DAILYBILLBOARD_DETAILSNEW",
+        "SECURITY_CODE,SECUCODE,SECURITY_NAME_ABBR,TRADE_DATE,EXPLAIN,CLOSE_PRICE,CHANGE_RATE,BILLBOARD_NET_AMT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT,BILLBOARD_DEAL_AMT,ACCUM_AMOUNT,DEAL_NET_RATIO,DEAL_AMOUNT_RATIO,TURNOVERRATE,FREE_MARKET_CAP,EXPLANATION,D1_CLOSE_ADJCHRATE,D2_CLOSE_ADJCHRATE,D5_CLOSE_ADJCHRATE,D10_CLOSE_ADJCHRATE,SECURITY_TYPE_CODE",
+        &extra,
+        "5000",
+    )?;
+    let mut df = finalize_report(
+        &rows,
+        &LHB_DETAIL_RENAME,
+        &LHB_DETAIL_SELECT,
+        &LHB_DETAIL_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&LHB_DETAIL_DATE)?;
+    Ok(df)
+}
+
+// ===== 机构席位追踪（RPT_ORGANIZATION_SEATNEW）=====
+const LHB_JGSTAT_RENAME: [(&str, &str); 15] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("CLOSE_PRICE", "收盘价"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("AMOUNT", "龙虎榜成交金额"),
+    ("ONLIST_TIMES", "上榜次数"),
+    ("BUY_AMT", "机构买入额"),
+    ("BUY_TIMES", "机构买入次数"),
+    ("SELL_AMT", "机构卖出额"),
+    ("SELL_TIMES", "机构卖出次数"),
+    ("NET_BUY_AMT", "机构净买额"),
+    ("M1_CLOSE_ADJCHRATE", "近1个月涨跌幅"),
+    ("M3_CLOSE_ADJCHRATE", "近3个月涨跌幅"),
+    ("M6_CLOSE_ADJCHRATE", "近6个月涨跌幅"),
+    ("Y1_CLOSE_ADJCHRATE", "近1年涨跌幅"),
+];
+const LHB_JGSTAT_SELECT: [&str; 15] = [
+    "代码",
+    "名称",
+    "收盘价",
+    "涨跌幅",
+    "龙虎榜成交金额",
+    "上榜次数",
+    "机构买入额",
+    "机构买入次数",
+    "机构卖出额",
+    "机构卖出次数",
+    "机构净买额",
+    "近1个月涨跌幅",
+    "近3个月涨跌幅",
+    "近6个月涨跌幅",
+    "近1年涨跌幅",
+];
+const LHB_JGSTAT_NUMERIC: [&str; 13] = [
+    "收盘价",
+    "涨跌幅",
+    "龙虎榜成交金额",
+    "上榜次数",
+    "机构买入额",
+    "机构买入次数",
+    "机构卖出额",
+    "机构卖出次数",
+    "机构净买额",
+    "近1个月涨跌幅",
+    "近3个月涨跌幅",
+    "近6个月涨跌幅",
+    "近1年涨跌幅",
+];
+
+/// 机构席位追踪（对应 akshare [`akshare.stock_lhb_jgstatistic_em`]）。
+///
+/// `symbol`：统计周期，取值 `近一月/近三月/近六月/近一年`（默认 `"近一月"`）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 收盘价, 涨跌幅, 龙虎榜成交金额, 上榜次数, 机构买入额, 机构买入次数,
+/// 机构卖出额, 机构卖出次数, 机构净买额, 近1个月涨跌幅, 近3个月涨跌幅, 近6个月涨跌幅, 近1年涨跌幅`
+pub fn stock_lhb_jgstatistic_em(symbol: &str) -> Result<Df> {
+    let cycle = lhb_cycle(symbol)?;
+    let filter = format!(r#"(STATISTICSCYCLE="{cycle}")"#);
+    let extra = report_extra(
+        "ONLIST_TIMES,SECURITY_CODE",
+        "-1,1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_ORGANIZATION_SEATNEW", "ALL", &extra, "5000")?;
+    let df = finalize_report(
+        &rows,
+        &LHB_JGSTAT_RENAME,
+        &LHB_JGSTAT_SELECT,
+        &LHB_JGSTAT_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+// ===== 每日活跃营业部（RPT_OPERATEDEPT_ACTIVE）=====
+// positional 对齐：live 抓取确认 JSON 键序为
+// [OPERATEDEPT_NAME, ONLIST_DATE, BUYER_APPEAR_NUM, SELLER_APPEAR_NUM, TOTAL_BUYAMT,
+//  TOTAL_SELLAMT, TOTAL_NETAMT, BUY_STOCK, OPERATEDEPT_CODE, SECURITY_NAME_ABBR,
+//  OPERATEDEPT_CODE_OLD, ORG_NAME_ABBR]；akshare 第 8/11/12 位为占位 "-"，丢弃。
+const LHB_HYYYB_RENAME: [(&str, &str); 9] = [
+    ("OPERATEDEPT_NAME", "营业部名称"),
+    ("ONLIST_DATE", "上榜日"),
+    ("BUYER_APPEAR_NUM", "买入个股数"),
+    ("SELLER_APPEAR_NUM", "卖出个股数"),
+    ("TOTAL_BUYAMT", "买入总金额"),
+    ("TOTAL_SELLAMT", "卖出总金额"),
+    ("TOTAL_NETAMT", "总买卖净额"),
+    ("SECURITY_NAME_ABBR", "买入股票"),
+    ("OPERATEDEPT_CODE", "营业部代码"),
+];
+const LHB_HYYYB_SELECT: [&str; 9] = [
+    "营业部名称",
+    "上榜日",
+    "买入个股数",
+    "卖出个股数",
+    "买入总金额",
+    "卖出总金额",
+    "总买卖净额",
+    "买入股票",
+    "营业部代码",
+];
+const LHB_HYYYB_NUMERIC: [&str; 5] = [
+    "买入个股数",
+    "卖出个股数",
+    "买入总金额",
+    "卖出总金额",
+    "总买卖净额",
+];
+const LHB_HYYYB_DATE: [&str; 1] = ["上榜日"];
+
+/// 每日活跃营业部（对应 akshare [`akshare.stock_lhb_hyyyb_em`]）。
+///
+/// `start_date` / `end_date`：开始/结束日期 `YYYYMMDD`（默认 `"20220324"`）。
+///
+/// # 返回列
+/// `序号, 营业部名称, 上榜日, 买入个股数, 卖出个股数, 买入总金额, 卖出总金额,
+/// 总买卖净额, 买入股票, 营业部代码`
+pub fn stock_lhb_hyyyb_em(start_date: &str, end_date: &str) -> Result<Df> {
+    let s = fmt_ymd(start_date)?;
+    let e = fmt_ymd(end_date)?;
+    let filter = format!("(ONLIST_DATE>='{s}')(ONLIST_DATE<='{e}')");
+    let extra = report_extra(
+        "TOTAL_NETAMT,ONLIST_DATE,OPERATEDEPT_CODE",
+        "-1,-1,1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_OPERATEDEPT_ACTIVE", "ALL", &extra, "5000")?;
+    let mut df = finalize_report(
+        &rows,
+        &LHB_HYYYB_RENAME,
+        &LHB_HYYYB_SELECT,
+        &LHB_HYYYB_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&LHB_HYYYB_DATE)?;
+    Ok(df)
+}
+
+// ===== 营业部排行（RPT_RATEDEPT_RETURNT_RANKING）=====
+const LHB_YYBPH_RENAME: [(&str, &str); 16] = [
+    ("OPERATEDEPT_NAME", "营业部名称"),
+    ("TOTAL_BUYER_SALESTIMES_1DAY", "上榜后1天-买入次数"),
+    ("AVERAGE_INCREASE_1DAY", "上榜后1天-平均涨幅"),
+    ("RISE_PROBABILITY_1DAY", "上榜后1天-上涨概率"),
+    ("TOTAL_BUYER_SALESTIMES_2DAY", "上榜后2天-买入次数"),
+    ("AVERAGE_INCREASE_2DAY", "上榜后2天-平均涨幅"),
+    ("RISE_PROBABILITY_2DAY", "上榜后2天-上涨概率"),
+    ("TOTAL_BUYER_SALESTIMES_3DAY", "上榜后3天-买入次数"),
+    ("AVERAGE_INCREASE_3DAY", "上榜后3天-平均涨幅"),
+    ("RISE_PROBABILITY_3DAY", "上榜后3天-上涨概率"),
+    ("TOTAL_BUYER_SALESTIMES_5DAY", "上榜后5天-买入次数"),
+    ("AVERAGE_INCREASE_5DAY", "上榜后5天-平均涨幅"),
+    ("RISE_PROBABILITY_5DAY", "上榜后5天-上涨概率"),
+    ("TOTAL_BUYER_SALESTIMES_10DAY", "上榜后10天-买入次数"),
+    ("AVERAGE_INCREASE_10DAY", "上榜后10天-平均涨幅"),
+    ("RISE_PROBABILITY_10DAY", "上榜后10天-上涨概率"),
+];
+const LHB_YYBPH_SELECT: [&str; 16] = [
+    "营业部名称",
+    "上榜后1天-买入次数",
+    "上榜后1天-平均涨幅",
+    "上榜后1天-上涨概率",
+    "上榜后2天-买入次数",
+    "上榜后2天-平均涨幅",
+    "上榜后2天-上涨概率",
+    "上榜后3天-买入次数",
+    "上榜后3天-平均涨幅",
+    "上榜后3天-上涨概率",
+    "上榜后5天-买入次数",
+    "上榜后5天-平均涨幅",
+    "上榜后5天-上涨概率",
+    "上榜后10天-买入次数",
+    "上榜后10天-平均涨幅",
+    "上榜后10天-上涨概率",
+];
+const LHB_YYBPH_NUMERIC: [&str; 15] = [
+    "上榜后1天-买入次数",
+    "上榜后1天-平均涨幅",
+    "上榜后1天-上涨概率",
+    "上榜后2天-买入次数",
+    "上榜后2天-平均涨幅",
+    "上榜后2天-上涨概率",
+    "上榜后3天-买入次数",
+    "上榜后3天-平均涨幅",
+    "上榜后3天-上涨概率",
+    "上榜后5天-买入次数",
+    "上榜后5天-平均涨幅",
+    "上榜后5天-上涨概率",
+    "上榜后10天-买入次数",
+    "上榜后10天-平均涨幅",
+    "上榜后10天-上涨概率",
+];
+
+/// 营业部排行（对应 akshare [`akshare.stock_lhb_yybph_em`]）。
+///
+/// `symbol`：统计周期，取值 `近一月/近三月/近六月/近一年`（默认 `"近一月"`）。
+///
+/// # 返回列
+/// `序号, 营业部名称, 上榜后1天-买入次数, 上榜后1天-平均涨幅, 上榜后1天-上涨概率,
+/// 上榜后2天-买入次数, 上榜后2天-平均涨幅, 上榜后2天-上涨概率, 上榜后3天-买入次数,
+/// 上榜后3天-平均涨幅, 上榜后3天-上涨概率, 上榜后5天-买入次数, 上榜后5天-平均涨幅,
+/// 上榜后5天-上涨概率, 上榜后10天-买入次数, 上榜后10天-平均涨幅, 上榜后10天-上涨概率`
+pub fn stock_lhb_yybph_em(symbol: &str) -> Result<Df> {
+    let cycle = lhb_cycle(symbol)?;
+    let filter = format!(r#"(STATISTICSCYCLE="{cycle}")"#);
+    let extra = report_extra(
+        "TOTAL_BUYER_SALESTIMES_1DAY,OPERATEDEPT_CODE",
+        "-1,1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_RATEDEPT_RETURNT_RANKING", "ALL", &extra, "5000")?;
+    let df = finalize_report(
+        &rows,
+        &LHB_YYBPH_RENAME,
+        &LHB_YYBPH_SELECT,
+        &LHB_YYBPH_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+// ===== 营业部统计（RPT_OPERATEDEPT_LIST_STATISTICS）=====
+const LHB_TRADER_RENAME: [(&str, &str); 7] = [
+    ("OPERATEDEPT_NAME", "营业部名称"),
+    ("AMOUNT", "龙虎榜成交金额"),
+    ("SALES_ONLIST_TIMES", "上榜次数"),
+    ("ACT_BUY", "买入额"),
+    ("TOTAL_BUYER_SALESTIMES", "买入次数"),
+    ("ACT_SELL", "卖出额"),
+    ("TOTAL_SELLER_SALESTIMES", "卖出次数"),
+];
+const LHB_TRADER_SELECT: [&str; 7] = [
+    "营业部名称",
+    "龙虎榜成交金额",
+    "上榜次数",
+    "买入额",
+    "买入次数",
+    "卖出额",
+    "卖出次数",
+];
+const LHB_TRADER_NUMERIC: [&str; 6] = [
+    "龙虎榜成交金额",
+    "上榜次数",
+    "买入额",
+    "买入次数",
+    "卖出额",
+    "卖出次数",
+];
+
+/// 营业部统计（对应 akshare [`akshare.stock_lhb_traderstatistic_em`]）。
+///
+/// `symbol`：统计周期，取值 `近一月/近三月/近六月/近一年`（默认 `"近一月"`）。
+///
+/// # 返回列
+/// `序号, 营业部名称, 龙虎榜成交金额, 上榜次数, 买入额, 买入次数, 卖出额, 卖出次数`
+pub fn stock_lhb_traderstatistic_em(symbol: &str) -> Result<Df> {
+    let cycle = lhb_cycle(symbol)?;
+    let filter = format!(r#"(STATISTICSCYCLE="{cycle}")"#);
+    let extra = report_extra(
+        "AMOUNT,OPERATEDEPT_CODE",
+        "-1,1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_OPERATEDEPT_LIST_STATISTICS", "ALL", &extra, "5000")?;
+    let df = finalize_report(
+        &rows,
+        &LHB_TRADER_RENAME,
+        &LHB_TRADER_SELECT,
+        &LHB_TRADER_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+// ===== 个股龙虎榜详情-日期（RPT_LHB_BOARDDATE）=====
+// columns 为显式列表，positional 对齐：第2/3/4位 = SECURITY_CODE/TRADE_DATE/TR_DATE；
+// 第4位 TR_DATE 为占位 "-" 丢弃。
+const LHB_BOARDDATE_RENAME: [(&str, &str); 2] =
+    [("SECURITY_CODE", "股票代码"), ("TRADE_DATE", "交易日")];
+const LHB_BOARDDATE_SELECT: [&str; 2] = ["股票代码", "交易日"];
+const LHB_BOARDDATE_NUMERIC: [&str; 0] = [];
+const LHB_BOARDDATE_DATE: [&str; 1] = ["交易日"];
+
+/// 个股龙虎榜详情-日期（对应 akshare [`akshare.stock_lhb_stock_detail_date_em`]）。
+///
+/// `symbol`：股票代码（如 `"600077"`）。
+///
+/// # 返回列
+/// `序号, 股票代码, 交易日`
+pub fn stock_lhb_stock_detail_date_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(SECURITY_CODE="{symbol}")"#);
+    let extra = report_extra(
+        "TRADE_DATE",
+        "-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter(
+        "RPT_LHB_BOARDDATE",
+        "SECURITY_CODE,TRADE_DATE,TR_DATE",
+        &extra,
+        "1000",
+    )?;
+    let mut df = finalize_report(
+        &rows,
+        &LHB_BOARDDATE_RENAME,
+        &LHB_BOARDDATE_SELECT,
+        &LHB_BOARDDATE_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&LHB_BOARDDATE_DATE)?;
+    Ok(df)
+}
+
+// ===== 个股龙虎榜详情（RPT_BILLBOARD_DAILYDETAILSBUY / RPT_BILLBOARD_DAILYDETAILSSELL）=====
+// 多分支：flag `买入`→BUY 报表，flag `卖出`→SELL 报表（akshare 默认 `卖出`）。
+// 两报表 JSON 键序不同，但输出列映射的键（OPERATEDEPT_NAME/EXPLANATION/BUY/SELL/NET/
+// TOTAL_BUYRIO/TOTAL_SELLRIO）在两分支一致，故共用同一 RENAME。
+// 注：akshare 末会对 `类型`(=EXPLANATION) 升序重排并重排 序号；本实现保持抓取顺序的 序号，
+// 列契约与值一致，仅行序未做该重排（parity loose 模式不比对行序）。
+const LHB_DETAIL_STOCK_RENAME: [(&str, &str); 7] = [
+    ("OPERATEDEPT_NAME", "交易营业部名称"),
+    ("EXPLANATION", "类型"),
+    ("BUY", "买入金额"),
+    ("SELL", "卖出金额"),
+    ("NET", "净额"),
+    ("TOTAL_BUYRIO", "买入金额-占总成交比例"),
+    ("TOTAL_SELLRIO", "卖出金额-占总成交比例"),
+];
+const LHB_DETAIL_STOCK_SELECT: [&str; 7] = [
+    "交易营业部名称",
+    "买入金额",
+    "买入金额-占总成交比例",
+    "卖出金额",
+    "卖出金额-占总成交比例",
+    "净额",
+    "类型",
+];
+const LHB_DETAIL_STOCK_NUMERIC: [&str; 5] = [
+    "买入金额",
+    "买入金额-占总成交比例",
+    "卖出金额",
+    "卖出金额-占总成交比例",
+    "净额",
+];
+
+/// 个股龙虎榜详情（对应 akshare [`akshare.stock_lhb_stock_detail_em`]）。
+///
+/// `symbol`：股票代码；`date`：龙虎榜日期 `YYYYMMDD`（需先经
+/// [`stock_lhb_stock_detail_date_em`] 获取有数据的日期）；`flag`：`买入` 或 `卖出`
+///（默认 `"卖出"`）。
+///
+/// # 返回列
+/// `序号, 交易营业部名称, 买入金额, 买入金额-占总成交比例, 卖出金额, 卖出金额-占总成交比例, 净额, 类型`
+pub fn stock_lhb_stock_detail_em(symbol: &str, date: &str, flag: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let (report, sort_col) = match flag {
+        "买入" => ("RPT_BILLBOARD_DAILYDETAILSBUY", "BUY"),
+        "卖出" => ("RPT_BILLBOARD_DAILYDETAILSSELL", "SELL"),
+        other => {
+            return Err(AkshareError::Param(format!(
+                "未知 flag: {other}（应为 买入/卖出）"
+            )))
+        }
+    };
+    let filter = format!(r#"(TRADE_DATE='{}')(SECURITY_CODE="{}")"#, d, symbol);
+    let extra = report_extra(sort_col, "-1", Some(&filter), None, Some(EM_TOKEN), None);
+    let rows = datacenter(report, "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &LHB_DETAIL_STOCK_RENAME,
+        &LHB_DETAIL_STOCK_SELECT,
+        &LHB_DETAIL_STOCK_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+// ===== 营业部历史交易明细（RPT_OPERATEDEPT_TRADE_DETAILSNEW）=====
+const LHB_YYB_DETAIL_RENAME: [(&str, &str); 18] = [
+    ("OPERATEDEPT_CODE", "营业部代码"),
+    ("OPERATEDEPT_NAME", "营业部名称"),
+    ("ORG_NAME_ABBR", "营业部简称"),
+    ("TRADE_DATE", "交易日期"),
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票名称"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("ACT_BUY", "买入金额"),
+    ("ACT_SELL", "卖出金额"),
+    ("NET_AMT", "净额"),
+    ("EXPLANATION", "上榜原因"),
+    ("D1_CLOSE_ADJCHRATE", "1日后涨跌幅"),
+    ("D2_CLOSE_ADJCHRATE", "2日后涨跌幅"),
+    ("D3_CLOSE_ADJCHRATE", "3日后涨跌幅"),
+    ("D5_CLOSE_ADJCHRATE", "5日后涨跌幅"),
+    ("D10_CLOSE_ADJCHRATE", "10日后涨跌幅"),
+    ("D20_CLOSE_ADJCHRATE", "20日后涨跌幅"),
+    ("D30_CLOSE_ADJCHRATE", "30日后涨跌幅"),
+];
+const LHB_YYB_DETAIL_SELECT: [&str; 18] = [
+    "营业部代码",
+    "营业部名称",
+    "营业部简称",
+    "交易日期",
+    "股票代码",
+    "股票名称",
+    "涨跌幅",
+    "买入金额",
+    "卖出金额",
+    "净额",
+    "上榜原因",
+    "1日后涨跌幅",
+    "2日后涨跌幅",
+    "3日后涨跌幅",
+    "5日后涨跌幅",
+    "10日后涨跌幅",
+    "20日后涨跌幅",
+    "30日后涨跌幅",
+];
+const LHB_YYB_DETAIL_NUMERIC: [&str; 11] = [
+    "涨跌幅",
+    "买入金额",
+    "卖出金额",
+    "净额",
+    "1日后涨跌幅",
+    "2日后涨跌幅",
+    "3日后涨跌幅",
+    "5日后涨跌幅",
+    "10日后涨跌幅",
+    "20日后涨跌幅",
+    "30日后涨跌幅",
+];
+const LHB_YYB_DETAIL_DATE: [&str; 1] = ["交易日期"];
+
+/// 营业部历史交易明细（对应 akshare [`akshare.stock_lhb_yyb_detail_em`]）。
+///
+/// `symbol`：营业部代码（如 `"10188715"`，由 [`stock_lhb_hyyyb_em`] 获取）。
+///
+/// # 返回列
+/// `序号, 营业部代码, 营业部名称, 营业部简称, 交易日期, 股票代码, 股票名称, 涨跌幅,
+/// 买入金额, 卖出金额, 净额, 上榜原因, 1日后涨跌幅, 2日后涨跌幅, 3日后涨跌幅,
+/// 5日后涨跌幅, 10日后涨跌幅, 20日后涨跌幅, 30日后涨跌幅`
+pub fn stock_lhb_yyb_detail_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(OPERATEDEPT_CODE="{symbol}")"#);
+    let extra = report_extra(
+        "TRADE_DATE,SECURITY_CODE",
+        "-1,1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_OPERATEDEPT_TRADE_DETAILSNEW", "ALL", &extra, "100")?;
+    let mut df = finalize_report(
+        &rows,
+        &LHB_YYB_DETAIL_RENAME,
+        &LHB_YYB_DETAIL_SELECT,
+        &LHB_YYB_DETAIL_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&LHB_YYB_DETAIL_DATE)?;
+    Ok(df)
+}
+
 // ===== 股东持股统计-十大流通股东/十大股东（RPT_COOPFREEHOLDERS_ANALYSIS / RPT_COOPHOLDERS_ANALYSIS）=====
 // 序号由 Rust 生成。两报表 JSON 键序一致，共用同一套 RENAME/SELECT/NUMERIC。
 // 列序参照 akshare `big_df.columns` 与实时拉取 JSON 键序逐位对齐。无日期列。
@@ -5097,6 +5698,274 @@ mod tests {
         assert_eq!(ratio.get(0), Some(6.25));
         // 行业代码/商誉减值等被丢弃
         assert!(df.inner().column("行业代码").is_err());
+    }
+
+    /// 离线验证龙虎榜详情列契约（序号 + 数值化 + 日期截断）。
+    #[test]
+    fn lhb_detail_1j_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行",
+                "TRADE_DATE":"2024-04-17 00:00:00","EXPLAIN":"换手率达20%","CLOSE_PRICE":"10.5",
+                "CHANGE_RATE":"9.9","BILLBOARD_NET_AMT":"100.0","BILLBOARD_BUY_AMT":"200.0",
+                "BILLBOARD_SELL_AMT":"100.0","BILLBOARD_DEAL_AMT":"300.0","ACCUM_AMOUNT":"5000.0",
+                "DEAL_NET_RATIO":"0.02","DEAL_AMOUNT_RATIO":"0.06","TURNOVERRATE":"3.5",
+                "FREE_MARKET_CAP":"2000000000","EXPLANATION":"日涨幅偏离值达7%","D1_CLOSE_ADJCHRATE":"1.1",
+                "D2_CLOSE_ADJCHRATE":"2.2","D5_CLOSE_ADJCHRATE":"5.5","D10_CLOSE_ADJCHRATE":"10.0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &LHB_DETAIL_RENAME,
+            &LHB_DETAIL_SELECT,
+            &LHB_DETAIL_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&LHB_DETAIL_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_DETAIL_SELECT);
+        let net = df.inner().column("龙虎榜净买额").unwrap().f64().unwrap();
+        assert_eq!(net.get(0), Some(100.0));
+        let date = df.inner().column("上榜日").unwrap().str().unwrap();
+        assert_eq!(date.get(0), Some("2024-04-17"));
+        assert_eq!(
+            df.inner().column("解读").unwrap().str().unwrap().get(0),
+            Some("换手率达20%")
+        );
+    }
+
+    /// 离线验证机构席位追踪列契约（序号 + 全数值化）。
+    #[test]
+    fn lhb_jgstatistic_1j_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行","CLOSE_PRICE":"10.5",
+                "CHANGE_RATE":"9.9","AMOUNT":"300.0","ONLIST_TIMES":"5","BUY_AMT":"80.0",
+                "BUY_TIMES":"2","SELL_AMT":"30.0","SELL_TIMES":"1","NET_BUY_AMT":"50.0",
+                "M1_CLOSE_ADJCHRATE":"1.1","M3_CLOSE_ADJCHRATE":"3.3","M6_CLOSE_ADJCHRATE":"6.6",
+                "Y1_CLOSE_ADJCHRATE":"12.0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &LHB_JGSTAT_RENAME,
+            &LHB_JGSTAT_SELECT,
+            &LHB_JGSTAT_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_JGSTAT_SELECT);
+        let amt = df.inner().column("机构净买额").unwrap().f64().unwrap();
+        assert_eq!(amt.get(0), Some(50.0));
+        assert_eq!(df.column_names().len(), 16);
+    }
+
+    /// 离线验证每日活跃营业部列契约（positional 字段映射 + 数值化 + 日期截断）。
+    #[test]
+    fn lhb_hyyyb_1j_offline() {
+        let rows = json!([
+            {
+                "OPERATEDEPT_NAME":"华泰证券深圳分公司","ONLIST_DATE":"2024-04-17 00:00:00",
+                "BUYER_APPEAR_NUM":"3","SELLER_APPEAR_NUM":"2","TOTAL_BUYAMT":"900.0",
+                "TOTAL_SELLAMT":"400.0","TOTAL_NETAMT":"500.0","BUY_STOCK":"平安银行",
+                "OPERATEDEPT_CODE":"10188715","SECURITY_NAME_ABBR":"平安银行",
+                "OPERATEDEPT_CODE_OLD":"0","ORG_NAME_ABBR":"华泰"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &LHB_HYYYB_RENAME,
+            &LHB_HYYYB_SELECT,
+            &LHB_HYYYB_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&LHB_HYYYB_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_HYYYB_SELECT);
+        // 第 8/11/12 位占位 "-"（BUY_STOCK/OPERATEDEPT_CODE_OLD/ORG_NAME_ABBR）被丢弃
+        assert!(df.inner().column("BUY_STOCK").is_err());
+        assert!(df.inner().column("ORG_NAME_ABBR").is_err());
+        assert_eq!(
+            df.inner().column("买入股票").unwrap().str().unwrap().get(0),
+            Some("平安银行")
+        );
+        assert_eq!(
+            df.inner().column("上榜日").unwrap().str().unwrap().get(0),
+            Some("2024-04-17")
+        );
+    }
+
+    /// 离线验证营业部排行列契约（序号 + 15 指标全数值化）。
+    #[test]
+    fn lhb_yybph_1j_offline() {
+        let rows = json!([
+            {
+                "OPERATEDEPT_NAME":"华泰证券深圳分公司",
+                "TOTAL_BUYER_SALESTIMES_1DAY":"5","AVERAGE_INCREASE_1DAY":"1.1","RISE_PROBABILITY_1DAY":"0.6",
+                "TOTAL_BUYER_SALESTIMES_2DAY":"4","AVERAGE_INCREASE_2DAY":"2.2","RISE_PROBABILITY_2DAY":"0.5",
+                "TOTAL_BUYER_SALESTIMES_3DAY":"3","AVERAGE_INCREASE_3DAY":"3.3","RISE_PROBABILITY_3DAY":"0.4",
+                "TOTAL_BUYER_SALESTIMES_5DAY":"2","AVERAGE_INCREASE_5DAY":"5.5","RISE_PROBABILITY_5DAY":"0.3",
+                "TOTAL_BUYER_SALESTIMES_10DAY":"1","AVERAGE_INCREASE_10DAY":"10.0","RISE_PROBABILITY_10DAY":"0.2"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &LHB_YYBPH_RENAME,
+            &LHB_YYBPH_SELECT,
+            &LHB_YYBPH_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_YYBPH_SELECT);
+        assert_eq!(df.column_names().len(), 17);
+        let v = df
+            .inner()
+            .column("上榜后1天-买入次数")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(v.get(0), Some(5.0));
+    }
+
+    /// 离线验证营业部统计列契约（序号 + 数值化）。
+    #[test]
+    fn lhb_traderstatistic_1j_offline() {
+        let rows = json!([
+            {
+                "OPERATEDEPT_NAME":"华泰证券深圳分公司","AMOUNT":"300.0","SALES_ONLIST_TIMES":"5",
+                "ACT_BUY":"80.0","TOTAL_BUYER_SALESTIMES":"2","ACT_SELL":"30.0",
+                "TOTAL_SELLER_SALESTIMES":"1","OPERATEDEPT_CODE_OLD":"0","ORG_NAME_ABBR":"华泰"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &LHB_TRADER_RENAME,
+            &LHB_TRADER_SELECT,
+            &LHB_TRADER_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_TRADER_SELECT);
+        assert_eq!(
+            df.inner()
+                .column("龙虎榜成交金额")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
+            Some(300.0)
+        );
+    }
+
+    /// 离线验证个股龙虎榜详情-日期列契约（序号 + 日期截断 + 无数值列）。
+    #[test]
+    fn lhb_stock_detail_date_1j_offline() {
+        let rows = json!([
+            {"SECURITY_CODE":"600077","TRADE_DATE":"2007-04-16 00:00:00","TR_DATE":"2007-04-16"}
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &LHB_BOARDDATE_RENAME,
+            &LHB_BOARDDATE_SELECT,
+            &LHB_BOARDDATE_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&LHB_BOARDDATE_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_BOARDDATE_SELECT);
+        // 第 4 位 TR_DATE 占位丢弃
+        assert!(df.inner().column("TR_DATE").is_err());
+        assert_eq!(
+            df.inner().column("交易日").unwrap().str().unwrap().get(0),
+            Some("2007-04-16")
+        );
+    }
+
+    /// 离线验证个股龙虎榜详情列契约（买入/卖出双分支共用 RENAME；类型=EXPLANATION）。
+    #[test]
+    fn lhb_stock_detail_1j_offline() {
+        let rows = json!([
+            {
+                "OPERATEDEPT_NAME":"华泰证券深圳分公司","EXPLANATION":"买入榜","BUY":"200.0",
+                "SELL":"100.0","NET":"100.0","TOTAL_BUYRIO":"0.3","TOTAL_SELLRIO":"0.15",
+                "CHANGE_TYPE":"买","TRADE_ID":"1"
+            },
+            {
+                "OPERATEDEPT_NAME":"中信证券上海分公司","EXPLANATION":"卖出榜","BUY":"50.0",
+                "SELL":"300.0","NET":"-250.0","TOTAL_BUYRIO":"0.1","TOTAL_SELLRIO":"0.45",
+                "CHANGE_TYPE":"卖","TRADE_ID":"2"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &LHB_DETAIL_STOCK_RENAME,
+            &LHB_DETAIL_STOCK_SELECT,
+            &LHB_DETAIL_STOCK_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_DETAIL_STOCK_SELECT);
+        assert_eq!(df.column_names().len(), 8);
+        let buy = df.inner().column("买入金额").unwrap().f64().unwrap();
+        assert_eq!(buy.get(0), Some(200.0));
+        assert_eq!(buy.get(1), Some(50.0));
+        // 类型 由 EXPLANATION 映射（非 CHANGE_TYPE）
+        let typ = df.inner().column("类型").unwrap().str().unwrap();
+        assert_eq!(typ.get(0), Some("买入榜"));
+        assert_eq!(typ.get(1), Some("卖出榜"));
+        assert!(df.inner().column("CHANGE_TYPE").is_err());
+    }
+
+    /// 离线验证营业部历史交易明细列契约（序号 + 数值化 + 日期截断）。
+    #[test]
+    fn lhb_yyb_detail_1j_offline() {
+        let rows = json!([
+            {
+                "OPERATEDEPT_CODE":"10188715","OPERATEDEPT_NAME":"华泰证券深圳分公司","ORG_NAME_ABBR":"华泰",
+                "TRADE_DATE":"2022-03-15 00:00:00","SECURITY_CODE":"000788","SECURITY_NAME_ABBR":"北大医药",
+                "CHANGE_RATE":"9.9","ACT_BUY":"200.0","ACT_SELL":"100.0","NET_AMT":"100.0",
+                "EXPLANATION":"日涨幅偏离值达7%","D1_CLOSE_ADJCHRATE":"1.1","D2_CLOSE_ADJCHRATE":"2.2",
+                "D3_CLOSE_ADJCHRATE":"3.3","D5_CLOSE_ADJCHRATE":"5.5","D10_CLOSE_ADJCHRATE":"10.0",
+                "D20_CLOSE_ADJCHRATE":"20.0","D30_CLOSE_ADJCHRATE":"30.0","SECUCODE":"000788.SZ",
+                "OPERATEDEPT_CODE_OLD":"0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &LHB_YYB_DETAIL_RENAME,
+            &LHB_YYB_DETAIL_SELECT,
+            &LHB_YYB_DETAIL_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&LHB_YYB_DETAIL_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_YYB_DETAIL_SELECT);
+        assert_eq!(df.column_names().len(), 19);
+        assert_eq!(
+            df.inner().column("交易日期").unwrap().str().unwrap().get(0),
+            Some("2022-03-15")
+        );
+        assert_eq!(
+            df.inner().column("净额").unwrap().f64().unwrap().get(0),
+            Some(100.0)
+        );
+        assert!(df.inner().column("SECUCODE").is_err());
     }
 
     #[test]

@@ -518,31 +518,6 @@ pub(crate) const FFLOW_SELECT: [&str; 13] = [
     "小单净流入-净占比",
 ];
 
-/// 龙虎榜详情列契约（对应 akshare `stock_lhb_detail_em` 的最终 select）。
-pub(crate) const LHB_SELECT: [&str; 21] = [
-    "序号",
-    "代码",
-    "名称",
-    "上榜日",
-    "解读",
-    "收盘价",
-    "涨跌幅",
-    "龙虎榜净买额",
-    "龙虎榜买入额",
-    "龙虎榜卖出额",
-    "龙虎榜成交额",
-    "市场总成交额",
-    "净买额占总成交比",
-    "成交额占总成交比",
-    "换手率",
-    "流通市值",
-    "上榜原因",
-    "上榜后1日",
-    "上榜后2日",
-    "上榜后5日",
-    "上榜后10日",
-];
-
 /// 沪深港通资金流向列契约（对应 akshare `stock_hsgt_fund_flow_summary_em` 的最终 select）。
 pub(crate) const HSGT_SELECT: [&str; 13] = [
     "交易日",
@@ -881,56 +856,6 @@ pub(crate) fn finalize_fflow(klines: &[Value]) -> Result<Df> {
     Ok(df)
 }
 
-/// 龙虎榜详情加工（英文键 → 21 列中文契约，上榜日截断，序号 int64）。
-pub(crate) fn finalize_lhb(rows: &[Value]) -> Result<Df> {
-    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
-    for item in rows {
-        let f = |k: &str| item.get(k).and_then(json_value_to_string);
-        out.push(vec![
-            f("SECURITY_CODE"),
-            f("SECURITY_NAME_ABBR"),
-            f("TRADE_DATE").map(|s| date_only(&s).to_string()),
-            f("EXPLAIN"),
-            f("CLOSE_PRICE"),
-            f("CHANGE_RATE"),
-            f("BILLBOARD_NET_AMT"),
-            f("BILLBOARD_BUY_AMT"),
-            f("BILLBOARD_SELL_AMT"),
-            f("BILLBOARD_DEAL_AMT"),
-            f("ACCUM_AMOUNT"),
-            f("DEAL_NET_RATIO"),
-            f("DEAL_AMOUNT_RATIO"),
-            f("TURNOVERRATE"),
-            f("FREE_MARKET_CAP"),
-            f("EXPLANATION"),
-            f("D1_CLOSE_ADJCHRATE"),
-            f("D2_CLOSE_ADJCHRATE"),
-            f("D5_CLOSE_ADJCHRATE"),
-            f("D10_CLOSE_ADJCHRATE"),
-        ]);
-    }
-    let mut df = Df::from_string_rows(&LHB_SELECT[1..], &out)?;
-    df.cast_numeric(&[
-        "收盘价",
-        "涨跌幅",
-        "龙虎榜净买额",
-        "龙虎榜买入额",
-        "龙虎榜卖出额",
-        "龙虎榜成交额",
-        "市场总成交额",
-        "净买额占总成交比",
-        "成交额占总成交比",
-        "换手率",
-        "流通市值",
-        "上榜后1日",
-        "上榜后2日",
-        "上榜后5日",
-        "上榜后10日",
-    ])?;
-    insert_index_col(&mut df, "序号")?;
-    Ok(df)
-}
-
 /// 沪深港通资金流向加工（13 列；成交净买额/资金净流入/当日资金余额 ÷10000）。
 pub(crate) fn finalize_hsgt(rows: &[Value]) -> Result<Df> {
     let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
@@ -1153,27 +1078,6 @@ mod tests_b3 {
             .f64()
             .unwrap();
         assert_eq!(small.get(0), Some(7.01));
-    }
-
-    /// 龙虎榜：英文键 → 21 列，上榜日截断，序号 int64。
-    #[test]
-    fn lhb_offline() {
-        let rows = json!([{
-            "SECURITY_CODE": "000533", "SECURITY_NAME_ABBR": "顺钠股份",
-            "TRADE_DATE": "2026-08-05 00:00:00", "EXPLAIN": "3家机构买入",
-            "CLOSE_PRICE": 12.7, "CHANGE_RATE": 0.7937, "BILLBOARD_NET_AMT": 100.0,
-            "BILLBOARD_BUY_AMT": 200.0, "BILLBOARD_SELL_AMT": 100.0,
-            "BILLBOARD_DEAL_AMT": 300.0, "ACCUM_AMOUNT": 999.0, "DEAL_NET_RATIO": 1.0,
-            "DEAL_AMOUNT_RATIO": 2.0, "TURNOVERRATE": 3.0, "FREE_MARKET_CAP": 1e9,
-            "EXPLANATION": "日涨幅偏离值达7%", "D1_CLOSE_ADJCHRATE": 1.1,
-            "D2_CLOSE_ADJCHRATE": 2.2, "D5_CLOSE_ADJCHRATE": 3.3, "D10_CLOSE_ADJCHRATE": 4.4,
-        }]);
-        let df = finalize_lhb(rows.as_array().unwrap()).unwrap();
-        assert_eq!(df.column_names(), LHB_SELECT);
-        let day = df.inner().column("上榜日").unwrap().str().unwrap();
-        assert_eq!(day.get(0), Some("2026-08-05"));
-        let idx = df.inner().column("序号").unwrap().i64().unwrap();
-        assert_eq!(idx.get(0), Some(1));
     }
 
     /// 沪深港通：÷10000 缩放 + 13 列契约。

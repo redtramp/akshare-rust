@@ -10,8 +10,8 @@ use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{
     a_share_market_code, board_name_pairs, fetch_clist, fetch_datacenter_pages, fetch_kline,
     fetch_kline_ext, fetch_kline_min, fetch_trends, finalize_board_cons, finalize_board_name,
-    finalize_fflow, finalize_hsgt, finalize_lhb, finalize_zt_pool, json_value_to_string,
-    kline_to_df, min_kline_to_df, push2_urls, require_kline_data, BOARD_HIST_SELECT, KLINE_COLS,
+    finalize_fflow, finalize_hsgt, finalize_zt_pool, json_value_to_string, kline_to_df,
+    min_kline_to_df, push2_urls, require_kline_data, BOARD_HIST_SELECT, KLINE_COLS,
     KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_SELECT,
 };
 use serde_json::{json, Map, Value};
@@ -717,38 +717,6 @@ pub fn stock_individual_fund_flow(stock: &str, market: &str) -> Result<Df> {
     }
 }
 
-/// 龙虎榜详情（对应 akshare [`akshare.stock_lhb_detail_em`]）。
-///
-/// `start_date`/`end_date`: `YYYYMMDD`。
-///
-/// # 返回列
-/// `序号, 代码, 名称, 上榜日, 解读, 收盘价, 涨跌幅, 龙虎榜净买额, 龙虎榜买入额,
-/// 龙虎榜卖出额, 龙虎榜成交额, 市场总成交额, 净买额占总成交比, 成交额占总成交比,
-/// 换手率, 流通市值, 上榜原因, 上榜后1日, 上榜后2日, 上榜后5日, 上榜后10日`
-pub fn stock_lhb_detail_em(start_date: &str, end_date: &str) -> Result<Df> {
-    let s = format_date_iso(start_date)?;
-    let e = format_date_iso(end_date)?;
-    let mut extra = Map::new();
-    extra.insert("sortColumns".into(), json!("SECURITY_CODE,TRADE_DATE"));
-    extra.insert("sortTypes".into(), json!("1,-1"));
-    extra.insert(
-        "filter".into(),
-        json!(format!("(TRADE_DATE<='{e}')(TRADE_DATE>='{s}')")),
-    );
-    let http = HttpClient::default();
-    let rows = fetch_datacenter_pages(
-        &http,
-        "RPT_DAILYBILLBOARD_DETAILSNEW",
-        "SECURITY_CODE,SECUCODE,SECURITY_NAME_ABBR,TRADE_DATE,EXPLAIN,CLOSE_PRICE,CHANGE_RATE,BILLBOARD_NET_AMT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT,BILLBOARD_DEAL_AMT,ACCUM_AMOUNT,DEAL_NET_RATIO,DEAL_AMOUNT_RATIO,TURNOVERRATE,FREE_MARKET_CAP,EXPLANATION,D1_CLOSE_ADJCHRATE,D2_CLOSE_ADJCHRATE,D5_CLOSE_ADJCHRATE,D10_CLOSE_ADJCHRATE,SECURITY_TYPE_CODE",
-        &extra,
-        "5000",
-    )?;
-    if rows.is_empty() {
-        return Err(AkshareError::empty("区间内无龙虎榜数据"));
-    }
-    finalize_lhb(&rows)
-}
-
 /// 沪深港通资金流向（对应 akshare [`akshare.stock_hsgt_fund_flow_summary_em`]）。
 ///
 /// # 返回列
@@ -775,14 +743,6 @@ pub fn stock_hsgt_fund_flow_summary_em() -> Result<Df> {
         return Err(AkshareError::empty("无沪深港通资金流向数据"));
     }
     finalize_hsgt(&rows)
-}
-
-/// `"20230403"` → `"2023-04-03"`（对应 akshare 的日期格式化）。
-fn format_date_iso(d: &str) -> Result<String> {
-    if d.len() != 8 || !d.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(AkshareError::Param(format!("无效日期: {d}")));
-    }
-    Ok(format!("{}-{}-{}", &d[..4], &d[4..6], &d[6..]))
 }
 
 #[cfg(test)]
@@ -853,24 +813,6 @@ mod tests {
         assert_eq!(idx.get(0), Some(1));
         let pct = df.inner().column("涨跌幅").unwrap().f64().unwrap();
         assert_eq!(pct.get(0), Some(10.0));
-    }
-}
-
-#[cfg(test)]
-mod tests_b3 {
-    use super::*;
-
-    #[test]
-    fn format_date_iso_ok() {
-        assert_eq!(format_date_iso("20230403").unwrap(), "2023-04-03");
-        assert!(format_date_iso("2023-4-3").is_err());
-        assert!(format_date_iso("2023040x").is_err());
-    }
-
-    #[test]
-    fn format_date_iso_roundtrip() {
-        let s = format_date_iso("20260807").unwrap();
-        assert_eq!(s, "2026-08-07");
     }
 }
 

@@ -30,8 +30,8 @@ use akshare_rust::stock::{
     fund_etf_hist_em, stock_bid_ask_em, stock_board_concept_cons_em, stock_board_concept_hist_em,
     stock_board_concept_name_em, stock_board_industry_cons_em, stock_board_industry_hist_em,
     stock_board_industry_name_em, stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow,
-    stock_individual_info_em, stock_lhb_detail_em, stock_sh_a_spot_em, stock_sz_a_spot_em,
-    stock_zh_a_hist, stock_zh_a_hist_min_em, stock_zh_a_spot_em, stock_zt_pool_em,
+    stock_individual_info_em, stock_sh_a_spot_em, stock_sz_a_spot_em, stock_zh_a_hist,
+    stock_zh_a_hist_min_em, stock_zh_a_spot_em, stock_zt_pool_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
@@ -47,12 +47,15 @@ use akshare_rust::stock_feature::{
     stock_gpzy_individual_pledge_ratio_detail_em, stock_gpzy_industry_data_em,
     stock_gpzy_pledge_ratio_detail_em, stock_gpzy_pledge_ratio_em, stock_gpzy_profile_em,
     stock_hk_ggt_components_em, stock_hk_main_board_spot_em, stock_hsgt_stock_statistics_em,
-    stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_jgmmtj_em,
-    stock_lhb_stock_statistic_em, stock_lrb_em, stock_margin_account_info, stock_new_a_spot_em,
-    stock_pg_em, stock_qbzf_em, stock_qsjy_em, stock_sy_hy_em, stock_sy_jz_em, stock_sy_profile_em,
-    stock_sy_yq_em, stock_tfp_em, stock_value_em, stock_xjll_em, stock_yjbb_em, stock_yjkb_em,
-    stock_yjyg_em, stock_yysj_em, stock_zcfz_bj_em, stock_zcfz_em, stock_zdhtmx_em,
-    stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em, stock_zh_b_spot_em,
+    stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
+    stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
+    stock_lhb_stock_detail_date_em, stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em,
+    stock_lhb_traderstatistic_em, stock_lhb_yyb_detail_em, stock_lhb_yybph_em, stock_lrb_em,
+    stock_margin_account_info, stock_new_a_spot_em, stock_pg_em, stock_qbzf_em, stock_qsjy_em,
+    stock_sy_hy_em, stock_sy_jz_em, stock_sy_profile_em, stock_sy_yq_em, stock_tfp_em,
+    stock_value_em, stock_xjll_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em,
+    stock_zcfz_bj_em, stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em,
+    stock_zh_b_spot_em,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
@@ -326,6 +329,34 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_lhb_jgmmtj_em" => {
             let [d0, d1] = take2(func, args)?;
             Ok(stock_lhb_jgmmtj_em(d0, d1)?)
+        }
+        "stock_lhb_jgstatistic_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_lhb_jgstatistic_em(s)?)
+        }
+        "stock_lhb_hyyyb_em" => {
+            let [d0, d1] = take2(func, args)?;
+            Ok(stock_lhb_hyyyb_em(d0, d1)?)
+        }
+        "stock_lhb_yybph_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_lhb_yybph_em(s)?)
+        }
+        "stock_lhb_traderstatistic_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_lhb_traderstatistic_em(s)?)
+        }
+        "stock_lhb_stock_detail_date_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_lhb_stock_detail_date_em(s)?)
+        }
+        "stock_lhb_stock_detail_em" => {
+            let [s, d, f] = take3(func, args)?;
+            Ok(stock_lhb_stock_detail_em(s, d, f)?)
+        }
+        "stock_lhb_yyb_detail_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_lhb_yyb_detail_em(s)?)
         }
         "stock_gdfx_free_holding_statistics_em" => {
             let [d] = take1(func, args)?;
