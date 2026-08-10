@@ -2339,6 +2339,468 @@ pub fn stock_yysj_em(symbol: &str, date: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ===== 千股千评（RPT_DMSK_TS_STOCKNEW）=====
+// 序号由 Rust 生成。列序参照 akshare `big_df.columns`（columns=ALL，序号占 0 位，
+// 原始 JSON 键紧随其后）与实时拉取的 JSON 键序逐位对齐：JSON 键 0-based 序号 k 对应位置 k+1。
+// 含 quoteColumns 注入的最新价/换手率/涨跌幅/动态 PE。
+const COMMENT_RENAME: [(&str, &str); 13] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("TRADE_DATE", "交易日"),
+    ("CLOSE_PRICE", "最新价"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("TURNOVERRATE", "换手率"),
+    ("PE_DYNAMIC", "市盈率"),
+    ("PRIME_COST", "主力成本"),
+    ("ORG_PARTICIPATE", "机构参与度"),
+    ("TOTALSCORE", "综合得分"),
+    ("RANK_UP", "上升"),
+    ("RANK", "目前排名"),
+    ("FOCUS", "关注指数"),
+];
+const COMMENT_SELECT: [&str; 13] = [
+    "代码",
+    "名称",
+    "最新价",
+    "涨跌幅",
+    "换手率",
+    "市盈率",
+    "主力成本",
+    "机构参与度",
+    "综合得分",
+    "上升",
+    "目前排名",
+    "关注指数",
+    "交易日",
+];
+const COMMENT_NUMERIC: [&str; 10] = [
+    "最新价",
+    "涨跌幅",
+    "换手率",
+    "市盈率",
+    "主力成本",
+    "机构参与度",
+    "综合得分",
+    "上升",
+    "目前排名",
+    "关注指数",
+];
+const COMMENT_DATE: [&str; 1] = ["交易日"];
+
+/// 千股千评（对应 akshare [`akshare.stock_comment_em`]）。
+///
+/// 无参数。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌幅, 换手率, 市盈率, 主力成本, 机构参与度,
+/// 综合得分, 上升, 目前排名, 关注指数, 交易日`
+pub fn stock_comment_em() -> Result<Df> {
+    let quote = "f2~01~SECURITY_CODE~CLOSE_PRICE,f8~01~SECURITY_CODE~TURNOVERRATE,f3~01~SECURITY_CODE~CHANGE_RATE,f9~01~SECURITY_CODE~PE_DYNAMIC";
+    let extra = report_extra(
+        "SECURITY_CODE",
+        "1",
+        Some(""),
+        Some(quote),
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_DMSK_TS_STOCKNEW", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &COMMENT_RENAME,
+        &COMMENT_SELECT,
+        &COMMENT_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&COMMENT_DATE)?;
+    Ok(df)
+}
+
+// ===== 个股上榜统计（RPT_BILLBOARD_TRADEALL）=====
+// 序号由 Rust 生成。列序参照 akshare `big_df.columns` 与实时拉取 JSON 键序逐位对齐。
+const LHB_STAT_RENAME: [(&str, &str); 19] = [
+    ("SECURITY_CODE", "代码"),
+    ("LATEST_TDATE", "最近上榜日"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("IPCT1M", "近1个月涨跌幅"),
+    ("IPCT3M", "近3个月涨跌幅"),
+    ("IPCT6M", "近6个月涨跌幅"),
+    ("IPCT1Y", "近1年涨跌幅"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("CLOSE_PRICE", "收盘价"),
+    ("BILLBOARD_DEAL_AMT", "龙虎榜总成交额"),
+    ("BILLBOARD_NET_BUY", "龙虎榜净买额"),
+    ("ORG_NET_BUY", "机构买入净额"),
+    ("BILLBOARD_TIMES", "上榜次数"),
+    ("BILLBOARD_BUY_AMT", "龙虎榜买入额"),
+    ("BILLBOARD_SELL_AMT", "龙虎榜卖出额"),
+    ("ORG_BUY_AMT", "机构买入总额"),
+    ("ORG_SELL_AMT", "机构卖出总额"),
+    ("ORG_BUY_TIMES", "买方机构次数"),
+    ("ORG_SELL_TIMES", "卖方机构次数"),
+];
+const LHB_STAT_SELECT: [&str; 19] = [
+    "代码",
+    "名称",
+    "最近上榜日",
+    "收盘价",
+    "涨跌幅",
+    "上榜次数",
+    "龙虎榜净买额",
+    "龙虎榜买入额",
+    "龙虎榜卖出额",
+    "龙虎榜总成交额",
+    "买方机构次数",
+    "卖方机构次数",
+    "机构买入净额",
+    "机构买入总额",
+    "机构卖出总额",
+    "近1个月涨跌幅",
+    "近3个月涨跌幅",
+    "近6个月涨跌幅",
+    "近1年涨跌幅",
+];
+const LHB_STAT_NUMERIC: [&str; 16] = [
+    "收盘价",
+    "涨跌幅",
+    "上榜次数",
+    "龙虎榜净买额",
+    "龙虎榜买入额",
+    "龙虎榜卖出额",
+    "龙虎榜总成交额",
+    "买方机构次数",
+    "卖方机构次数",
+    "机构买入净额",
+    "机构买入总额",
+    "机构卖出总额",
+    "近1个月涨跌幅",
+    "近3个月涨跌幅",
+    "近6个月涨跌幅",
+    "近1年涨跌幅",
+];
+const LHB_STAT_DATE: [&str; 1] = ["最近上榜日"];
+
+/// 个股上榜统计（对应 akshare [`akshare.stock_lhb_stock_statistic_em`]）。
+///
+/// `symbol`：统计周期，可选 `"近一月"`(默认)/`"近三月"`/`"近六月"`/`"近一年"`，
+/// 分别映射 `STATISTICS_CYCLE` 为 `01`/`02`/`03`/`04`。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最近上榜日, 收盘价, 涨跌幅, 上榜次数, 龙虎榜净买额, 龙虎榜买入额,
+/// 龙虎榜卖出额, 龙虎榜总成交额, 买方机构次数, 卖方机构次数, 机构买入净额, 机构买入总额,
+/// 机构卖出总额, 近1个月涨跌幅, 近3个月涨跌幅, 近6个月涨跌幅, 近1年涨跌幅`
+pub fn stock_lhb_stock_statistic_em(symbol: &str) -> Result<Df> {
+    let cycle = match symbol {
+        "近一月" => "01",
+        "近三月" => "02",
+        "近六月" => "03",
+        "近一年" => "04",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "未知统计周期: {other}（应为 近一月/近三月/近六月/近一年）"
+            )))
+        }
+    };
+    let filter = format!(r#"(STATISTICS_CYCLE="{cycle}")"#);
+    let extra = report_extra(
+        "BILLBOARD_TIMES,LATEST_TDATE,SECURITY_CODE",
+        "-1,-1,1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_BILLBOARD_TRADEALL", "ALL", &extra, "5000")?;
+    let mut df = finalize_report(
+        &rows,
+        &LHB_STAT_RENAME,
+        &LHB_STAT_SELECT,
+        &LHB_STAT_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&LHB_STAT_DATE)?;
+    Ok(df)
+}
+
+// ===== 机构买卖每日统计（RPT_ORGANIZATION_TRADE_DETAILS）=====
+// 序号由 Rust 生成。列序参照 akshare `big_df.columns` 与实时拉取 JSON 键序逐位对齐。
+const LHB_JG_RENAME: [(&str, &str); 15] = [
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("SECURITY_CODE", "代码"),
+    ("TRADE_DATE", "上榜日期"),
+    ("CLOSE_PRICE", "收盘价"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("BUY_TIMES", "买方机构数"),
+    ("SELL_TIMES", "卖方机构数"),
+    ("BUY_AMT", "机构买入总额"),
+    ("SELL_AMT", "机构卖出总额"),
+    ("NET_BUY_AMT", "机构买入净额"),
+    ("ACCUM_AMOUNT", "市场总成交额"),
+    ("RATIO", "机构净买额占总成交额比"),
+    ("TURNOVERRATE", "换手率"),
+    ("FREECAP", "流通市值"),
+    ("EXPLANATION", "上榜原因"),
+];
+const LHB_JG_SELECT: [&str; 15] = [
+    "代码",
+    "名称",
+    "收盘价",
+    "涨跌幅",
+    "买方机构数",
+    "卖方机构数",
+    "机构买入总额",
+    "机构卖出总额",
+    "机构买入净额",
+    "市场总成交额",
+    "机构净买额占总成交额比",
+    "换手率",
+    "流通市值",
+    "上榜原因",
+    "上榜日期",
+];
+const LHB_JG_NUMERIC: [&str; 11] = [
+    "收盘价",
+    "涨跌幅",
+    "买方机构数",
+    "卖方机构数",
+    "机构买入总额",
+    "机构卖出总额",
+    "机构买入净额",
+    "市场总成交额",
+    "机构净买额占总成交额比",
+    "换手率",
+    "流通市值",
+];
+const LHB_JG_DATE: [&str; 1] = ["上榜日期"];
+
+/// 机构买卖每日统计（对应 akshare [`akshare.stock_lhb_jgmmtj_em`]）。
+///
+/// `start_date` / `end_date`：开始/结束日期 `YYYYMMDD`（默认 `"20240417"`/`"20240430"`）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 收盘价, 涨跌幅, 买方机构数, 卖方机构数, 机构买入总额, 机构卖出总额,
+/// 机构买入净额, 市场总成交额, 机构净买额占总成交额比, 换手率, 流通市值, 上榜原因, 上榜日期`
+pub fn stock_lhb_jgmmtj_em(start_date: &str, end_date: &str) -> Result<Df> {
+    let s = fmt_ymd(start_date)?;
+    let e = fmt_ymd(end_date)?;
+    let filter = format!("(TRADE_DATE>='{s}')(TRADE_DATE<='{e}')");
+    let extra = report_extra(
+        "NET_BUY_AMT,TRADE_DATE,SECURITY_CODE",
+        "-1,-1,1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_ORGANIZATION_TRADE_DETAILS", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &LHB_JG_RENAME,
+        &LHB_JG_SELECT,
+        &LHB_JG_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&LHB_JG_DATE)?;
+    Ok(df)
+}
+
+// ===== 股东持股统计-十大流通股东/十大股东（RPT_COOPFREEHOLDERS_ANALYSIS / RPT_COOPHOLDERS_ANALYSIS）=====
+// 序号由 Rust 生成。两报表 JSON 键序一致，共用同一套 RENAME/SELECT/NUMERIC。
+// 列序参照 akshare `big_df.columns` 与实时拉取 JSON 键序逐位对齐。无日期列。
+const GDFX_STAT_RENAME: [(&str, &str); 13] = [
+    ("HOLDER_NAME", "股东名称"),
+    ("HOLDER_TYPE", "股东类型"),
+    ("STATISTICS_TIMES", "统计次数"),
+    ("AVG_CHANGE_10TD", "公告日后涨幅统计-10个交易日-平均涨幅"),
+    ("MAX_CHANGE_10TD", "公告日后涨幅统计-10个交易日-最大涨幅"),
+    ("MIN_CHANGE_10TD", "公告日后涨幅统计-10个交易日-最小涨幅"),
+    ("AVG_CHANGE_30TD", "公告日后涨幅统计-30个交易日-平均涨幅"),
+    ("MAX_CHANGE_30TD", "公告日后涨幅统计-30个交易日-最大涨幅"),
+    ("MIN_CHANGE_30TD", "公告日后涨幅统计-30个交易日-最小涨幅"),
+    ("AVG_CHANGE_60TD", "公告日后涨幅统计-60个交易日-平均涨幅"),
+    ("MAX_CHANGE_60TD", "公告日后涨幅统计-60个交易日-最大涨幅"),
+    ("MIN_CHANGE_60TD", "公告日后涨幅统计-60个交易日-最小涨幅"),
+    ("SEAB_JOIN", "持有个股"),
+];
+const GDFX_STAT_SELECT: [&str; 13] = [
+    "股东名称",
+    "股东类型",
+    "统计次数",
+    "公告日后涨幅统计-10个交易日-平均涨幅",
+    "公告日后涨幅统计-10个交易日-最大涨幅",
+    "公告日后涨幅统计-10个交易日-最小涨幅",
+    "公告日后涨幅统计-30个交易日-平均涨幅",
+    "公告日后涨幅统计-30个交易日-最大涨幅",
+    "公告日后涨幅统计-30个交易日-最小涨幅",
+    "公告日后涨幅统计-60个交易日-平均涨幅",
+    "公告日后涨幅统计-60个交易日-最大涨幅",
+    "公告日后涨幅统计-60个交易日-最小涨幅",
+    "持有个股",
+];
+const GDFX_STAT_NUMERIC: [&str; 10] = [
+    "统计次数",
+    "公告日后涨幅统计-10个交易日-平均涨幅",
+    "公告日后涨幅统计-10个交易日-最大涨幅",
+    "公告日后涨幅统计-10个交易日-最小涨幅",
+    "公告日后涨幅统计-30个交易日-平均涨幅",
+    "公告日后涨幅统计-30个交易日-最大涨幅",
+    "公告日后涨幅统计-30个交易日-最小涨幅",
+    "公告日后涨幅统计-60个交易日-平均涨幅",
+    "公告日后涨幅统计-60个交易日-最大涨幅",
+    "公告日后涨幅统计-60个交易日-最小涨幅",
+];
+
+/// 股东持股统计-十大流通股东（对应 akshare [`akshare.stock_gdfx_free_holding_statistics_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（默认 `"20210630"`）。
+///
+/// # 返回列
+/// `序号, 股东名称, 股东类型, 统计次数, 公告日后涨幅统计-10个交易日-平均涨幅,
+/// 公告日后涨幅统计-10个交易日-最大涨幅, 公告日后涨幅统计-10个交易日-最小涨幅,
+/// 公告日后涨幅统计-30个交易日-平均涨幅, 公告日后涨幅统计-30个交易日-最大涨幅,
+/// 公告日后涨幅统计-30个交易日-最小涨幅, 公告日后涨幅统计-60个交易日-平均涨幅,
+/// 公告日后涨幅统计-60个交易日-最大涨幅, 公告日后涨幅统计-60个交易日-最小涨幅, 持有个股`
+pub fn stock_gdfx_free_holding_statistics_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!(r#"(HOLDNUM_CHANGE_TYPE="001")(END_DATE='{d}')"#);
+    let extra = report_extra(
+        "STATISTICS_TIMES,COOPERATION_HOLDER_MARK",
+        "-1,-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_COOPFREEHOLDERS_ANALYSIS", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &GDFX_STAT_RENAME,
+        &GDFX_STAT_SELECT,
+        &GDFX_STAT_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+/// 股东持股统计-十大股东（对应 akshare [`akshare.stock_gdfx_holding_statistics_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（默认 `"20210930"`）。
+///
+/// # 返回列
+/// 与 [`stock_gdfx_free_holding_statistics_em`] 一致。
+pub fn stock_gdfx_holding_statistics_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!(r#"(HOLDNUM_CHANGE_TYPE="001")(END_DATE='{d}')"#);
+    let extra = report_extra(
+        "STATISTICS_TIMES,COOPERATION_HOLDER_MARK",
+        "-1,-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_COOPHOLDERS_ANALYSIS", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &GDFX_STAT_RENAME,
+        &GDFX_STAT_SELECT,
+        &GDFX_STAT_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+// ===== 股东持股变动统计-十大流通股东/十大股东（RPT_FREEHOLDERS_BASIC_INFO / RPT_HOLDERS_BASIC_INFO）=====
+// 序号由 Rust 生成。两报表 JSON 键序中「持有个股」(SEAB_JOIN) 与「流通市值统计」(HOLDER_MARKET_CAP)
+// 位置不同，但键名一致，故共用同一套 RENAME/SELECT/NUMERIC。无日期列。
+const GDFX_CHG_RENAME: [(&str, &str); 9] = [
+    ("HOLDER_NAME", "股东名称"),
+    ("HOLDER_TYPE", "股东类型"),
+    ("HOLDER_NUM", "期末持股只数统计-总持有"),
+    ("HOLDADD_NUM", "期末持股只数统计-新进"),
+    ("HOLDUP_NUM", "期末持股只数统计-增加"),
+    ("HOLDDOWN_NUM", "期末持股只数统计-减少"),
+    ("HOLDUNCHANGED_NUM", "期末持股只数统计-不变"),
+    ("HOLDER_MARKET_CAP", "流通市值统计"),
+    ("SEAB_JOIN", "持有个股"),
+];
+const GDFX_CHG_SELECT: [&str; 9] = [
+    "股东名称",
+    "股东类型",
+    "期末持股只数统计-总持有",
+    "期末持股只数统计-新进",
+    "期末持股只数统计-增加",
+    "期末持股只数统计-不变",
+    "期末持股只数统计-减少",
+    "流通市值统计",
+    "持有个股",
+];
+const GDFX_CHG_NUMERIC: [&str; 6] = [
+    "期末持股只数统计-总持有",
+    "期末持股只数统计-新进",
+    "期末持股只数统计-增加",
+    "期末持股只数统计-不变",
+    "期末持股只数统计-减少",
+    "流通市值统计",
+];
+
+/// 股东持股变动统计-十大流通股东（对应 akshare [`akshare.stock_gdfx_free_holding_change_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（默认 `"20210930"`）。
+///
+/// # 返回列
+/// `序号, 股东名称, 股东类型, 期末持股只数统计-总持有, 期末持股只数统计-新进,
+/// 期末持股只数统计-增加, 期末持股只数统计-不变, 期末持股只数统计-减少, 流通市值统计, 持有个股`
+pub fn stock_gdfx_free_holding_change_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(END_DATE='{d}')");
+    let extra = report_extra(
+        "HOLDER_NUM,HOLDER_NEW",
+        "-1,-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_FREEHOLDERS_BASIC_INFO", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &GDFX_CHG_RENAME,
+        &GDFX_CHG_SELECT,
+        &GDFX_CHG_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+/// 股东持股变动统计-十大股东（对应 akshare [`akshare.stock_gdfx_holding_change_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（默认 `"20210930"`）。
+///
+/// # 返回列
+/// 与 [`stock_gdfx_free_holding_change_em`] 一致。
+pub fn stock_gdfx_holding_change_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(END_DATE='{d}')");
+    let extra = report_extra(
+        "HOLDER_NUM,HOLDER_NEW",
+        "-1,-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_HOLDERS_BASIC_INFO", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &GDFX_CHG_RENAME,
+        &GDFX_CHG_SELECT,
+        &GDFX_CHG_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2937,6 +3399,170 @@ mod tests {
         assert_eq!(first.get(0), Some("2026-04-20"));
         let third = df.inner().column("三次变更日期").unwrap().str().unwrap();
         assert_eq!(third.get(0), None);
+    }
+
+    /// 离线验证千股千评列契约（序号 + 数值化 + 日期截断 + null 保留）。
+    #[test]
+    fn comment_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行",
+                "TRADE_DATE":"2026-04-10 00:00:00","CLOSE_PRICE":"10.5","CHANGE_RATE":"9.9",
+                "TURNOVERRATE":"0.5","PE_DYNAMIC":"8.1","PRIME_COST":"9.0",
+                "ORG_PARTICIPATE":"75.0","TOTALSCORE":null,"RANK_UP":"3.0","RANK":"12",
+                "FOCUS":"88.0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &COMMENT_RENAME,
+            &COMMENT_SELECT,
+            &COMMENT_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&COMMENT_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], COMMENT_SELECT);
+        let px = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(10.5));
+        let date = df.inner().column("交易日").unwrap().str().unwrap();
+        assert_eq!(date.get(0), Some("2026-04-10"));
+        let score = df.inner().column("综合得分").unwrap().f64().unwrap();
+        assert_eq!(score.get(0), None);
+    }
+
+    /// 离线验证个股上榜统计列契约（序号 + 数值化 + 日期截断）。
+    #[test]
+    fn lhb_stock_statistic_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行",
+                "LATEST_TDATE":"2026-04-10 00:00:00","CHANGE_RATE":"9.9","CLOSE_PRICE":"10.5",
+                "BILLBOARD_TIMES":"5","BILLBOARD_NET_BUY":"100.0","BILLBOARD_BUY_AMT":"200.0",
+                "BILLBOARD_SELL_AMT":"100.0","BILLBOARD_DEAL_AMT":"300.0","ORG_BUY_TIMES":"2",
+                "ORG_SELL_TIMES":"1","ORG_NET_BUY":"50.0","ORG_BUY_AMT":"80.0","ORG_SELL_AMT":"30.0",
+                "IPCT1M":"1.0","IPCT3M":"2.0","IPCT6M":"3.0","IPCT1Y":"4.0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &LHB_STAT_RENAME,
+            &LHB_STAT_SELECT,
+            &LHB_STAT_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&LHB_STAT_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_STAT_SELECT);
+        let times = df.inner().column("上榜次数").unwrap().f64().unwrap();
+        assert_eq!(times.get(0), Some(5.0));
+        let date = df.inner().column("最近上榜日").unwrap().str().unwrap();
+        assert_eq!(date.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证机构买卖每日统计列契约（序号 + 数值化 + 日期截断）。
+    #[test]
+    fn lhb_jgmmtj_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行",
+                "TRADE_DATE":"2026-04-10 00:00:00","CLOSE_PRICE":"10.5","CHANGE_RATE":"9.9",
+                "BUY_TIMES":"2","SELL_TIMES":"1","BUY_AMT":"80.0","SELL_AMT":"30.0",
+                "NET_BUY_AMT":"1000.5","ACCUM_AMOUNT":"5000.0","RATIO":"0.2",
+                "TURNOVERRATE":"0.5","FREECAP":"2000000000","EXPLANATION":"活跃"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &LHB_JG_RENAME,
+            &LHB_JG_SELECT,
+            &LHB_JG_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&LHB_JG_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LHB_JG_SELECT);
+        let net = df.inner().column("机构买入净额").unwrap().f64().unwrap();
+        assert_eq!(net.get(0), Some(1000.5));
+        let date = df.inner().column("上榜日期").unwrap().str().unwrap();
+        assert_eq!(date.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证股东持股统计列契约（序号 + 数值化，无日期列）。
+    #[test]
+    fn gdfx_stat_offline() {
+        let rows = json!([
+            {
+                "HOLDER_NAME":"香港中央结算有限公司","HOLDER_TYPE":"其他","STATISTICS_TIMES":"8",
+                "AVG_CHANGE_10TD":"1.23","MAX_CHANGE_10TD":"2.0","MIN_CHANGE_10TD":"0.5",
+                "AVG_CHANGE_30TD":"3.45","MAX_CHANGE_30TD":"5.0","MIN_CHANGE_30TD":"1.0",
+                "AVG_CHANGE_60TD":"6.78","MAX_CHANGE_60TD":"9.0","MIN_CHANGE_60TD":"2.0",
+                "SEAB_JOIN":"100"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &GDFX_STAT_RENAME,
+            &GDFX_STAT_SELECT,
+            &GDFX_STAT_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], GDFX_STAT_SELECT);
+        let t = df.inner().column("统计次数").unwrap().f64().unwrap();
+        assert_eq!(t.get(0), Some(8.0));
+        let avg = df
+            .inner()
+            .column("公告日后涨幅统计-10个交易日-平均涨幅")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(avg.get(0), Some(1.23));
+    }
+
+    /// 离线验证股东持股变动统计列契约（序号 + 数值化 + null 保留，无日期列）。
+    #[test]
+    fn gdfx_change_offline() {
+        let rows = json!([
+            {
+                "HOLDER_NAME":"香港中央结算有限公司","HOLDER_TYPE":"其他","HOLDER_NUM":"100",
+                "HOLDADD_NUM":null,"HOLDUP_NUM":"20","HOLDDOWN_NUM":"10","HOLDUNCHANGED_NUM":"30",
+                "HOLDER_MARKET_CAP":"2000000000","SEAB_JOIN":"50"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &GDFX_CHG_RENAME,
+            &GDFX_CHG_SELECT,
+            &GDFX_CHG_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], GDFX_CHG_SELECT);
+        let total = df
+            .inner()
+            .column("期末持股只数统计-总持有")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(total.get(0), Some(100.0));
+        let add = df
+            .inner()
+            .column("期末持股只数统计-新进")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(add.get(0), None);
     }
 
     /// 真实网络冒烟：拉取实时列契约，与 akshare 实测列序核对（需联网，默认忽略）。

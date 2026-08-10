@@ -126,6 +126,14 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_yjkb_em", ["20240331"], "loose", "业绩快报"),
     ("stock_yjyg_em", ["20240331"], "loose", "业绩预告"),
     ("stock_yysj_em", ["沪深A股", "20240331"], "loose", "预约披露时间"),
+    # stock_feature 东财 datacenter 千股千评/龙虎榜/股东分析统计变动（Batch 1 Stage 1f）
+    ("stock_comment_em", [], "loose", "千股千评"),
+    ("stock_lhb_stock_statistic_em", ["近一月"], "loose", "龙虎榜个股上榜统计"),
+    ("stock_lhb_jgmmtj_em", ["20240417", "20240430"], "loose", "龙虎榜机构买卖每日统计"),
+    ("stock_gdfx_free_holding_statistics_em", ["20210930"], "loose", "股东持股统计-十大流通股东"),
+    ("stock_gdfx_holding_statistics_em", ["20210930"], "loose", "股东持股统计-十大股东"),
+    ("stock_gdfx_free_holding_change_em", ["20210930"], "loose", "股东持股变动统计-十大流通股东"),
+    ("stock_gdfx_holding_change_em", ["20210930"], "loose", "股东持股变动统计-十大股东"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]
