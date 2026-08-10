@@ -1,6 +1,53 @@
 {
   "ok": true,
-  "columns": [],
+  "columns": [
+    {
+      "name": "持股日期",
+      "dtype": "str"
+    },
+    {
+      "name": "股票代码",
+      "dtype": "str"
+    },
+    {
+      "name": "股票简称",
+      "dtype": "str"
+    },
+    {
+      "name": "当日收盘价",
+      "dtype": "str"
+    },
+    {
+      "name": "当日涨跌幅",
+      "dtype": "str"
+    },
+    {
+      "name": "持股数量",
+      "dtype": "str"
+    },
+    {
+      "name": "持股市值",
+      "dtype": "str"
+    },
+    {
+      "name": "持股数量占发行股百分比",
+      "dtype": "str"
+    },
+    {
+      "name": "持股市值变化-1日",
+      "dtype": "str"
+    },
+    {
+      "name": "持股市值变化-5日",
+      "dtype": "str"
+    },
+    {
+      "name": "持股市值变化-10日",
+      "dtype": "str"
+    }
+  ],
   "height": 0,
-  "head": []
+  "head": [],
+  "function": "stock_hsgt_stock_statistics_em",
+  "error": null
 }
