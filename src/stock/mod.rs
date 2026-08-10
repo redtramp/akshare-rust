@@ -891,3 +891,342 @@ mod tests_b3 {
         assert_eq!(s, "2026-08-07");
     }
 }
+
+/// 东方财富-行情中心-沪深个股-风险警示板（对应 akshare [`akshare.stock_zh_a_st_em`]）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌幅, 涨跌额, 成交量, 成交额, 振幅, 最高, 最低,
+/// 今开, 昨收, 量比, 换手率, 市盈率-动态, 市净率`
+pub fn stock_zh_a_st_em() -> Result<Df> {
+    let urls = crate::sources::eastmoney::push2_urls("/api/qt/clist/get");
+    let params = json!({
+        "pn": "1", "pz": "100", "po": "1", "np": "1",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2", "invt": "2", "fid": "f3",
+        "fs": "m:0 f:4,m:1 f:4",
+        "fields": "f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152",
+    });
+    let http = HttpClient::default();
+    let df = crate::sources::eastmoney::fetch_clist(
+        &http,
+        &urls,
+        params.as_object().expect("静态参数"),
+    )?;
+    const RENAME: [(&str, &str); 17] = [
+        ("index", "序号"),
+        ("f2", "最新价"),
+        ("f3", "涨跌幅"),
+        ("f4", "涨跌额"),
+        ("f5", "成交量"),
+        ("f6", "成交额"),
+        ("f7", "振幅"),
+        ("f8", "换手率"),
+        ("f9", "市盈率-动态"),
+        ("f10", "量比"),
+        ("f12", "代码"),
+        ("f14", "名称"),
+        ("f15", "最高"),
+        ("f16", "最低"),
+        ("f17", "今开"),
+        ("f18", "昨收"),
+        ("f25", "市净率"),
+    ];
+    const SELECT: [&str; 17] = [
+        "序号",
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌幅",
+        "涨跌额",
+        "成交量",
+        "成交额",
+        "振幅",
+        "最高",
+        "最低",
+        "今开",
+        "昨收",
+        "量比",
+        "换手率",
+        "市盈率-动态",
+        "市净率",
+    ];
+    const NUMERIC: [&str; 14] = [
+        "最新价",
+        "涨跌幅",
+        "涨跌额",
+        "成交量",
+        "成交额",
+        "振幅",
+        "最高",
+        "最低",
+        "今开",
+        "昨收",
+        "量比",
+        "换手率",
+        "市盈率-动态",
+        "市净率",
+    ];
+    crate::sources::eastmoney::finalize_spot(df, &RENAME, &SELECT, &NUMERIC)
+}
+
+/// 东方财富-行情中心-沪深个股-新股（对应 akshare [`akshare.stock_zh_a_new_em`]）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌幅, 涨跌额, 成交量, 成交额, 振幅, 最高, 最低,
+/// 今开, 昨收, 量比, 换手率, 市盈率-动态, 市净率`
+pub fn stock_zh_a_new_em() -> Result<Df> {
+    let urls = crate::sources::eastmoney::push2_urls("/api/qt/clist/get");
+    let params = json!({
+        "pn": "1", "pz": "100", "po": "1", "np": "1",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2", "invt": "2", "fid": "f26",
+        "fs": "m:0 f:8,m:1 f:8",
+        "fields": "f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152",
+    });
+    let http = HttpClient::default();
+    let df = crate::sources::eastmoney::fetch_clist(
+        &http,
+        &urls,
+        params.as_object().expect("静态参数"),
+    )?;
+    const RENAME: [(&str, &str); 17] = [
+        ("index", "序号"),
+        ("f2", "最新价"),
+        ("f3", "涨跌幅"),
+        ("f4", "涨跌额"),
+        ("f5", "成交量"),
+        ("f6", "成交额"),
+        ("f7", "振幅"),
+        ("f8", "换手率"),
+        ("f9", "市盈率-动态"),
+        ("f10", "量比"),
+        ("f12", "代码"),
+        ("f14", "名称"),
+        ("f15", "最高"),
+        ("f16", "最低"),
+        ("f17", "今开"),
+        ("f18", "昨收"),
+        ("f25", "市净率"),
+    ];
+    const SELECT: [&str; 17] = [
+        "序号",
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌幅",
+        "涨跌额",
+        "成交量",
+        "成交额",
+        "振幅",
+        "最高",
+        "最低",
+        "今开",
+        "昨收",
+        "量比",
+        "换手率",
+        "市盈率-动态",
+        "市净率",
+    ];
+    const NUMERIC: [&str; 14] = [
+        "最新价",
+        "涨跌幅",
+        "涨跌额",
+        "成交量",
+        "成交额",
+        "振幅",
+        "最高",
+        "最低",
+        "今开",
+        "昨收",
+        "量比",
+        "换手率",
+        "市盈率-动态",
+        "市净率",
+    ];
+    crate::sources::eastmoney::finalize_spot(df, &RENAME, &SELECT, &NUMERIC)
+}
+
+/// 东方财富-港股-实时行情（对应 akshare [`akshare.stock_hk_spot_em`]）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌额, 涨跌幅, 今开, 最高, 最低, 昨收, 成交量, 成交额, 换手率, 市盈率-动态, 市净率, 振幅, 量比`
+pub fn stock_hk_spot_em() -> Result<Df> {
+    let urls = crate::sources::eastmoney::push2_urls("/api/qt/clist/get");
+    let params = json!({
+        "pn": "1", "pz": "100", "po": "1", "np": "1",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2", "invt": "2", "fid": "f12",
+        "fs": "m:128 t:3,m:128 t:4,m:128 t:1,m:128 t:2",
+        "fields": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152",
+    });
+    let http = HttpClient::default();
+    let df = crate::sources::eastmoney::fetch_clist(
+        &http,
+        &urls,
+        params.as_object().expect("静态参数"),
+    )?;
+    const RENAME: [(&str, &str); 17] = [
+        ("index", "序号"),
+        ("f2", "最新价"),
+        ("f3", "涨跌幅"),
+        ("f4", "涨跌额"),
+        ("f5", "成交量"),
+        ("f6", "成交额"),
+        ("f7", "振幅"),
+        ("f8", "换手率"),
+        ("f9", "市盈率-动态"),
+        ("f10", "量比"),
+        ("f12", "代码"),
+        ("f14", "名称"),
+        ("f15", "最高"),
+        ("f16", "最低"),
+        ("f17", "今开"),
+        ("f18", "昨收"),
+        ("f25", "市净率"),
+    ];
+    const SELECT: [&str; 12] = [
+        "序号",
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "今开",
+        "最高",
+        "最低",
+        "昨收",
+        "成交量",
+        "成交额",
+    ];
+    const NUMERIC: [&str; 9] = [
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "今开",
+        "最高",
+        "最低",
+        "昨收",
+        "成交量",
+        "成交额",
+    ];
+    crate::sources::eastmoney::finalize_spot(df, &RENAME, &SELECT, &NUMERIC)
+}
+
+#[cfg(test)]
+mod tests_e1 {
+    use super::*;
+
+    /// 键名映射（finalize_spot）列契约：与 akshare 输出一致。
+    /// 模拟 fetch_clist 输出行（含 index 序号 + f2..f25 键），验证 rename+select。
+    #[test]
+    fn st_em_offline_contract() {
+        let rows = json!([
+            {"f2": 4.5, "f3": 9.9, "f4": 0.41, "f5": 100000, "f6": 4500000.0,
+             "f7": 11.0, "f8": 3.2, "f9": 30.0, "f10": 1.5, "f12": "000001", "f13": 1,
+             "f14": "平安银行", "f15": 4.9, "f16": 4.4, "f17": 4.6, "f18": 4.09,
+             "f20": 1e12, "f21": 9e11, "f23": 1.0, "f24": 1.0, "f25": 0.9, "f22": 1.0,
+             "f11": 1.0, "f62": 1.0, "f128": 1.0, "f136": 1.0, "f115": 1.0, "f152": 1.0}
+        ]);
+        // 与真实链路一致：fetch_clist 内部先 finalize_clist（排序 + Int64 序号列）
+        let df =
+            crate::sources::eastmoney::finalize_clist(rows.as_array().unwrap().to_vec()).unwrap();
+        const RENAME: [(&str, &str); 17] = [
+            ("index", "序号"),
+            ("f2", "最新价"),
+            ("f3", "涨跌幅"),
+            ("f4", "涨跌额"),
+            ("f5", "成交量"),
+            ("f6", "成交额"),
+            ("f7", "振幅"),
+            ("f8", "换手率"),
+            ("f9", "市盈率-动态"),
+            ("f10", "量比"),
+            ("f12", "代码"),
+            ("f14", "名称"),
+            ("f15", "最高"),
+            ("f16", "最低"),
+            ("f17", "今开"),
+            ("f18", "昨收"),
+            ("f25", "市净率"),
+        ];
+        const SELECT: [&str; 17] = [
+            "序号",
+            "代码",
+            "名称",
+            "最新价",
+            "涨跌幅",
+            "涨跌额",
+            "成交量",
+            "成交额",
+            "振幅",
+            "最高",
+            "最低",
+            "今开",
+            "昨收",
+            "量比",
+            "换手率",
+            "市盈率-动态",
+            "市净率",
+        ];
+        const NUMERIC: [&str; 14] = [
+            "最新价",
+            "涨跌幅",
+            "涨跌额",
+            "成交量",
+            "成交额",
+            "振幅",
+            "最高",
+            "最低",
+            "今开",
+            "昨收",
+            "量比",
+            "换手率",
+            "市盈率-动态",
+            "市净率",
+        ];
+        let df = crate::sources::eastmoney::finalize_spot(df, &RENAME, &SELECT, &NUMERIC).unwrap();
+        assert_eq!(df.column_names(), SELECT);
+        assert_eq!(df.height(), 1);
+        let code = df.inner().column("代码").unwrap().str().unwrap();
+        assert_eq!(code.get(0), Some("000001"));
+        let name = df.inner().column("名称").unwrap().str().unwrap();
+        assert_eq!(name.get(0), Some("平安银行"));
+        let px = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(4.5));
+        let chg = df.inner().column("涨跌幅").unwrap().f64().unwrap();
+        assert_eq!(chg.get(0), Some(9.9));
+        let seq = df.inner().column("序号").unwrap().i64().unwrap();
+        assert_eq!(seq.get(0), Some(1));
+        let pb = df.inner().column("市净率").unwrap().f64().unwrap();
+        assert_eq!(pb.get(0), Some(0.9));
+    }
+
+    /// 空数据：返回空表但列契约完整。
+    #[test]
+    fn st_em_offline_empty() {
+        let rows = json!([]);
+        let df = crate::core::df::Df::from_json_rows(rows.as_array().unwrap()).unwrap();
+        const SELECT: [&str; 17] = [
+            "序号",
+            "代码",
+            "名称",
+            "最新价",
+            "涨跌幅",
+            "涨跌额",
+            "成交量",
+            "成交额",
+            "振幅",
+            "最高",
+            "最低",
+            "今开",
+            "昨收",
+            "量比",
+            "换手率",
+            "市盈率-动态",
+            "市净率",
+        ];
+        let df = crate::sources::eastmoney::finalize_spot(df, &[], &SELECT, &[]).unwrap();
+        assert_eq!(df.height(), 0);
+        assert_eq!(df.column_names(), SELECT);
+    }
+}
