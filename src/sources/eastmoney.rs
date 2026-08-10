@@ -677,6 +677,33 @@ pub fn fetch_kline_ext(
     kline_lines(http, params)
 }
 
+/// 解析 datacenter 响应文本为 JSON。
+///
+/// 个别东财接口（如 `RPT_STOCK_PARTICIPATION`）在携带 `callback` 参数时返回
+/// JSONP（`callback(...);` 包裹），无法直接 `serde_json::from_str`。本函数在严格解析
+/// 失败后尝试剥离 JSONP 外层包裹再解析；对普通 JSON 响应（绝大多数 `RPT_*`）无任何影响。
+fn parse_datacenter_response(text: &str, url: &str) -> Result<Value> {
+    // 先尝试严格解析（普通 JSON 响应，绝大多数 RPT_*）。
+    if let Ok(v) = serde_json::from_str::<Value>(text) {
+        return Ok(v);
+    }
+    let s = text.trim();
+    // 个别接口（如 RPT_STOCK_PARTICIPATION）在携带 callback 时返回 JSONP
+    //（`callback(...);` 包裹）。剥离首个 `(` 之前的前缀与最外层括号，取内部 JSON。
+    // 对 `jQuery123({...});` / `cb({...})` 等形态均适用，且不影响普通 JSON。
+    if let Some(open) = s.find('(') {
+        if let Some(close) = s.rfind(')') {
+            if close > open {
+                let inner = &s[open + 1..close];
+                if let Ok(v) = serde_json::from_str::<Value>(inner) {
+                    return Ok(v);
+                }
+            }
+        }
+    }
+    serde_json::from_str::<Value>(text).map_err(|e| AkshareError::json(url, e.to_string()))
+}
+
 /// datacenter-web 分页数据（对应 akshare 各 `datacenter-web.eastmoney.com/api/data/v1/get`
 /// 函数：按 `result.pages` 循环翻页；页数据为空时提前终止——
 /// 服务端 `pages` 数值偶有虚高（如 5000 行/页却返回 300+ 页），空页终止
@@ -699,7 +726,8 @@ pub(crate) fn fetch_datacenter_pages(
         params.insert("pageNumber".into(), Value::from(page));
         params.insert("source".into(), Value::String("WEB".into()));
         params.insert("client".into(), Value::String("WEB".into()));
-        let value = http.get_json(url, &params, None)?;
+        let text = http.get_text(url, &params, None)?;
+        let value = parse_datacenter_response(&text, url)?;
         let data = value
             .get("result")
             .and_then(|r| r.get("data"))

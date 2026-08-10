@@ -3391,6 +3391,382 @@ pub fn stock_xjll_em(date: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ===== 股权质押-质押机构分布统计（RPT_GDZY_ZYJG_SUM）=====
+// 序号由 Rust 生成。列序参照 akshare `big_df.columns`（columns=ALL，序号占 0 位，
+// 原始 JSON 键紧随其后）与实时拉取的 JSON 键序逐位对齐：JSON 键 0-based 序号 k 对应位置 k+1。
+// 该报表 `PFORG_TYPE` 实际取值为 `证券Ⅱ`/`银行Ⅱ`，akshare 原版过滤 `证券`/`银行` 已无数据，
+// 此处原样镜像 akshare 过滤条件（返回空表与之等价）。
+const GPZY_DIST_RENAME: [(&str, &str); 7] = [
+    ("SECURITY_NAME_ABBR", "质押机构"),
+    ("ORG_NUM", "质押公司数量"),
+    ("PLEDGE_DEAL_NUM", "质押笔数"),
+    ("PLEDGE_NUM", "质押数量"),
+    ("WARNING_STATE_1_RATE", "未达预警线比例"),
+    ("WARNING_STATE_2_RATE", "达到预警线未达平仓线比例"),
+    ("WARNING_STATE_3_RATE", "达到平仓线比例"),
+];
+const GPZY_DIST_SELECT: [&str; 7] = [
+    "质押机构",
+    "质押公司数量",
+    "质押笔数",
+    "质押数量",
+    "未达预警线比例",
+    "达到预警线未达平仓线比例",
+    "达到平仓线比例",
+];
+const GPZY_DIST_NUMERIC: [&str; 6] = [
+    "质押公司数量",
+    "质押笔数",
+    "质押数量",
+    "未达预警线比例",
+    "达到预警线未达平仓线比例",
+    "达到平仓线比例",
+];
+
+/// 股权质押-质押机构分布统计-证券公司（对应 akshare [`akshare.stock_gpzy_distribute_statistics_company_em`]）。
+///
+/// 无参数；序号由 Rust 生成。
+///
+/// # 返回列
+/// `序号, 质押机构, 质押公司数量, 质押笔数, 质押数量, 未达预警线比例,
+/// 达到预警线未达平仓线比例, 达到平仓线比例`
+pub fn stock_gpzy_distribute_statistics_company_em() -> Result<Df> {
+    let extra = report_extra(
+        "ORG_NUM",
+        "-1",
+        Some(r#"(PFORG_TYPE="证券")"#),
+        Some(""),
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_GDZY_ZYJG_SUM", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &GPZY_DIST_RENAME,
+        &GPZY_DIST_SELECT,
+        &GPZY_DIST_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+/// 股权质押-质押机构分布统计-银行（对应 akshare [`akshare.stock_gpzy_distribute_statistics_bank_em`]）。
+///
+/// 无参数；序号由 Rust 生成。
+///
+/// # 返回列
+/// 与 [`stock_gpzy_distribute_statistics_company_em`] 一致。
+pub fn stock_gpzy_distribute_statistics_bank_em() -> Result<Df> {
+    let extra = report_extra(
+        "ORG_NUM",
+        "-1",
+        Some(r#"(PFORG_TYPE="银行")"#),
+        Some(""),
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_GDZY_ZYJG_SUM", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &GPZY_DIST_RENAME,
+        &GPZY_DIST_SELECT,
+        &GPZY_DIST_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+// ===== 股东户数详情（RPT_HOLDERNUM_DET）=====
+// 无 序号。列序参照 akshare `big_df.columns`（columns=显式 17 键 + quoteColumns f2,f3；
+// 服务端对重复 END_DATE 去重，故返回 18 键）与实时拉取的 JSON 键序逐位对齐。
+// akshare 将末端 3 个位置（PRE_END_DATE/f2/f3）命名为 `_` 后丢弃，本实现仅映射并选择保留列。
+const GDHS_DETAIL_RENAME: [(&str, &str); 15] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "名称"),
+    ("CHANGE_SHARES", "股本变动"),
+    ("CHANGE_REASON", "股本变动原因"),
+    ("END_DATE", "股东户数统计截止日"),
+    ("INTERVAL_CHRATE", "区间涨跌幅"),
+    ("AVG_MARKET_CAP", "户均持股市值"),
+    ("AVG_HOLD_NUM", "户均持股数量"),
+    ("TOTAL_MARKET_CAP", "总市值"),
+    ("TOTAL_A_SHARES", "总股本"),
+    ("HOLD_NOTICE_DATE", "股东户数公告日期"),
+    ("HOLDER_NUM", "股东户数-本次"),
+    ("PRE_HOLDER_NUM", "股东户数-上次"),
+    ("HOLDER_NUM_CHANGE", "股东户数-增减"),
+    ("HOLDER_NUM_RATIO", "股东户数-增减比例"),
+];
+const GDHS_DETAIL_SELECT: [&str; 15] = [
+    "股东户数统计截止日",
+    "区间涨跌幅",
+    "股东户数-本次",
+    "股东户数-上次",
+    "股东户数-增减",
+    "股东户数-增减比例",
+    "户均持股市值",
+    "户均持股数量",
+    "总市值",
+    "总股本",
+    "股本变动",
+    "股本变动原因",
+    "股东户数公告日期",
+    "代码",
+    "名称",
+];
+const GDHS_DETAIL_NUMERIC: [&str; 10] = [
+    "区间涨跌幅",
+    "股东户数-本次",
+    "股东户数-上次",
+    "股东户数-增减",
+    "股东户数-增减比例",
+    "户均持股市值",
+    "户均持股数量",
+    "总市值",
+    "总股本",
+    "股本变动",
+];
+const GDHS_DETAIL_DATE: [&str; 2] = ["股东户数统计截止日", "股东户数公告日期"];
+
+/// 股东户数详情（对应 akshare [`akshare.stock_zh_a_gdhs_detail_em`]）。
+///
+/// `symbol`：股票代码（如 `"000001"`），按 `SECURITY_CODE` 过滤。
+/// 通过 `quoteColumns` 注入最新价/涨跌幅，但 akshare 输出不保留这两列，本实现同样丢弃。
+/// 无 序号 列。
+///
+/// # 返回列
+/// `股东户数统计截止日, 区间涨跌幅, 股东户数-本次, 股东户数-上次, 股东户数-增减,
+/// 股东户数-增减比例, 户均持股市值, 户均持股数量, 总市值, 总股本, 股本变动,
+/// 股本变动原因, 股东户数公告日期, 代码, 名称`
+pub fn stock_zh_a_gdhs_detail_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(SECURITY_CODE="{symbol}")"#);
+    let columns = "SECURITY_CODE,SECURITY_NAME_ABBR,CHANGE_SHARES,CHANGE_REASON,END_DATE,INTERVAL_CHRATE,AVG_MARKET_CAP,AVG_HOLD_NUM,TOTAL_MARKET_CAP,TOTAL_A_SHARES,HOLD_NOTICE_DATE,HOLDER_NUM,PRE_HOLDER_NUM,HOLDER_NUM_CHANGE,HOLDER_NUM_RATIO,END_DATE,PRE_END_DATE";
+    let extra = report_extra("END_DATE", "-1", Some(&filter), Some("f2,f3"), None, None);
+    let rows = datacenter("RPT_HOLDERNUM_DET", columns, &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &GDHS_DETAIL_RENAME,
+        &GDHS_DETAIL_SELECT,
+        &GDHS_DETAIL_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&GDHS_DETAIL_DATE)?;
+    Ok(df)
+}
+
+// ===== 股东协同-十大流通股东/十大股东（RPT_COOPFREEHOLDER / RPT_TENHOLDERS_COOPHOLDERS）=====
+// 序号由 Rust 生成。两报表 JSON 键序一致，共用同一套 RENAME/SELECT/NUMERIC。
+// 列序参照 akshare `big_df.columns`（columns=ALL）与实时拉取的 JSON 键序逐位对齐。无日期列。
+const GDFX_TEAM_RENAME: [(&str, &str); 6] = [
+    ("HOLDER_NAME", "股东名称"),
+    ("HOLDER_TYPE", "股东类型"),
+    ("COOPERAT_HOLDER_NAME", "协同股东名称"),
+    ("COOPERAT_HOLDER_TYPE", "协同股东类型"),
+    ("COOPERAT_NUM", "协同次数"),
+    ("PINGJIE", "个股详情"),
+];
+const GDFX_TEAM_SELECT: [&str; 6] = [
+    "股东名称",
+    "股东类型",
+    "协同股东名称",
+    "协同股东类型",
+    "协同次数",
+    "个股详情",
+];
+const GDFX_TEAM_NUMERIC: [&str; 1] = ["协同次数"];
+
+/// 股东协同-十大流通股东（对应 akshare [`akshare.stock_gdfx_free_holding_teamwork_em`]）。
+///
+/// `symbol`：股东类型，默认 `"全部"`；亦可取 `个人`/`基金`/`QFII`/`社保`/`券商`/`信托`。
+/// 仅当 `symbol != "全部"` 时按 `HOLDER_TYPE` 过滤。序号由 Rust 生成。
+///
+/// # 返回列
+/// `序号, 股东名称, 股东类型, 协同股东名称, 协同股东类型, 协同次数, 个股详情`
+pub fn stock_gdfx_free_holding_teamwork_em(symbol: &str) -> Result<Df> {
+    let filter = if symbol == "全部" {
+        None
+    } else {
+        Some(format!(r#"(HOLDER_TYPE="{symbol}")"#))
+    };
+    let extra = report_extra(
+        "COOPERAT_NUM,HOLDER_NEW,COOPERAT_HOLDER_NEW",
+        "-1,-1,-1",
+        filter.as_deref(),
+        Some(""),
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_COOPFREEHOLDER", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &GDFX_TEAM_RENAME,
+        &GDFX_TEAM_SELECT,
+        &GDFX_TEAM_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+/// 股东协同-十大股东（对应 akshare [`akshare.stock_gdfx_holding_teamwork_em`]）。
+///
+/// `symbol`：股东类型，默认 `"全部"`；其余取值同 [`stock_gdfx_free_holding_teamwork_em`]。
+/// 仅当 `symbol != "全部"` 时按 `HOLDER_TYPE` 过滤。序号由 Rust 生成。
+///
+/// # 返回列
+/// 与 [`stock_gdfx_free_holding_teamwork_em`] 一致。
+pub fn stock_gdfx_holding_teamwork_em(symbol: &str) -> Result<Df> {
+    let filter = if symbol == "全部" {
+        None
+    } else {
+        Some(format!(r#"(HOLDER_TYPE="{symbol}")"#))
+    };
+    let extra = report_extra(
+        "COOPERAT_NUM,HOLDER_NEW,COOPERAT_HOLDER_NEW",
+        "-1,-1,-1",
+        filter.as_deref(),
+        Some(""),
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_TENHOLDERS_COOPHOLDERS", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &GDFX_TEAM_RENAME,
+        &GDFX_TEAM_SELECT,
+        &GDFX_TEAM_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+// ===== 千股千评-市场热度-用户关注指数（RPT_STOCK_MARKETFOCUS）=====
+// 无 序号（akshare 仅 rename + 选择，无 index 列）。键名直接映射。
+const COMMENT_FOCUS_RENAME: [(&str, &str); 2] =
+    [("TRADE_DATE", "交易日"), ("MARKET_FOCUS", "用户关注指数")];
+const COMMENT_FOCUS_SELECT: [&str; 2] = ["交易日", "用户关注指数"];
+const COMMENT_FOCUS_NUMERIC: [&str; 1] = ["用户关注指数"];
+const COMMENT_FOCUS_DATE: [&str; 1] = ["交易日"];
+
+/// 千股千评-市场热度-用户关注指数（对应 akshare [`akshare.stock_comment_detail_scrd_focus_em`]）。
+///
+/// `symbol`：股票代码（如 `"600000"`），按 `SECURITY_CODE` 过滤。无 序号 列。
+///
+/// # 返回列
+/// `交易日, 用户关注指数`
+pub fn stock_comment_detail_scrd_focus_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(SECURITY_CODE="{symbol}")"#);
+    let extra = report_extra("TRADE_DATE", "-1", Some(&filter), None, None, None);
+    let rows = datacenter("RPT_STOCK_MARKETFOCUS", "ALL", &extra, "30")?;
+    let mut df = finalize_report(
+        &rows,
+        &COMMENT_FOCUS_RENAME,
+        &COMMENT_FOCUS_SELECT,
+        &COMMENT_FOCUS_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&COMMENT_FOCUS_DATE)?;
+    Ok(df)
+}
+
+// ===== 千股千评-市场热度-市场参与意愿（RPT_STOCK_PARTICIPATION）=====
+// 无 序号（akshare 仅 rename + 选择，无 index 列）。键名直接映射。
+// 东财该接口携带 `callback` 时以 JSONP（`callback(...);`）包裹返回，已在
+// `fetch_datacenter_pages` 内剥离外层后再解析。
+const COMMENT_DESIRE_RENAME: [(&str, &str); 7] = [
+    ("SECURITY_INNER_CODE", "内部代码"),
+    ("SECURITY_CODE", "股票代码"),
+    ("TRADE_DATE", "交易日期"),
+    ("PARTICIPATION_WISH", "参与意愿"),
+    ("PARTICIPATION_WISH_5DAYS", "5日平均参与意愿"),
+    ("PARTICIPATION_WISH_CHANGE", "参与意愿变化"),
+    ("PARTICIPATION_WISH_5DAYSCHANGE", "5日平均变化"),
+];
+const COMMENT_DESIRE_SELECT: [&str; 6] = [
+    "交易日期",
+    "股票代码",
+    "参与意愿",
+    "5日平均参与意愿",
+    "参与意愿变化",
+    "5日平均变化",
+];
+const COMMENT_DESIRE_NUMERIC: [&str; 4] =
+    ["参与意愿", "5日平均参与意愿", "参与意愿变化", "5日平均变化"];
+const COMMENT_DESIRE_DATE: [&str; 1] = ["交易日期"];
+
+/// 千股千评-市场热度-市场参与意愿（对应 akshare [`akshare.stock_comment_detail_scrd_desire_em`]）。
+///
+/// `symbol`：股票代码（如 `"600000"`），按 `SECURITY_CODE` 过滤。无 序号 列，
+/// 内部代码列被丢弃（与 akshare `del temp_df["内部代码"]` 一致）。
+///
+/// # 返回列
+/// `交易日期, 股票代码, 参与意愿, 5日平均参与意愿, 参与意愿变化, 5日平均变化`
+pub fn stock_comment_detail_scrd_desire_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(SECURITY_CODE="{symbol}")"#);
+    let mut extra = report_extra("TRADE_DATE", "-1", Some(&filter), None, None, None);
+    // 触发东财 JSONP 包裹返回（akshare 同样发送 callback），由 fetch 层剥离。
+    extra.insert("callback".to_string(), json!("jQuery_parity_jsonp"));
+    let rows = datacenter("RPT_STOCK_PARTICIPATION", "ALL", &extra, "30")?;
+    let mut df = finalize_report(
+        &rows,
+        &COMMENT_DESIRE_RENAME,
+        &COMMENT_DESIRE_SELECT,
+        &COMMENT_DESIRE_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&COMMENT_DESIRE_DATE)?;
+    Ok(df)
+}
+
+// ===== 商誉-行业商誉（RPT_GOODWILL_INDUSTATISTICS）=====
+// 无 序号（akshare 仅 rename + 选择，无 index 列）。键名直接映射；行业代码/商誉减值/
+// 商誉减值占净资产比例/商誉减值占净利润比例 列被丢弃。输出不含日期列。
+const SY_HY_RENAME: [(&str, &str); 6] = [
+    ("INDUSTRY_NAME", "行业名称"),
+    ("ORG_NUM", "公司家数"),
+    ("GOODWILL", "商誉规模"),
+    ("SUMSHEQUITY", "净资产"),
+    ("SUMSHEQUITY_RATIO", "商誉规模占净资产规模比例"),
+    ("PARENTNETPROFIT", "净利润规模"),
+];
+const SY_HY_SELECT: [&str; 6] = [
+    "行业名称",
+    "公司家数",
+    "商誉规模",
+    "净资产",
+    "商誉规模占净资产规模比例",
+    "净利润规模",
+];
+const SY_HY_NUMERIC: [&str; 5] = [
+    "公司家数",
+    "商誉规模",
+    "净资产",
+    "商誉规模占净资产规模比例",
+    "净利润规模",
+];
+
+/// 商誉-行业商誉（对应 akshare [`akshare.stock_sy_hy_em`]）。
+///
+/// `date`：数据日期 `YYYYMMDD`（如 `"20240930"`），按 `REPORT_DATE` 过滤（需 `token: EM_TOKEN`）。
+/// 无 序号 列，输出不含日期列（akshare 丢弃 `数据日期`）。
+///
+/// # 返回列
+/// `行业名称, 公司家数, 商誉规模, 净资产, 商誉规模占净资产规模比例, 净利润规模`
+pub fn stock_sy_hy_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(REPORT_DATE='{d}')");
+    let extra = report_extra(
+        "SUMSHEQUITY_RATIO",
+        "-1",
+        Some(&filter),
+        None,
+        Some(EM_TOKEN),
+        None,
+    );
+    let rows = datacenter("RPT_GOODWILL_INDUSTATISTICS", "ALL", &extra, "5000")?;
+    let df = finalize_report(&rows, &SY_HY_RENAME, &SY_HY_SELECT, &SY_HY_NUMERIC, None)?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4537,6 +4913,190 @@ mod tests {
         assert_eq!(df.column_names()[1..], ZCFZ_SELECT);
         let ta = df.inner().column("资产-总资产").unwrap().f64().unwrap();
         assert_eq!(ta.get(0), Some(500000.0));
+    }
+
+    /// 离线验证股权质押-质押机构分布统计（序号 + 数值化，无日期列）。
+    #[test]
+    fn gpzy_distribute_offline() {
+        let rows = json!([
+            {
+                "SECURITY_NAME_ABBR":"国泰海通","ORG_NUM":"282","PLEDGE_DEAL_NUM":"775",
+                "PLEDGE_NUM":"982237.3809","WARNING_STATE_1_RATE":"0.788387096774",
+                "WARNING_STATE_2_RATE":"0.038709677419","WARNING_STATE_3_RATE":"0.172903225806"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &GPZY_DIST_RENAME,
+            &GPZY_DIST_SELECT,
+            &GPZY_DIST_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], GPZY_DIST_SELECT);
+        let org = df.inner().column("质押公司数量").unwrap().f64().unwrap();
+        assert_eq!(org.get(0), Some(282.0));
+        let rate = df.inner().column("达到平仓线比例").unwrap().f64().unwrap();
+        assert_eq!(rate.get(0), Some(0.172903225806));
+    }
+
+    /// 离线验证股东户数详情列契约（无序号 + 数值化 + 日期截断，quote f2/f3 被丢弃）。
+    #[test]
+    fn gdhs_detail_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行",
+                "CHANGE_SHARES":"1000","CHANGE_REASON":"增发",
+                "END_DATE":"2023-09-30T00:00:00","INTERVAL_CHRATE":"-1.23",
+                "AVG_MARKET_CAP":"123456.78","AVG_HOLD_NUM":"5000",
+                "TOTAL_MARKET_CAP":"200000000000","TOTAL_A_SHARES":"190000000000",
+                "HOLD_NOTICE_DATE":"2023-10-01T00:00:00","HOLDER_NUM":"120000",
+                "PRE_HOLDER_NUM":"130000","HOLDER_NUM_CHANGE":"-10000",
+                "HOLDER_NUM_RATIO":"-7.69","PRE_END_DATE":null,"f2":"10.5","f3":"1.2"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &GDHS_DETAIL_RENAME,
+            &GDHS_DETAIL_SELECT,
+            &GDHS_DETAIL_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&GDHS_DETAIL_DATE).unwrap();
+        // 无 序号 列；quote f2/f3 不出现
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), GDHS_DETAIL_SELECT);
+        let holder = df.inner().column("股东户数-本次").unwrap().f64().unwrap();
+        assert_eq!(holder.get(0), Some(120000.0));
+        let d = df
+            .inner()
+            .column("股东户数统计截止日")
+            .unwrap()
+            .str()
+            .unwrap();
+        assert_eq!(d.get(0), Some("2023-09-30"));
+        // f2/f3 已丢弃
+        assert!(df.inner().column("f2").is_err());
+        assert!(df.inner().column("f3").is_err());
+    }
+
+    /// 离线验证股东协同（十大流通/十大股东）列契约：序号生成 + 协同次数数值化。
+    #[test]
+    fn gdfx_team_offline() {
+        let rows = json!([
+            {
+                "HOLDER_NAME":"吕强","HOLDER_TYPE":"个人",
+                "COOPERAT_HOLDER_NAME":"某协同股东","COOPERAT_HOLDER_TYPE":"基金",
+                "COOPERAT_NUM":"5","PINGJIE":"个股A,个股B"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &GDFX_TEAM_RENAME,
+            &GDFX_TEAM_SELECT,
+            &GDFX_TEAM_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], GDFX_TEAM_SELECT);
+        let c = df.inner().column("协同次数").unwrap().f64().unwrap();
+        assert_eq!(c.get(0), Some(5.0));
+        let name = df.inner().column("股东名称").unwrap().str().unwrap();
+        assert_eq!(name.get(0), Some("吕强"));
+    }
+
+    /// 离线验证千股千评-用户关注指数列契约（无序号 + 数值化 + 日期截断）。
+    #[test]
+    fn comment_focus_offline() {
+        let rows = json!([
+            {
+                "TRADE_DATE":"2026-04-10 00:00:00","MARKET_FOCUS":"88.5",
+                "MARKET_FOCUS_RANK":"3","TOTAL_MARKET":"1000"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &COMMENT_FOCUS_RENAME,
+            &COMMENT_FOCUS_SELECT,
+            &COMMENT_FOCUS_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&COMMENT_FOCUS_DATE).unwrap();
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), COMMENT_FOCUS_SELECT);
+        let f = df.inner().column("用户关注指数").unwrap().f64().unwrap();
+        assert_eq!(f.get(0), Some(88.5));
+        let d = df.inner().column("交易日").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证千股千评-市场参与意愿列契约（JSONP 剥离后；无序号 + 数值化 + 日期截断）。
+    #[test]
+    fn comment_desire_offline() {
+        let rows = json!([
+            {
+                "SECURITY_INNER_CODE":"1000002165","SECURITY_CODE":"600000",
+                "TRADE_DATE":"2026-04-10 00:00:00","PARTICIPATION_WISH":"75.3",
+                "PARTICIPATION_WISH_5DAYS":"70.1","PARTICIPATION_WISH_CHANGE":"5.2",
+                "PARTICIPATION_WISH_5DAYSCHANGE":"-2.1"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &COMMENT_DESIRE_RENAME,
+            &COMMENT_DESIRE_SELECT,
+            &COMMENT_DESIRE_NUMERIC,
+            None,
+        )
+        .unwrap();
+        df.cast_date(&COMMENT_DESIRE_DATE).unwrap();
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), COMMENT_DESIRE_SELECT);
+        // 内部代码已丢弃
+        assert!(df.inner().column("内部代码").is_err());
+        let w = df.inner().column("参与意愿").unwrap().f64().unwrap();
+        assert_eq!(w.get(0), Some(75.3));
+        let d = df.inner().column("交易日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证商誉-行业商誉列契约（无序号 + 数值化，无日期列）。
+    #[test]
+    fn sy_hy_offline() {
+        let rows = json!([
+            {
+                "REPORT_DATE":"2024-09-30 00:00:00","INDUSTRY_NAME":"软件服务",
+                "INDUSTRY_CODE":"1271","ORG_NUM":"300","GOODWILL":"5000000",
+                "GOODWILL_CHANGE":"100000","SUMSHEQUITY":"80000000",
+                "SUMSHEQUITY_RATIO":"6.25","SE_CHANGE_RATIO":"0.1",
+                "PARENTNETPROFIT":"9000000","PNP_CHANGE_RATIO":"1.1"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df =
+            finalize_report(&rows, &SY_HY_RENAME, &SY_HY_SELECT, &SY_HY_NUMERIC, None).unwrap();
+        assert_ne!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names(), SY_HY_SELECT);
+        let g = df.inner().column("商誉规模").unwrap().f64().unwrap();
+        assert_eq!(g.get(0), Some(5000000.0));
+        let ratio = df
+            .inner()
+            .column("商誉规模占净资产规模比例")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(ratio.get(0), Some(6.25));
+        // 行业代码/商誉减值等被丢弃
+        assert!(df.inner().column("行业代码").is_err());
     }
 
     #[test]

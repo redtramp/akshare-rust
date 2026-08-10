@@ -144,6 +144,19 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_zcfz_bj_em", ["20240331"], "loose", "资产负债表(北交所)"),
     ("stock_lrb_em", ["20240331"], "loose", "利润表"),
     ("stock_xjll_em", ["20240331"], "loose", "现金流量表"),
+    # stock_feature 东财 datacenter 质押分布/股东协作/千股千评明细/商誉行业（Batch 1 Stage 1i）
+    ("stock_gpzy_distribute_statistics_company_em", [], "loose", "股权质押-证券公司分布统计"),
+    ("stock_gpzy_distribute_statistics_bank_em", [], "loose", "股权质押-银行分布统计"),
+    ("stock_zh_a_gdhs_detail_em", ["000001"], "loose", "股东户数-个股明细"),
+    # 注：原 akshare 默认参数 symbol="全部" 对应 RPT_COOPFREEHOLDER 无过滤，
+    # 服务端 pages≈3260（约 1.6M 行），超过 parity 的 120s 超时且 golden 体积过大；
+    # 列契约与过滤后完全一致，故 parity 用例改用过滤值“券商”验证（代码仍支持“全部”，
+    # 由 gdfx_team_offline 离线测试覆盖）。
+    ("stock_gdfx_free_holding_teamwork_em", ["券商"], "loose", "股东协作-自由流通持股"),
+    ("stock_gdfx_holding_teamwork_em", ["社保"], "loose", "股东协作-持股"),
+    ("stock_comment_detail_scrd_focus_em", ["600000"], "loose", "千股千评-人气聚焦"),
+    ("stock_comment_detail_scrd_desire_em", ["600000"], "loose", "千股千评-参与意愿"),
+    ("stock_sy_hy_em", ["20240930"], "loose", "商誉-行业统计"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

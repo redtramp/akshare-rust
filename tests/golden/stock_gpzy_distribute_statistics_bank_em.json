@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "序号",
+      "dtype": "str"
+    },
+    {
+      "name": "质押机构",
+      "dtype": "str"
+    },
+    {
+      "name": "质押公司数量",
+      "dtype": "str"
+    },
+    {
+      "name": "质押笔数",
+      "dtype": "str"
+    },
+    {
+      "name": "质押数量",
+      "dtype": "str"
+    },
+    {
+      "name": "未达预警线比例",
+      "dtype": "str"
+    },
+    {
+      "name": "达到预警线未达平仓线比例",
+      "dtype": "str"
+    },
+    {
+      "name": "达到平仓线比例",
+      "dtype": "str"
+    }
+  ],
+  "height": 0,
+  "head": []
+}

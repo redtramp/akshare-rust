@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "行业名称",
+      "dtype": "str"
+    },
+    {
+      "name": "公司家数",
+      "dtype": "str"
+    },
+    {
+      "name": "商誉规模",
+      "dtype": "str"
+    },
+    {
+      "name": "净资产",
+      "dtype": "str"
+    },
+    {
+      "name": "商誉规模占净资产规模比例",
+      "dtype": "str"
+    },
+    {
+      "name": "净利润规模",
+      "dtype": "str"
+    }
+  ],
+  "height": 0,
+  "head": []
+}
