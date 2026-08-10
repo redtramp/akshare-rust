@@ -268,16 +268,7 @@ pub fn fund_etf_category_ths(symbol: &str, date: &str) -> Result<Df> {
     let url = format!(
         "https://fund.10jqka.com.cn/data/Net/info/{inner_symbol}_rate_desc_{inner_date}_0_1_9999_0_0_0_jsonp_g.html"
     );
-    let http = HttpClient::default();
-    let text = http.get_text(&url, &Map::new(), None)?;
-    // jsonp 解包：`g({...})` → 去掉首 `g(` 与尾 `)`
-    let json_text = text
-        .trim()
-        .strip_prefix("g(")
-        .and_then(|t| t.strip_suffix(')'))
-        .ok_or_else(|| crate::core::error::AkshareError::Empty("ths jsonp 响应格式异常".into()))?;
-    let data: Value = serde_json::from_str(json_text)
-        .map_err(|e| crate::core::error::AkshareError::json(&url, e.to_string()))?;
+    let data: Value = crate::sources::ths::fetch_ths_jsonp(&url)?;
     let rows = data
         .get("data")
         .and_then(|d| d.get("data"))

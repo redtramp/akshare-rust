@@ -5395,6 +5395,368 @@ pub fn stock_analyst_detail_em(analyst_id: &str, indicator: &str) -> Result<Df> 
     }
 }
 
+// ============================================================
+// 同花顺数据中心-技术选股排名（对应 akshare `stock_technology_ths.py`）
+//
+// 全部走 `data.10jqka.com.cn/rank/*` HTML 表格（`table.m-table.J-ajax-table`），
+// 每页携带 `Cookie: v={token}`（ths.js 生成，见 `sources::ths`）。列名/列序与
+// akshare 逐字对齐；`股票代码` 补零到 6 位，百分比列剥 `%` 后数值化，日期列截断。
+// ============================================================
+
+/// 统一规整同花顺排名表：列名固定 + 剥 % + 补零 + 数值化 + 日期截断。
+///
+/// `columns` 长度即输出列数；`rows` 每行可能多出多余单元格（如 xzjp 的 历史数据），
+/// 超出部分截断。`zfill_code=true` 时 `股票代码` 补零到 6 位。
+fn finalize_ths_rank(
+    rows: Vec<Vec<String>>,
+    columns: &[&str],
+    numeric: &[&str],
+    date: &[&str],
+    pct_strip: &[&str],
+    zfill_code: bool,
+) -> Result<Df> {
+    let width = columns.len();
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| {
+            (0..width)
+                .map(|i| r.get(i).map(|s| s.trim().to_string()))
+                .collect()
+        })
+        .collect();
+    let mut df = Df::from_string_rows(columns, &string_rows)?;
+    if !pct_strip.is_empty() {
+        df.strip_suffix(pct_strip, "%")?;
+    }
+    if zfill_code {
+        df.zfill_col("股票代码", 6)?;
+    }
+    if !numeric.is_empty() {
+        df.cast_numeric(numeric)?;
+    }
+    if !date.is_empty() {
+        df.cast_date(date)?;
+    }
+    Ok(df)
+}
+
+/// 创新高（对应 akshare [`akshare.stock_rank_cxg_ths`]）。
+///
+/// `symbol`：`创月新高/半年新高/一年新高/历史新高`。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 涨跌幅, 换手率, 最新价, 前期高点, 前期高点日期`
+pub fn stock_rank_cxg_ths(symbol: &str) -> Result<Df> {
+    let board = match symbol {
+        "创月新高" => "4",
+        "半年新高" => "3",
+        "一年新高" => "2",
+        "历史新高" => "1",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "未知 symbol: {symbol}（可选：创月新高/半年新高/一年新高/历史新高）"
+            )))
+        }
+    };
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/cxg/board/{board}/field/stockcode/order/asc/page/{page}/ajax/1/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &["序号", "股票代码", "股票简称", "涨跌幅", "换手率", "最新价", "前期高点", "前期高点日期"],
+        &["序号", "涨跌幅", "换手率", "最新价", "前期高点"],
+        &["前期高点日期"],
+        &["涨跌幅", "换手率"],
+        true,
+    )
+}
+
+/// 创新低（对应 akshare [`akshare.stock_rank_cxd_ths`]）。
+///
+/// `symbol`：`创月新低/半年新低/一年新低/历史新低`。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 涨跌幅, 换手率, 最新价, 前期低点, 前期低点日期`
+pub fn stock_rank_cxd_ths(symbol: &str) -> Result<Df> {
+    let board = match symbol {
+        "创月新低" => "4",
+        "半年新低" => "3",
+        "一年新低" => "2",
+        "历史新低" => "1",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "未知 symbol: {symbol}（可选：创月新低/半年新低/一年新低/历史新低）"
+            )))
+        }
+    };
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/cxd/board/{board}/field/stockcode/order/asc/page/{page}/ajax/1/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &["序号", "股票代码", "股票简称", "涨跌幅", "换手率", "最新价", "前期低点", "前期低点日期"],
+        &["序号", "涨跌幅", "换手率", "最新价", "前期低点"],
+        &["前期低点日期"],
+        &["涨跌幅", "换手率"],
+        true,
+    )
+}
+
+/// 连续上涨（对应 akshare [`akshare.stock_rank_lxsz_ths`]）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 收盘价, 最高价, 最低价, 连涨天数, 连续涨跌幅,
+/// 累计换手率, 所属行业`
+pub fn stock_rank_lxsz_ths() -> Result<Df> {
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/lxsz/field/lxts/order/desc/page/{page}/ajax/1/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &[
+            "序号", "股票代码", "股票简称", "收盘价", "最高价", "最低价", "连涨天数",
+            "连续涨跌幅", "累计换手率", "所属行业",
+        ],
+        &["序号", "收盘价", "最高价", "最低价", "连涨天数", "连续涨跌幅", "累计换手率"],
+        &[],
+        &["连续涨跌幅", "累计换手率"],
+        false,
+    )
+}
+
+/// 连续下跌（对应 akshare [`akshare.stock_rank_lxxd_ths`]）。
+///
+/// # 返回列
+/// 与 [`stock_rank_lxsz_ths`] 一致。
+pub fn stock_rank_lxxd_ths() -> Result<Df> {
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/lxxd/field/lxts/order/desc/page/{page}/ajax/1/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &[
+            "序号", "股票代码", "股票简称", "收盘价", "最高价", "最低价", "连涨天数",
+            "连续涨跌幅", "累计换手率", "所属行业",
+        ],
+        &["序号", "收盘价", "最高价", "最低价", "连涨天数", "连续涨跌幅", "累计换手率"],
+        &[],
+        &["连续涨跌幅", "累计换手率"],
+        false,
+    )
+}
+
+/// 持续放量（对应 akshare [`akshare.stock_rank_cxfl_ths`]）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 涨跌幅, 最新价, 成交量, 基准日成交量, 放量天数,
+/// 阶段涨跌幅, 所属行业`
+pub fn stock_rank_cxfl_ths() -> Result<Df> {
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/cxfl/field/count/order/desc/ajax/1/free/1/page/{page}/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &[
+            "序号", "股票代码", "股票简称", "涨跌幅", "最新价", "成交量", "基准日成交量",
+            "放量天数", "阶段涨跌幅", "所属行业",
+        ],
+        &["涨跌幅", "最新价", "放量天数", "阶段涨跌幅"],
+        &[],
+        &["涨跌幅", "阶段涨跌幅"],
+        true,
+    )
+}
+
+/// 持续缩量（对应 akshare [`akshare.stock_rank_cxsl_ths`]）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 涨跌幅, 最新价, 成交量, 基准日成交量, 缩量天数,
+/// 阶段涨跌幅, 所属行业`
+pub fn stock_rank_cxsl_ths() -> Result<Df> {
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/cxsl/field/count/order/desc/ajax/1/free/1/page/{page}/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &[
+            "序号", "股票代码", "股票简称", "涨跌幅", "最新价", "成交量", "基准日成交量",
+            "缩量天数", "阶段涨跌幅", "所属行业",
+        ],
+        &["涨跌幅", "最新价", "缩量天数", "阶段涨跌幅"],
+        &[],
+        &["涨跌幅", "阶段涨跌幅"],
+        true,
+    )
+}
+
+/// 向上突破（对应 akshare [`akshare.stock_rank_xstp_ths`]）。
+///
+/// `symbol`：`5日均线/10日均线/20日均线/30日均线/60日均线/90日均线/250日均线/500日均线`。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 最新价, 成交额, 成交量, 涨跌幅, 换手率`
+pub fn stock_rank_xstp_ths(symbol: &str) -> Result<Df> {
+    let board = match symbol {
+        "5日均线" => "5",
+        "10日均线" => "10",
+        "20日均线" => "20",
+        "30日均线" => "30",
+        "60日均线" => "60",
+        "90日均线" => "90",
+        "250日均线" => "250",
+        "500日均线" => "500",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "未知 symbol: {symbol}（可选：5/10/20/30/60/90/250/500日均线）"
+            )))
+        }
+    };
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/xstp/board/{board}/order/asc/ajax/1/free/1/page/{page}/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &["序号", "股票代码", "股票简称", "最新价", "成交额", "成交量", "涨跌幅", "换手率"],
+        &["最新价", "涨跌幅", "换手率"],
+        &[],
+        &["涨跌幅", "换手率"],
+        true,
+    )
+}
+
+/// 向下突破（对应 akshare [`akshare.stock_rank_xxtp_ths`]）。
+///
+/// `symbol`：`5日均线/10日均线/20日均线/30日均线/60日均线/90日均线/250日均线/500日均线`。
+///
+/// # 返回列
+/// 与 [`stock_rank_xstp_ths`] 一致。
+pub fn stock_rank_xxtp_ths(symbol: &str) -> Result<Df> {
+    let board = match symbol {
+        "5日均线" => "5",
+        "10日均线" => "10",
+        "20日均线" => "20",
+        "30日均线" => "30",
+        "60日均线" => "60",
+        "90日均线" => "90",
+        "250日均线" => "250",
+        "500日均线" => "500",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "未知 symbol: {symbol}（可选：5/10/20/30/60/90/250/500日均线）"
+            )))
+        }
+    };
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/xxtp/board/{board}/order/asc/ajax/1/free/1/page/{page}/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &["序号", "股票代码", "股票简称", "最新价", "成交额", "成交量", "涨跌幅", "换手率"],
+        &["最新价", "涨跌幅", "换手率"],
+        &[],
+        &["涨跌幅", "换手率"],
+        true,
+    )
+}
+
+/// 量价齐升（对应 akshare [`akshare.stock_rank_ljqs_ths`]）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 最新价, 量价齐升天数, 阶段涨幅, 累计换手率, 所属行业`
+pub fn stock_rank_ljqs_ths() -> Result<Df> {
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/ljqs/field/count/order/desc/ajax/1/free/1/page/{page}/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &[
+            "序号", "股票代码", "股票简称", "最新价", "量价齐升天数", "阶段涨幅",
+            "累计换手率", "所属行业",
+        ],
+        &["最新价", "量价齐升天数", "阶段涨幅", "累计换手率"],
+        &[],
+        &["阶段涨幅", "累计换手率"],
+        true,
+    )
+}
+
+/// 量价齐跌（对应 akshare [`akshare.stock_rank_ljqd_ths`]）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 最新价, 量价齐跌天数, 阶段涨幅, 累计换手率, 所属行业`
+pub fn stock_rank_ljqd_ths() -> Result<Df> {
+    let url_for_page = |page: u32| {
+        format!(
+            "http://data.10jqka.com.cn/rank/ljqd/field/count/order/desc/ajax/1/free/1/page/{page}/free/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
+    finalize_ths_rank(
+        rows,
+        &[
+            "序号", "股票代码", "股票简称", "最新价", "量价齐跌天数", "阶段涨幅",
+            "累计换手率", "所属行业",
+        ],
+        &["最新价", "量价齐跌天数", "阶段涨幅", "累计换手率"],
+        &[],
+        &["阶段涨幅", "累计换手率"],
+        true,
+    )
+}
+
+/// 险资举牌（对应 akshare [`akshare.stock_rank_xzjp_ths`]）。
+///
+/// 单页接口（无分页）。akshare 输出会丢弃末列 `历史数据`。
+///
+/// # 返回列
+/// `序号, 举牌公告日, 股票代码, 股票简称, 现价, 涨跌幅, 举牌方, 增持数量,
+/// 交易均价, 增持数量占总股本比例, 变动后持股总数, 变动后持股比例`
+pub fn stock_rank_xzjp_ths() -> Result<Df> {
+    let url =
+        "http://data.10jqka.com.cn/ajax/xzjp/field/DECLAREDATE/order/desc/ajax/1/free/1/";
+    let html = crate::sources::ths::fetch_ths(url)?;
+    let rows = crate::sources::ths::parse_ths_table(&html)?;
+    finalize_ths_rank(
+        rows,
+        &[
+            "序号", "举牌公告日", "股票代码", "股票简称", "现价", "涨跌幅", "举牌方",
+            "增持数量", "交易均价", "增持数量占总股本比例", "变动后持股总数",
+            "变动后持股比例",
+        ],
+        &["现价", "涨跌幅", "交易均价", "增持数量占总股本比例", "变动后持股比例"],
+        &["举牌公告日"],
+        &["增持数量占总股本比例", "变动后持股比例"],
+        true,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -7428,5 +7790,134 @@ mod tests {
         assert_eq!(d.get(2), Some("2024-03-01"));
         let v = df.inner().column("value").unwrap().f64().unwrap();
         assert_eq!(v.get(0), Some(1000.0));
+    }
+
+    // ---- 同花顺技术选股排名（批次 1 阶段 2a/2b）----
+
+    /// 抽取列名（与 parity export_parity 同口径）。
+    fn ths_col_names(df: &Df) -> Vec<String> {
+        df.export_parity(0)["columns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["name"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn ths_rank_cxg_offline_contract() {
+        let rows = vec![
+            vec![
+                "1", "9", "中国宝安", "1.11%", "2.88%", "8.19", "8.10", "2026-08-07",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>(),
+            vec![
+                "2", "000001", "平安银行", "-0.5%", "0.3%", "11.2", "11.5", "2026-08-06",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>(),
+        ];
+        let df = finalize_ths_rank(
+            rows,
+            &["序号", "股票代码", "股票简称", "涨跌幅", "换手率", "最新价", "前期高点", "前期高点日期"],
+            &["序号", "涨跌幅", "换手率", "最新价", "前期高点"],
+            &["前期高点日期"],
+            &["涨跌幅", "换手率"],
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            ths_col_names(&df),
+            vec!["序号", "股票代码", "股票简称", "涨跌幅", "换手率", "最新价", "前期高点", "前期高点日期"]
+        );
+        // 股票代码补零到 6 位
+        let code = df.inner().column("股票代码").unwrap().str().unwrap();
+        assert_eq!(code.get(0), Some("000009"));
+        // 百分比剥 % 后数值化
+        let chg = df.inner().column("涨跌幅").unwrap().f64().unwrap();
+        assert_eq!(chg.get(0), Some(1.11));
+        assert_eq!(chg.get(1), Some(-0.5));
+        // 日期截断
+        let d = df.inner().column("前期高点日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-08-07"));
+        // 序号数值化
+        let seq = df.inner().column("序号").unwrap().f64().unwrap();
+        assert_eq!(seq.get(0), Some(1.0));
+    }
+
+    #[test]
+    fn ths_rank_lxsz_offline_contract() {
+        let rows = vec![vec![
+            "1", "000009", "中国宝安", "8.19", "8.20", "8.10", "3", "5.5%", "9.9%", "综合",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>()];
+        let df = finalize_ths_rank(
+            rows,
+            &[
+                "序号", "股票代码", "股票简称", "收盘价", "最高价", "最低价", "连涨天数",
+                "连续涨跌幅", "累计换手率", "所属行业",
+            ],
+            &["序号", "收盘价", "最高价", "最低价", "连涨天数", "连续涨跌幅", "累计换手率"],
+            &[],
+            &["连续涨跌幅", "累计换手率"],
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            ths_col_names(&df),
+            vec!["序号", "股票代码", "股票简称", "收盘价", "最高价", "最低价", "连涨天数", "连续涨跌幅", "累计换手率", "所属行业"]
+        );
+        // 不补零（akshare lxsz 不 zfill 股票代码）
+        let code = df.inner().column("股票代码").unwrap().str().unwrap();
+        assert_eq!(code.get(0), Some("000009"));
+        let c = df.inner().column("连续涨跌幅").unwrap().f64().unwrap();
+        assert_eq!(c.get(0), Some(5.5));
+        let days = df.inner().column("连涨天数").unwrap().f64().unwrap();
+        assert_eq!(days.get(0), Some(3.0));
+    }
+
+    #[test]
+    fn ths_rank_xzjp_offline_contract() {
+        // 13 列原始行，最后 1 列（历史数据）应被截断丢弃
+        let rows = vec![vec![
+            "1", "2026-08-07", "000009", "中国宝安", "8.19", "1.11%", "某某保险",
+            "1000000", "8.10", "5.0%", "2000000", "6.0%", "查看",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>()];
+        let df = finalize_ths_rank(
+            rows,
+            &[
+                "序号", "举牌公告日", "股票代码", "股票简称", "现价", "涨跌幅", "举牌方",
+                "增持数量", "交易均价", "增持数量占总股本比例", "变动后持股总数",
+                "变动后持股比例",
+            ],
+            &["现价", "涨跌幅", "交易均价", "增持数量占总股本比例", "变动后持股比例"],
+            &["举牌公告日"],
+            &["增持数量占总股本比例", "变动后持股比例"],
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            ths_col_names(&df),
+            vec![
+                "序号", "举牌公告日", "股票代码", "股票简称", "现价", "涨跌幅", "举牌方",
+                "增持数量", "交易均价", "增持数量占总股本比例", "变动后持股总数",
+                "变动后持股比例",
+            ]
+        );
+        assert_eq!(df.height(), 1);
+        // 举牌公告日截断
+        let d = df.inner().column("举牌公告日").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-08-07"));
+        // 百分比列数值化
+        let ratio = df.inner().column("增持数量占总股本比例").unwrap().f64().unwrap();
+        assert_eq!(ratio.get(0), Some(5.0));
     }
 }

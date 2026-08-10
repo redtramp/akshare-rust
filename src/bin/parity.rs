@@ -36,6 +36,9 @@ use akshare_rust::stock::{
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
     stock_account_statistics_em, stock_analyst_detail_em, stock_analyst_rank_em,
+    stock_rank_cxfl_ths, stock_rank_cxg_ths, stock_rank_cxd_ths, stock_rank_cxsl_ths,
+    stock_rank_ljqd_ths, stock_rank_ljqs_ths, stock_rank_lxxd_ths, stock_rank_lxsz_ths,
+    stock_rank_xstp_ths, stock_rank_xxtp_ths, stock_rank_xzjp_ths,
     stock_comment_detail_scrd_desire_em, stock_comment_detail_scrd_focus_em,
     stock_comment_detail_zhpj_lspf_em, stock_comment_detail_zlkp_jgcyd_em, stock_comment_em,
     stock_cy_a_spot_em, stock_dxsyl_em, stock_fhps_detail_em, stock_fhps_em, stock_gddh_em,
@@ -498,6 +501,29 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s, d] = take2(func, args)?;
             Ok(stock_restricted_release_stockholder_em(s, d)?)
         }
+        "stock_rank_cxg_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_rank_cxg_ths(s)?)
+        }
+        "stock_rank_cxd_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_rank_cxd_ths(s)?)
+        }
+        "stock_rank_lxsz_ths" => Ok(stock_rank_lxsz_ths()?),
+        "stock_rank_lxxd_ths" => Ok(stock_rank_lxxd_ths()?),
+        "stock_rank_cxfl_ths" => Ok(stock_rank_cxfl_ths()?),
+        "stock_rank_cxsl_ths" => Ok(stock_rank_cxsl_ths()?),
+        "stock_rank_xstp_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_rank_xstp_ths(s)?)
+        }
+        "stock_rank_xxtp_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_rank_xxtp_ths(s)?)
+        }
+        "stock_rank_ljqs_ths" => Ok(stock_rank_ljqs_ths()?),
+        "stock_rank_ljqd_ths" => Ok(stock_rank_ljqd_ths()?),
+        "stock_rank_xzjp_ths" => Ok(stock_rank_xzjp_ths()?),
         _ => Err(format!("未知函数: {func}").into()),
     }
 }

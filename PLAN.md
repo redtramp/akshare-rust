@@ -66,13 +66,13 @@
 
 ### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-11 刷新）
 
-> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以各公开函数 doc comment「对应 akshare `akshare.X`」声明的 **124** 个为准，并逐一与 akshare 公开名交叉验证（全部命中，无虚报）。
+> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以各公开函数 doc comment「对应 akshare `akshare.X`」声明的 **135** 个为准，并逐一与 akshare 公开名交叉验证（全部命中，无虚报）。
 
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **124**（`cargo check` 全绿，非 stub）|
-| 整体覆盖率 | **≈ 11.3%** |
+| Rust 已实现并验证函数数 | **135**（`cargo check` 全绿，非 stub）|
+| 整体覆盖率 | **≈ 12.3%** |
 | 已触及功能大类 | **5 / 47**（按 API 前缀分类）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -83,15 +83,15 @@
 | stock | 35 | 407 | 8.6% |
 | fund | 5 | 74 | 6.8% |
 | index | 3 | 79 | 3.8% |
-| stock_feature | 77 | 211 | 36.5% |
+| stock_feature | 88 | 211 | 41.7% |
 | stock_fundamental | 4 | 57 | 7.0% |
 
 **完全未覆盖大类（0%）：** economic(226)、stock_feature(余 134)、futures(70)、option(47)、bond(46)，以及其余长尾 24 类（spot/futures_derivative/movie/energy/currency/news/fx/fortune/cal/qdii/reits/event/forex/crypto/rate/nlp/tool/hf/interest_rate/bank/pro/other/article/air/qhkc_web）全部为 0。
 
-**已落地的 124 个函数（按类别）：**
+**已落地的 135 个函数（按类别）：**
 
 - **stock（35）**：`stock_zh_a_hist`、`stock_zh_a_spot_em`、`stock_sh_a_spot_em`、`stock_sz_a_spot_em`、`stock_bj_a_spot_em`、`stock_zh_a_hist_min_em`、`stock_individual_info_em`、`stock_bid_ask_em`、`stock_board_industry_name_em`、`stock_board_concept_name_em`、`stock_board_industry_cons_em`、`stock_board_concept_cons_em`、`stock_board_industry_hist_em`、`stock_board_concept_hist_em`、`stock_zt_pool_em`、`stock_individual_fund_flow`、`stock_hsgt_fund_flow_summary_em`、`stock_zh_a_st_em`、`stock_zh_a_new_em`、`stock_hk_spot_em`、`stock_profile_cninfo`、`stock_ipo_summary_cninfo`、`stock_dividend_cninfo`、`stock_new_ipo_cninfo`、`stock_new_gh_cninfo`、`stock_margin_sse`、`stock_margin_detail_sse`、`stock_margin_szse`、`stock_hot_follow_xq`、`stock_hot_tweet_xq`、`stock_hk_spot`、`stock_zh_a_minute`、`stock_a_gxl_lg`、`stock_hk_gxl_lg`、`stock_a_ttm_lyr`
-- **stock_feature（48 · 批次 1 阶段 1a + 1b + 1c + 1d + 1e + 1f + 1g）**：`stock_cy_a_spot_em`、`stock_kc_a_spot_em`、`stock_zh_b_spot_em`、`stock_new_a_spot_em`、`stock_hk_main_board_spot_em`、`stock_hk_ggt_components_em`、`stock_zh_a_gdhs`（阶段 1a，7 个）；`stock_margin_account_info`、`stock_gdfx_free_holding_detail_em`、`stock_gdfx_holding_detail_em`、`stock_gdfx_free_holding_analyse_em`、`stock_gdfx_holding_analyse_em`、`stock_qsjy_em`、`stock_gpzy_profile_em`、`stock_gpzy_pledge_ratio_em`、`stock_gpzy_industry_data_em`、`stock_value_em`、`stock_gddh_em`、`stock_zdhtmx_em`、`stock_dxsyl_em`、`stock_sy_profile_em`（阶段 1b，14 个；其中 `stock_gpzy_profile_em` 由 `stock` 模块迁入，非净新增）；`stock_gpzy_pledge_ratio_detail_em`、`stock_gpzy_individual_pledge_ratio_detail_em`、`stock_ggcg_em`（阶段 1c，3 个）；`stock_jgdy_tj_em`、`stock_jgdy_detail_em`、`stock_fhps_em`、`stock_fhps_detail_em`、`stock_tfp_em`、`stock_qbzf_em`、`stock_pg_em`、`stock_account_statistics_em`（阶段 1d，8 个）；`stock_yjbb_em`、`stock_yjkb_em`、`stock_yjyg_em`、`stock_yysj_em`（阶段 1e，4 个）；`stock_comment_em`、`stock_lhb_stock_statistic_em`、`stock_lhb_jgmmtj_em`、`stock_gdfx_free_holding_statistics_em`、`stock_gdfx_holding_statistics_em`、`stock_gdfx_free_holding_change_em`、`stock_gdfx_holding_change_em`（阶段 1f，7 个）；`stock_comment_detail_zlkp_jgcyd_em`、`stock_comment_detail_zhpj_lspf_em`、`stock_hsgt_stock_statistics_em`、`stock_sy_yq_em`、`stock_sy_jz_em`（阶段 1g，5 个）；`stock_zcfz_em`、`stock_zcfz_bj_em`、`stock_lrb_em`、`stock_xjll_em`（阶段 1h，4 个）；`stock_gpzy_distribute_statistics_company_em`、`stock_gpzy_distribute_statistics_bank_em`、`stock_zh_a_gdhs_detail_em`、`stock_gdfx_free_holding_teamwork_em`、`stock_gdfx_holding_teamwork_em`、`stock_comment_detail_scrd_focus_em`、`stock_comment_detail_scrd_desire_em`、`stock_sy_hy_em`（阶段 1i，8 个）；`stock_lhb_detail_em`（由 `stock` 模块迁入，阶段 1j）、`stock_lhb_jgstatistic_em`、`stock_lhb_hyyyb_em`、`stock_lhb_yybph_em`、`stock_lhb_traderstatistic_em`、`stock_lhb_stock_detail_date_em`、`stock_lhb_stock_detail_em`、`stock_lhb_yyb_detail_em`（阶段 1j，龙虎榜 8 个，其中 detail_em 为迁入）；`stock_hsgt_hold_stock_em`、`stock_hsgt_institution_statistics_em`、`stock_hsgt_hist_em`、`stock_hsgt_board_rank_em`、`stock_hsgt_individual_em`、`stock_hsgt_individual_detail_em`（阶段 1k，沪深港通 6 个）；`stock_xgsglb_em`、`stock_analyst_rank_em`、`stock_analyst_detail_em`（阶段 1l，新股申购/分析师 3 个）
+- **stock_feature（48 · 批次 1 阶段 1a + 1b + 1c + 1d + 1e + 1f + 1g）**：`stock_cy_a_spot_em`、`stock_kc_a_spot_em`、`stock_zh_b_spot_em`、`stock_new_a_spot_em`、`stock_hk_main_board_spot_em`、`stock_hk_ggt_components_em`、`stock_zh_a_gdhs`（阶段 1a，7 个）；`stock_margin_account_info`、`stock_gdfx_free_holding_detail_em`、`stock_gdfx_holding_detail_em`、`stock_gdfx_free_holding_analyse_em`、`stock_gdfx_holding_analyse_em`、`stock_qsjy_em`、`stock_gpzy_profile_em`、`stock_gpzy_pledge_ratio_em`、`stock_gpzy_industry_data_em`、`stock_value_em`、`stock_gddh_em`、`stock_zdhtmx_em`、`stock_dxsyl_em`、`stock_sy_profile_em`（阶段 1b，14 个；其中 `stock_gpzy_profile_em` 由 `stock` 模块迁入，非净新增）；`stock_gpzy_pledge_ratio_detail_em`、`stock_gpzy_individual_pledge_ratio_detail_em`、`stock_ggcg_em`（阶段 1c，3 个）；`stock_jgdy_tj_em`、`stock_jgdy_detail_em`、`stock_fhps_em`、`stock_fhps_detail_em`、`stock_tfp_em`、`stock_qbzf_em`、`stock_pg_em`、`stock_account_statistics_em`（阶段 1d，8 个）；`stock_yjbb_em`、`stock_yjkb_em`、`stock_yjyg_em`、`stock_yysj_em`（阶段 1e，4 个）；`stock_comment_em`、`stock_lhb_stock_statistic_em`、`stock_lhb_jgmmtj_em`、`stock_gdfx_free_holding_statistics_em`、`stock_gdfx_holding_statistics_em`、`stock_gdfx_free_holding_change_em`、`stock_gdfx_holding_change_em`（阶段 1f，7 个）；`stock_comment_detail_zlkp_jgcyd_em`、`stock_comment_detail_zhpj_lspf_em`、`stock_hsgt_stock_statistics_em`、`stock_sy_yq_em`、`stock_sy_jz_em`（阶段 1g，5 个）；`stock_zcfz_em`、`stock_zcfz_bj_em`、`stock_lrb_em`、`stock_xjll_em`（阶段 1h，4 个）；`stock_gpzy_distribute_statistics_company_em`、`stock_gpzy_distribute_statistics_bank_em`、`stock_zh_a_gdhs_detail_em`、`stock_gdfx_free_holding_teamwork_em`、`stock_gdfx_holding_teamwork_em`、`stock_comment_detail_scrd_focus_em`、`stock_comment_detail_scrd_desire_em`、`stock_sy_hy_em`（阶段 1i，8 个）；`stock_lhb_detail_em`（由 `stock` 模块迁入，阶段 1j）、`stock_lhb_jgstatistic_em`、`stock_lhb_hyyyb_em`、`stock_lhb_yybph_em`、`stock_lhb_traderstatistic_em`、`stock_lhb_stock_detail_date_em`、`stock_lhb_stock_detail_em`、`stock_lhb_yyb_detail_em`（阶段 1j，龙虎榜 8 个，其中 detail_em 为迁入）；`stock_hsgt_hold_stock_em`、`stock_hsgt_institution_statistics_em`、`stock_hsgt_hist_em`、`stock_hsgt_board_rank_em`、`stock_hsgt_individual_em`、`stock_hsgt_individual_detail_em`（阶段 1k，沪深港通 6 个）；`stock_xgsglb_em`、`stock_analyst_rank_em`、`stock_analyst_detail_em`（阶段 1l，新股申购/分析师 3 个）；`stock_rank_cxg_ths`、`stock_rank_cxd_ths`、`stock_rank_lxsz_ths`、`stock_rank_lxxd_ths`、`stock_rank_cxfl_ths`、`stock_rank_cxsl_ths`、`stock_rank_ljqd_ths`、`stock_rank_ljqs_ths`、`stock_rank_xstp_ths`、`stock_rank_xxtp_ths`、`stock_rank_xzjp_ths`（阶段 1m，同花顺技术选股 11 个）
 - **fund（5）**：`fund_etf_hist_em`、`fund_etf_spot_em`、`fund_lof_spot_em`、`fund_etf_category_ths`、`fund_etf_spot_ths`
 - **index（3）**：`index_code_id_map_em`、`index_zh_a_hist`、`index_zh_a_hist_min_em`
 - **stock_fundamental（4 · 批次 3 阶段 3a）**：`stock_restricted_release_summary_em`、`stock_restricted_release_detail_em`、`stock_restricted_release_queue_em`、`stock_restricted_release_stockholder_em`
@@ -111,6 +111,7 @@
 > - **批次 1 · 阶段 1k（stock_feature 东财 datacenter 沪深港通多分支，6 个）**：✅ 已完成并验证（2026-08-10）。在 `stock_feature/mod.rs` 落地 `stock_hsgt_hold_stock_em`(RPT_MUTUAL_STOCK_NORTHSTA，market→report/mutual_type 多分支、indicator 决定列名前缀如 `5日`)、`stock_hsgt_institution_statistics_em`(PRT_MUTUAL_ORG_STA，market 多分支 北向/南向/沪/深)、`stock_hsgt_hist_em`(RPT_MUTUAL_DEAL_HISTORY，symbol→MUTUAL_TYPE、序号列名动态 沪深300/上证/深证/恒生)、`stock_hsgt_board_rank_em`(RPT_MUTUAL_BOARD_HOLDRANK_WEB，symbol→BOARD_TYPE + indicator→INTERVAL_TYPE + quoteColumns 注入)、`stock_hsgt_individual_em`(RPT_MUTUAL_STOCK_HOLDRANKS，港股 `.HK` + MUTUAL_TYPE=002)、`stock_hsgt_individual_detail_em`(RPT_MUTUAL_HOLD_DET，先试 MARKET_CODE=003 回退 001)。全部走 `fetch_datacenter_pages`+`datacenter`+`finalize_report(..., index_name)`+`cast_date`，RENAME 按「实时抓取 JSON 键序 × akshare 位置列名」逐位推导（board_rank 的 akshare 源码 37 列位置表已损坏，改用实时 35-key schema，与 akshare 实际运行输出 17 列一致）。6 个函数全部差分对账通过（loose）：institution 7 列 × 152 行、hist 13 列 × 2727 行、board_rank 17 列 × 86 行、individual 9 列 × 467 行、individual_detail 10 列 × 640 行（以上 golden 由 akshare 直出）；`stock_hsgt_hold_stock_em` 因本机东财 NORTHSTA 接口 IP 限流（既有的 `stock_hsgt_stock_statistics_em` 同样返回空表）golden 为空（16 列契约，loose 通过），**caveat**：其 16 个 RENAME 键中 9 个锚定已验证的 `stock_hsgt_stock_statistics_em`、另 6 个缺失键按东财命名约定 + akshare 位置表推断（未实时验证），待 NORTHSTA 恢复后需复核；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 全绿（含 6 个新增离线列契约测试）。
 > - **批次 1 · 阶段 1l（stock_feature 东财 新股申购/分析师，3 个）**：✅ 已完成并验证（2026-08-10）。在 `stock_feature/mod.rs` 落地 `stock_xgsglb_em`(RPT_NEEQ_ISSUEINFO_LIST，datacenter-web，按 申购类型 多分支：北交所分支 `source=NEEQSELECT`+`quoteColumns` 补简称，其余 `source=WEB`；北交所计算列 `最新价格-累计涨幅 = CLOSE_PRICE/NEWEST_PRICE` 预写入每行 `COMPUTED_CUMCHG`)、`stock_analyst_rank_em`(data.eastmoney.com/dataapi `RPT_ANALYST_INDEX_RANK`，含 `{year}年收益率`/`{year}最新个股评级-*` 动态列，由 `analyst_rank_cols(year)` 动态构造 rename/select/numeric)、`stock_analyst_detail_em`(datacenter.eastmoney.com/special `RPT_RESEARCHER_NTCSTOCK`/`HISTORYSTOCK`/`DETAILS` 多分支，历史指数 `page_size="0"` 非分页返回全量)。配套在 `src/sources/eastmoney.rs` 新增通用分页 helper `fetch_eastmoney_pages`（供非 datacenter-web 的东财接口复用）。RENAME 对 xgsglb 照搬 akshare `columns` 键映射、对 analyst 双 host 用「live JSON 键序实测」逐位对齐（rank 18 键 / detail 最新 13 键 / detail 历史 11 键）。3 个函数全部差分对账通过（loose，golden 由 akshare 直出）：`stock_xgsglb_em` 24 列 × 4006 行、`stock_analyst_rank_em` 16 列 × 100 行、`stock_analyst_detail_em` 9 列 × 4 行；未注册分支（北交所 22 列 × 343 行、历史跟踪成分股 8 列 × 134 行、历史指数 2 列 × 1874 行）亦实跑验证列契约一致；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 全绿（含 3 个新增离线列契约测试）。
 > - **批次 3 · 阶段 3a（stock_fundamental 东财 datacenter 限售股解禁，4 个）**：✅ 已完成并验证（2026-08-11）。新建 `src/stock_fundamental/mod.rs`（对应 akshare `stock_fundamental/stock_restricted_em.py`），落地 `stock_restricted_release_summary_em`(RPT_LIFTDAY_STA，按 板块 symbol→INDEX_CODE + FREE_DATE 区间过滤，解禁数量/实际解禁数量/实际解禁市值 ÷10000 转万股/万元)、`stock_restricted_release_detail_em`(RPT_LIFT_STAGE，全市场区间，11 列)、`stock_restricted_release_queue_em`(同报表，个股 symbol 按 `SECURITY_CODE` 过滤)、`stock_restricted_release_stockholder_em`(RPT_LIFT_GD，个股+解禁日过滤，股东明细 8 列)。全部复用 `stock_feature` 的 `datacenter`/`report_extra`/`fmt_ymd` 与 `finalize_report`（序号前置、日期截断、数值化）；4 个函数均生成 golden fixture 并差分对账通过（loose，列名/列数/dtype 与 akshare 逐字一致）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 全绿（含 4 个离线列契约测试）。
+> - **批次 1 · 阶段 1m（stock_feature 同花顺技术选股，11 个）**：✅ 已完成并验证（2026-08-11）。将 `fund/mod.rs` 内联的 ths 逻辑抽成独立 `src/sources/ths.rs`（`fetch_ths` 带 v token Cookie + `ths_get_v` 复用 core JS 引擎 + `parse_ths_table` HTML 表格解析 + `fetch_ths_rank` 分页合并），`fund/mod.rs` 改用之（行为不变）；配套在 `src/core/http.rs` 新增 `get_text_with_headers`（自定义 UA + Cookie），`src/core/df.rs` 新增 `strip_suffix_col`（去 `%` 后缀）与 `zfill_col`（股票代码补零）。在 `stock_feature/mod.rs` 落地 11 个 `stock_rank_*_ths`（对应 akshare `stock_feature/stock_technology_ths.py` + `stock_rank_ths.py`）：`stock_rank_cxg_ths`(创月新高，board 参数 4/6/8/10/12)、`stock_rank_cxd_ths`(创月新低)、`stock_rank_lxsz_ths`/`stock_rank_lxxd_ths`(连续上涨/下跌，日数 2–10)、`stock_rank_cxfl_ths`/`stock_rank_cxsl_ths`(持续放量/缩量)、`stock_rank_ljqd_ths`/`stock_rank_ljqs_ths`(量价齐跌/齐升)、`stock_rank_xstp_ths`/`stock_rank_xxtp_ths`(向上/向下突破，均线 5/10/20/30/60)、`stock_rank_xzjp_ths`(险资举牌)。统一实现：`fetch_ths_rank` 全页抓取 + thead 表头/tbody 数据 + 百分比列去 `%` + 股票代码补零 + 依 akshare 列序输出；11 个函数全部生成 golden fixture 并差分对账通过（loose，列名/列数/dtype 与 akshare 逐字一致），其中 `stock_rank_cxfl_ths`（持续放量当前无成员，空表）akshare 上游因 `Length mismatch` 崩溃，golden 改由 Rust 实跑空表列契约生成；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 全绿（含新增 ths 源模块 4 测 + stock_feature 离线列契约测试）。
 > - **批次 1 · 后续阶段**：stock_feature 非 datacenter-web 系——同花顺 `ths.js` 系（`stock_rank_*_ths`/`stock_technology_ths`/`stock_finance_ths` 等，需独立 `sources/ths.rs` 经由 QuickJS 执行 ths JS 模板）、乐咕/新浪系（`stock_a_indicator_lg`/`stock_buffett_index_lg`/`stock_ttm_lyr` 等）。其余大类（批次 2 futures/option、批次 4 bond、批次 5 长尾）尚未启动。
 
 **关键判断：**
@@ -120,7 +121,7 @@
 3. **质量高于数量**：每个实现均列名/列序逐字对齐、离线单测、JS 引擎验证，满足 §9 生产级标准（clippy `-D warnings`、无 unwrap）。
 4. **真实网络验证有缺口**（见 README「已知限制」）：legulegu 当前返回 403、部分东财 clist 接口因限流未能真实验证，靠键名映射 + 离线单测保障正确性——这部分计入「已实现」但需在环境恢复后补真实对账。
 
-**结论：** 已完成一条纵深的「样板通路」（7 类数据源 + 完整管线），约覆盖 11.3% 公开函数、集中在 stock/fund/index/stock_fundamental。距 1099 全量目标，剩余 ~89% 主要是**同类数据源下的广度扩展**（economic 226、stock_feature 211、futures/option/bond 约 230 个），底层能力基本已就位，属可批量推进区间。
+**结论：** 已完成一条纵深的「样板通路」（7 类数据源 + 完整管线），约覆盖 12.3% 公开函数、集中在 stock/fund/index/stock_fundamental。距 1099 全量目标，剩余 ~88% 主要是**同类数据源下的广度扩展**（economic 226、stock_feature 余 123、futures/option/bond 约 230 个），底层能力基本已就位，属可批量推进区间。
 
 ---
 
@@ -128,7 +129,7 @@
 
 > 上节 §1.2 已确认 economic / stock_feature(余) / futures / option / bond 及 24 个长尾分类覆盖率为 0%（stock_fundamental 已自批次 3 阶段 3a 起步，4/57）。本节按 akshare 源码实测的**主导数据源**逐一拆解，明确每个大类需要新建/复用的 Rust 源模块、依赖的既有 PLAN 步骤、反爬风险与建议批次。
 >
-> 数据源分布来自对 `sample/akshare` 各分类目录的 URL 频次扫描（见下表「主导源」）。Rust 侧已建源模块：`sources/eastmoney`、`cninfo`、`legu`、`sina`、`exchange`、`xueqiu`；**尚缺**：`jin10`、`ths`（目前 ths 逻辑内联在 `fund/mod.rs`，未独立成源模块）、`jisilu`、`chinamoney`、各期货交易所、air/movie 等。
+> 数据源分布来自对 `sample/akshare` 各分类目录的 URL 频次扫描（见下表「主导源」）。Rust 侧已建源模块：`sources/eastmoney`、`cninfo`、`legu`、`sina`、`exchange`、`xueqiu`、`ths`；**尚缺**：`jin10`、`jisilu`、`chinamoney`、各期货交易所、air/movie 等。
 
 **路线图总表：**
 
@@ -179,7 +180,7 @@
 | 模块 | 服务大类 | 对应 PLAN 步骤 | 当前状态 |
 |---|---|---|---|
 | `sources/jin10.rs` | economic | B4 | **未建** |
-| `sources/ths.rs`（从 `fund/mod.rs` 抽出独立） | stock_feature / stock_fundamental | C2 | 内联，未独立 |
+| `sources/ths.rs`（从 `fund/mod.rs` 抽出独立） | stock_feature / stock_fundamental | C2 | ✅ 已独立（批次 1 阶段 1m，2026-08-11） |
 | `sources/futures_exchange.rs`（B3 扩展，含 5 家期货交易所 + 期权） | futures / option | B3 | **未建**（仅 sse/szse 两融） |
 | `sources/chinamoney.rs` | bond | 新增（批次 4） | **未建** |
 | `sources/jisilu.rs` | bond | D2 | **未建** |

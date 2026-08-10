@@ -26,7 +26,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 46 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
+> 截至当前共 57 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
 ### 东方财富（行情/K线/资金/板块）
 
@@ -100,6 +100,12 @@ println!("{}", df);
 |---|---|---|
 | `fund_etf_category_ths` | `ak.fund_etf_category_ths` | ETF 分类 |
 | `fund_etf_spot_ths` | `ak.fund_etf_spot_ths` | ETF 实时行情（JS 加密） |
+| `stock_rank_cxg_ths` / `stock_rank_cxd_ths` | `ak.stock_rank_cxg_ths` / `ak.stock_rank_cxd_ths` | 创月新高/新低 |
+| `stock_rank_lxsz_ths` / `stock_rank_lxxd_ths` | `ak.stock_rank_lxsz_ths` / `ak.stock_rank_lxxd_ths` | 连续上涨/下跌 |
+| `stock_rank_cxfl_ths` / `stock_rank_cxsl_ths` | `ak.stock_rank_cxfl_ths` / `ak.stock_rank_cxsl_ths` | 持续放量/缩量 |
+| `stock_rank_ljqd_ths` / `stock_rank_ljqs_ths` | `ak.stock_rank_ljqd_ths` / `ak.stock_rank_ljqs_ths` | 量价齐跌/齐升 |
+| `stock_rank_xstp_ths` / `stock_rank_xxtp_ths` | `ak.stock_rank_xstp_ths` / `ak.stock_rank_xxtp_ths` | 向上/向下突破 |
+| `stock_rank_xzjp_ths` | `ak.stock_rank_xzjp_ths` | 险资举牌 |
 
 > 完整实施计划见 [`PLAN.md`](PLAN.md)（1099 个函数 / 33 个分类的迁移路线图）。
 
@@ -114,7 +120,8 @@ src/
 │   ├── df.rs       # Df（polars DataFrame 封装）：JSON 建表/排序/列转换，列序对齐 pandas
 │   └── js_engine.rs# rquickjs 封装：eval 加密 JS + 浏览器全局 shim 注入
 ├── sources/        # 数据源层（一个源一个模块）
-│   └── eastmoney.rs# 东财：clist 分页（多节点故障转移）/ K 线 / 市场判定
+│   ├── eastmoney.rs# 东财：clist 分页（多节点故障转移）/ K 线 / 市场判定
+│   └── ths.rs      # 同花顺：v token（JS）+ HTML 表格分页解析
 ├── cninfo/         # 巨潮资讯：datacenter 查询 + 内置 JS 加密
 ├── legu/           # 乐咕乐股：md5 token + 会话 cookie + csrf 两步流
 ├── sina/           # 新浪财经：港股现货分页 / 分钟线 JSONP

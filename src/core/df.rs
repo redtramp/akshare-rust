@@ -218,6 +218,66 @@ impl Df {
         Ok(self)
     }
 
+    /// 移除指定列的尾部子串（对应 akshare `str.strip(suffix)`）。
+    ///
+    /// 同花顺排名表常见 `1.11%` 需要剥掉 `%` 后再数值化；列不存在时忽略。
+    pub fn strip_suffix(&mut self, cols: &[&str], suffix: &str) -> Result<&mut Self> {
+        for c in cols {
+            let series = match self.inner.column(c) {
+                Ok(s) => s.clone(),
+                Err(_) => continue,
+            };
+            let values: Vec<Option<String>> = series
+                .str()
+                .ok()
+                .map(|s| {
+                    (0..series.len())
+                        .map(|i| {
+                            s.get(i).map(|v| {
+                                v.strip_suffix(suffix).map(str::to_string).unwrap_or_else(
+                                    || v.to_string(),
+                                )
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let chunked = StringChunked::from_iter_options(
+                PlSmallStr::from_str(c),
+                values.iter().map(|v| v.as_deref()),
+            );
+            let col: Column = chunked.into_series().into();
+            let _ = self.inner.replace(c, col);
+        }
+        Ok(self)
+    }
+
+    /// 指定列左补零至固定宽度（对应 akshare `astype(str).str.zfill(n)`）。
+    ///
+    /// 同花顺排名表的 `股票代码` 以 `zfill(6)` 保证 6 位；数值不受影响。
+    pub fn zfill_col(&mut self, col: &str, width: usize) -> Result<&mut Self> {
+        let series = match self.inner.column(col) {
+            Ok(s) => s.clone(),
+            Err(_) => return Ok(self),
+        };
+        let values: Vec<Option<String>> = series
+            .str()
+            .ok()
+            .map(|s| {
+                (0..series.len())
+                    .map(|i| s.get(i).map(|v| format!("{v:0>width$}")))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let chunked = StringChunked::from_iter_options(
+            PlSmallStr::from_str(col),
+            values.iter().map(|v| v.as_deref()),
+        );
+        let new_col: Column = chunked.into_series().into();
+        let _ = self.inner.replace(col, new_col);
+        Ok(self)
+    }
+
     /// 指定列转 f64（对应 akshare `pd.to_numeric(errors="coerce")`）。
     pub fn cast_numeric(&mut self, cols: &[&str]) -> Result<&mut Self> {
         for c in cols {

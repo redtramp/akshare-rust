@@ -172,6 +172,63 @@ impl HttpClient {
         Ok(decode_body(&bytes))
     }
 
+    /// 带重试的 GET（自定义请求头 + referer），返回按字符集解码后的文本。
+    ///
+    /// 同花顺等源需要 `Cookie: v=...` 等自定义头（与 akshare 的 `requests.get(headers=...)` 对应）。
+    pub fn get_text_with_headers(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        headers: &[(&str, &str)],
+        referer: Option<&str>,
+    ) -> Result<String> {
+        let mut last_err: Option<AkshareError> = None;
+
+        for attempt in 0..self.max_retries {
+            let mut req = self.inner.get(url).query(params);
+            for (k, v) in headers {
+                if let Ok(hv) = HeaderValue::from_str(v) {
+                    req = req.header(*k, hv);
+                }
+            }
+            if let Some(r) = referer {
+                req = req.header(REFERER, r);
+            }
+
+            match req.send() {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        let bytes = resp.bytes().map_err(AkshareError::from)?;
+                        let text = decode_body(&bytes);
+                        detect_block_or_auth(url, &text)?;
+                        return Ok(text);
+                    }
+                    let err = AkshareError::Status {
+                        status: status.as_u16(),
+                        url: url.to_string(),
+                    };
+                    if status.is_client_error() {
+                        return Err(err);
+                    }
+                    last_err = Some(err);
+                }
+                Err(e) => last_err = Some(AkshareError::Http(e)),
+            }
+
+            if attempt + 1 < self.max_retries {
+                let jitter: f64 =
+                    rand::random_range(self.random_delay_range.0..self.random_delay_range.1);
+                let delay = self.base_delay_secs * (2u32.pow(attempt)) as f64 + jitter;
+                std::thread::sleep(Duration::from_secs_f64(delay));
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| {
+            AkshareError::Blocked("GET(带自定义头) 请求重试耗尽，未知错误".into())
+        }))
+    }
+
     /// 带重试的 POST（query 参数 + 自定义请求头），返回解析后的 JSON。
     ///
     /// 巨潮 cninfo 等源要求 POST + 自定义头（如 `Accept-Enckey`）。

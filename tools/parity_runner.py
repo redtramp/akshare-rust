@@ -180,6 +180,18 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_restricted_release_detail_em", ["20221202", "20221204"], "loose", "限售股解禁-详情"),
     ("stock_restricted_release_queue_em", ["600000"], "loose", "限售股解禁-个股批次"),
     ("stock_restricted_release_stockholder_em", ["600000", "20200904"], "loose", "限售股解禁-股东"),
+    # 批次1 阶段2a/2b 同花顺数据中心-技术选股排名（HTML 表格 + v token Cookie，loose）
+    ("stock_rank_cxg_ths", ["创月新高"], "loose", "技术选股-创新高"),
+    ("stock_rank_cxd_ths", ["创月新低"], "loose", "技术选股-创新低"),
+    ("stock_rank_lxsz_ths", [], "loose", "技术选股-连续上涨"),
+    ("stock_rank_lxxd_ths", [], "loose", "技术选股-连续下跌"),
+    ("stock_rank_cxfl_ths", [], "loose", "技术选股-持续放量"),
+    ("stock_rank_cxsl_ths", [], "loose", "技术选股-持续缩量"),
+    ("stock_rank_xstp_ths", ["5日均线"], "loose", "技术选股-向上突破"),
+    ("stock_rank_xxtp_ths", ["5日均线"], "loose", "技术选股-向下突破"),
+    ("stock_rank_ljqs_ths", [], "loose", "技术选股-量价齐升"),
+    ("stock_rank_ljqd_ths", [], "loose", "技术选股-量价齐跌"),
+    ("stock_rank_xzjp_ths", [], "loose", "技术选股-险资举牌"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

@@ -4,3 +4,4 @@
 //! 打通一个源后，同源接口按模板批量实现。
 
 pub mod eastmoney;
+pub mod ths;
