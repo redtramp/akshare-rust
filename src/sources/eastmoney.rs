@@ -929,6 +929,7 @@ pub(crate) fn finalize_hsgt(rows: &[Value]) -> Result<Df> {
         "成交净买额",
         "资金净流入",
         "当日资金余额",
+        "交易状态",
         "上涨数",
         "持平数",
         "下跌数",
@@ -1152,7 +1153,7 @@ mod tests_b3 {
     fn hsgt_offline() {
         let rows = json!([{
             "TRADE_DATE": "2026-08-07 00:00:00", "BOARD_TYPE": "1", "MUTUAL_TYPE_NAME": "沪股通",
-            "FUNDS_DIRECTION": "北向", "status": "实时", "netBuyAmt": 123456789.0,
+            "FUNDS_DIRECTION": "北向", "status": "1", "netBuyAmt": 123456789.0,
             "dayNetAmtIn": 1000000.0, "dayAmtRemain": 50000000.0, "f104": 800,
             "f106": 60, "f105": 300, "INDEX_NAME": "上证指数", "INDEX_f3": 0.5,
         }]);
@@ -1162,6 +1163,9 @@ mod tests_b3 {
         assert_eq!(net.get(0), Some(12345.6789));
         let day = df.inner().column("交易日").unwrap().str().unwrap();
         assert_eq!(day.get(0), Some("2026-08-07"));
+        // 交易状态 由 finalize_hsgt 数值化（akshare 为 int64，与数值类归一一致）
+        let st = df.inner().column("交易状态").unwrap().f64().unwrap();
+        assert_eq!(st.get(0), Some(1.0));
     }
 
     /// 板块名称/概念列表公共加工：字段语义映射 + 12 列契约。

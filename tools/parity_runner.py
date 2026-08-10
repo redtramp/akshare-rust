@@ -38,6 +38,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GOLDEN_DIR = os.path.join(ROOT, "tests", "golden")
 PARITY_BIN = os.path.join(ROOT, "target", "debug", "parity")
 HEAD_N = 5
+# 数值比较保留的有效位数：跨语言（pandas vs Rust）对大数（如总市值 ~1.9e10）
+# 的浮点解析会差到 double 精度末位（~1e-15 相对误差），固定小数位比对会把这些
+# 噪声当成差异。按有效位数归一可吸收浮点噪声，同时保留足够业务精度。
+SIGFIGS = 9
 
 # 用例注册表：函数名 → (参数, 对比模式, 说明)
 # 参数与 Rust parity bin / Python akshare 同名函数的参数一致（全字符串）。
@@ -52,7 +56,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_board_concept_cons_em", ["昨日连板"], "loose", "概念板块成分"),
     ("stock_board_industry_hist_em", ["小金属", "20240101", "20240131", "日K"], "strict", "行业板块历史"),
     ("stock_board_concept_hist_em", ["昨日连板", "daily", "20240101", "20240131", ""], "strict", "概念板块历史"),
-    ("stock_zt_pool_em", ["20240105"], "strict", "涨停股池"),
+    ("stock_zt_pool_em", ["20260807"], "strict", "涨停股池"),
     ("stock_individual_fund_flow", ["000001", "sh"], "strict", "个股资金流"),
     ("stock_lhb_detail_em", ["20240101", "20240131"], "strict", "龙虎榜详情"),
     ("stock_hsgt_fund_flow_summary_em", [], "loose", "沪深港通资金流"),
@@ -197,7 +201,7 @@ def save_golden(func: str, contract: dict) -> None:
 
 
 def norm_val(v) -> str | None:
-    """归一化单元格值用于比较（去除浮点尾差）。"""
+    """归一化单元格值用于比较（按有效位数吸收跨语言浮点噪声）。"""
     if v is None:
         return None
     s = str(v).strip()
@@ -205,12 +209,20 @@ def norm_val(v) -> str | None:
         return None
     try:
         f = float(s)
-        # 统一浮点表示：整数不带小数点；其余保留 6 位有效精度
-        if f == int(f) and abs(f) < 1e15:
-            return str(int(f))
-        return f"{f:.6f}".rstrip("0").rstrip(".")
     except ValueError:
         return s
+    if f == 0:
+        return "0"
+    # 按有效位数四舍五入：大数（如 1.9e10）与小数字（如 37.19）都只保留 SIGFIGS
+    # 位有效数字，从而忽略 double 末位的浮点解析噪声。
+    import math
+
+    mag = math.floor(math.log10(abs(f)))
+    ndigits = SIGFIGS - 1 - mag
+    r = round(f, ndigits)
+    if r == int(r) and abs(r) < 1e15:
+        return str(int(r))
+    return f"{r:.{max(ndigits, 0)}f}".rstrip("0").rstrip(".")
 
 
 def compare(func: str, golden: dict, actual: dict, mode: str) -> list[str]:
