@@ -140,6 +140,10 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_hsgt_stock_statistics_em", ["20240110", "20240110"], "loose", "沪深港通持股-每日个股统计(北向)"),
     ("stock_sy_yq_em", ["20240630"], "loose", "商誉-商誉减值预期明细"),
     ("stock_sy_jz_em", ["20240630"], "loose", "商誉-个股商誉减值明细"),
+    ("stock_zcfz_em", ["20240331"], "loose", "资产负债表"),
+    ("stock_zcfz_bj_em", ["20240331"], "loose", "资产负债表(北交所)"),
+    ("stock_lrb_em", ["20240331"], "loose", "利润表"),
+    ("stock_xjll_em", ["20240331"], "loose", "现金流量表"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

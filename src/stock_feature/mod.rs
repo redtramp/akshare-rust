@@ -3125,6 +3125,272 @@ pub fn stock_sy_jz_em(date: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ===== 资产负债表（RPT_DMSK_FN_BALANCE）=====
+// 序号由 Rust 生成（东财原始 JSON 无 index 键，与 akshare reset_index 一致）。
+// RENAME 由 akshare 全量列位置表（位置 0 = 序号，之后逐位对应 columns=ALL 的 JSON 键序）
+// 经实时拉取的 JSON 键序逐位核对得出：JSON 键 0-based 序号 k 对应位置 k+1。
+// zcfz_em 与 zcfz_bj_em 共用同一张列契约（北交所仅过滤条件不同）。
+const ZCFZ_RENAME: [(&str, &str); 14] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("MONETARYFUNDS", "资产-货币资金"),
+    ("ACCOUNTS_RECE", "资产-应收账款"),
+    ("INVENTORY", "资产-存货"),
+    ("TOTAL_ASSETS", "资产-总资产"),
+    ("TOTAL_ASSETS_RATIO", "资产-总资产同比"),
+    ("ACCOUNTS_PAYABLE", "负债-应付账款"),
+    ("ADVANCE_RECEIVABLES", "负债-预收账款"),
+    ("TOTAL_LIABILITIES", "负债-总负债"),
+    ("TOTAL_LIAB_RATIO", "负债-总负债同比"),
+    ("DEBT_ASSET_RATIO", "资产负债率"),
+    ("TOTAL_EQUITY", "股东权益合计"),
+    ("NOTICE_DATE", "公告日期"),
+];
+const ZCFZ_SELECT: [&str; 14] = [
+    "股票代码",
+    "股票简称",
+    "资产-货币资金",
+    "资产-应收账款",
+    "资产-存货",
+    "资产-总资产",
+    "资产-总资产同比",
+    "负债-应付账款",
+    "负债-预收账款",
+    "负债-总负债",
+    "负债-总负债同比",
+    "资产负债率",
+    "股东权益合计",
+    "公告日期",
+];
+const ZCFZ_NUMERIC: [&str; 11] = [
+    "资产-货币资金",
+    "资产-应收账款",
+    "资产-存货",
+    "资产-总资产",
+    "资产-总资产同比",
+    "负债-应付账款",
+    "负债-预收账款",
+    "负债-总负债",
+    "负债-总负债同比",
+    "资产负债率",
+    "股东权益合计",
+];
+const ZCFZ_DATE: [&str; 1] = ["公告日期"];
+
+/// 资产负债表（对应 akshare [`akshare.stock_zcfz_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（默认 `"20240331"`），剔除北交所（`069001017`）与
+/// 非 A 股类型（`058001001`/`058001008`）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 资产-货币资金, 资产-应收账款, 资产-存货, 资产-总资产,
+/// 资产-总资产同比, 负债-应付账款, 负债-预收账款, 负债-总负债, 负债-总负债同比,
+/// 资产负债率, 股东权益合计, 公告日期`
+pub fn stock_zcfz_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!(
+        "(SECURITY_TYPE_CODE in (\"058001001\",\"058001008\"))(TRADE_MARKET_CODE!=\"069001017\")(REPORT_DATE='{d}')"
+    );
+    let extra = report_extra(
+        "NOTICE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_DMSK_FN_BALANCE", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &ZCFZ_RENAME,
+        &ZCFZ_SELECT,
+        &ZCFZ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&ZCFZ_DATE)?;
+    Ok(df)
+}
+
+/// 资产负债表-北交所（对应 akshare [`akshare.stock_zcfz_bj_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（默认 `"20240331"`），仅北交所（`069001017`）。
+/// 与 [`stock_zcfz_em`] 共用同一张列契约，仅过滤条件不同。
+///
+/// # 返回列
+/// 与 [`stock_zcfz_em`] 一致。
+pub fn stock_zcfz_bj_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!("(TRADE_MARKET_CODE=\"069001017\")(REPORT_DATE='{d}')");
+    let extra = report_extra(
+        "NOTICE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_DMSK_FN_BALANCE", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &ZCFZ_RENAME,
+        &ZCFZ_SELECT,
+        &ZCFZ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&ZCFZ_DATE)?;
+    Ok(df)
+}
+
+// ===== 利润表（RPT_DMSK_FN_INCOME）=====
+// 序号由 Rust 生成。RENAME 由 akshare 全量列位置表（含 lrb 同比列 known off-by-one）
+// 经实时拉取的 JSON 键序逐位核对得出；按位置派生即自动复现该 quirks，切勿“修正”。
+const LRB_RENAME: [(&str, &str); 14] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("PARENT_NETPROFIT", "净利润"),
+    ("PARENT_NETPROFIT_RATIO", "净利润同比"),
+    ("TOTAL_OPERATE_INCOME", "营业总收入"),
+    ("TOI_RATIO", "营业总收入同比"),
+    ("OPERATE_COST", "营业总支出-营业支出"),
+    ("SALE_EXPENSE", "营业总支出-销售费用"),
+    ("MANAGE_EXPENSE", "营业总支出-管理费用"),
+    ("FINANCE_EXPENSE", "营业总支出-财务费用"),
+    ("TOTAL_OPERATE_COST", "营业总支出-营业总支出"),
+    ("OPERATE_PROFIT", "营业利润"),
+    ("TOTAL_PROFIT", "利润总额"),
+    ("NOTICE_DATE", "公告日期"),
+];
+const LRB_SELECT: [&str; 14] = [
+    "股票代码",
+    "股票简称",
+    "净利润",
+    "净利润同比",
+    "营业总收入",
+    "营业总收入同比",
+    "营业总支出-营业支出",
+    "营业总支出-销售费用",
+    "营业总支出-管理费用",
+    "营业总支出-财务费用",
+    "营业总支出-营业总支出",
+    "营业利润",
+    "利润总额",
+    "公告日期",
+];
+const LRB_NUMERIC: [&str; 11] = [
+    "净利润",
+    "净利润同比",
+    "营业总收入",
+    "营业总收入同比",
+    "营业总支出-营业支出",
+    "营业总支出-销售费用",
+    "营业总支出-管理费用",
+    "营业总支出-财务费用",
+    "营业总支出-营业总支出",
+    "营业利润",
+    "利润总额",
+];
+const LRB_DATE: [&str; 1] = ["公告日期"];
+
+/// 利润表（对应 akshare [`akshare.stock_lrb_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（默认 `"20240331"`），剔除北交所与非 A 股类型。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 净利润, 净利润同比, 营业总收入, 营业总收入同比,
+/// 营业总支出-营业支出, 营业总支出-销售费用, 营业总支出-管理费用, 营业总支出-财务费用,
+/// 营业总支出-营业总支出, 营业利润, 利润总额, 公告日期`
+pub fn stock_lrb_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!(
+        "(SECURITY_TYPE_CODE in (\"058001001\",\"058001008\"))(TRADE_MARKET_CODE!=\"069001017\")(REPORT_DATE='{d}')"
+    );
+    let extra = report_extra(
+        "NOTICE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_DMSK_FN_INCOME", "ALL", &extra, "500")?;
+    let mut df = finalize_report(&rows, &LRB_RENAME, &LRB_SELECT, &LRB_NUMERIC, Some("序号"))?;
+    df.cast_date(&LRB_DATE)?;
+    Ok(df)
+}
+
+// ===== 现金流量表（RPT_DMSK_FN_CASHFLOW）=====
+// 序号由 Rust 生成。RENAME 由 akshare 全量列位置表经实时拉取的 JSON 键序逐位核对得出。
+const XJLL_RENAME: [(&str, &str); 11] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("CCE_ADD", "净现金流-净现金流"),
+    ("CCE_ADD_RATIO", "净现金流-同比增长"),
+    ("NETCASH_OPERATE", "经营性现金流-现金流量净额"),
+    ("NETCASH_OPERATE_RATIO", "经营性现金流-净现金流占比"),
+    ("NETCASH_INVEST", "投资性现金流-现金流量净额"),
+    ("NETCASH_INVEST_RATIO", "投资性现金流-净现金流占比"),
+    ("NETCASH_FINANCE", "融资性现金流-现金流量净额"),
+    ("NETCASH_FINANCE_RATIO", "融资性现金流-净现金流占比"),
+    ("NOTICE_DATE", "公告日期"),
+];
+const XJLL_SELECT: [&str; 11] = [
+    "股票代码",
+    "股票简称",
+    "净现金流-净现金流",
+    "净现金流-同比增长",
+    "经营性现金流-现金流量净额",
+    "经营性现金流-净现金流占比",
+    "投资性现金流-现金流量净额",
+    "投资性现金流-净现金流占比",
+    "融资性现金流-现金流量净额",
+    "融资性现金流-净现金流占比",
+    "公告日期",
+];
+const XJLL_NUMERIC: [&str; 8] = [
+    "净现金流-净现金流",
+    "净现金流-同比增长",
+    "经营性现金流-现金流量净额",
+    "经营性现金流-净现金流占比",
+    "投资性现金流-现金流量净额",
+    "投资性现金流-净现金流占比",
+    "融资性现金流-现金流量净额",
+    "融资性现金流-净现金流占比",
+];
+const XJLL_DATE: [&str; 1] = ["公告日期"];
+
+/// 现金流量表（对应 akshare [`akshare.stock_xjll_em`]）。
+///
+/// `date`：报告期 `YYYYMMDD`（默认 `"20240331"`），剔除北交所与非 A 股类型。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 净现金流-净现金流, 净现金流-同比增长, 经营性现金流-现金流量净额,
+/// 经营性现金流-净现金流占比, 投资性现金流-现金流量净额, 投资性现金流-净现金流占比,
+/// 融资性现金流-现金流量净额, 融资性现金流-净现金流占比, 公告日期`
+pub fn stock_xjll_em(date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let filter = format!(
+        "(SECURITY_TYPE_CODE in (\"058001001\",\"058001008\"))(TRADE_MARKET_CODE!=\"069001017\")(REPORT_DATE='{d}')"
+    );
+    let extra = report_extra(
+        "NOTICE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_DMSK_FN_CASHFLOW", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &XJLL_RENAME,
+        &XJLL_SELECT,
+        &XJLL_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&XJLL_DATE)?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4134,6 +4400,143 @@ mod tests {
         assert_eq!(px.get(0), Some(10.5));
         let d = df.inner().column("持股日期").unwrap().str().unwrap();
         assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证资产负债表列契约（序号 + 数值化 + 日期截断，含 lrb/xjll 共用的 JSON 键）。
+    #[test]
+    fn zcfz_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行",
+                "MONETARYFUNDS":"1000000","ACCOUNTS_RECE":"500000","INVENTORY":"300000",
+                "TOTAL_ASSETS":"5000000","TOTAL_ASSETS_RATIO":"5.0",
+                "ACCOUNTS_PAYABLE":"200000","ADVANCE_RECEIVABLES":"80000",
+                "TOTAL_LIABILITIES":"2000000","TOTAL_LIAB_RATIO":"10.0",
+                "DEBT_ASSET_RATIO":"40.0","TOTAL_EQUITY":"3000000",
+                "NOTICE_DATE":"2024-04-10 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &ZCFZ_RENAME,
+            &ZCFZ_SELECT,
+            &ZCFZ_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&ZCFZ_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], ZCFZ_SELECT);
+        let idx = df.inner().column("序号").unwrap().f64().unwrap();
+        assert_eq!(idx.get(0), Some(1.0));
+        let ta = df.inner().column("资产-总资产").unwrap().f64().unwrap();
+        assert_eq!(ta.get(0), Some(5000000.0));
+        let dar = df.inner().column("资产负债率").unwrap().f64().unwrap();
+        assert_eq!(dar.get(0), Some(40.0));
+        let d = df.inner().column("公告日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-04-10"));
+    }
+
+    /// 离线验证利润表列契约（序号 + 数值化 + 日期截断；含同比列 known off-by-one）。
+    #[test]
+    fn lrb_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行",
+                "PARENT_NETPROFIT":"600000","PARENT_NETPROFIT_RATIO":"8.0",
+                "TOTAL_OPERATE_INCOME":"3000000","TOI_RATIO":"12.0",
+                "OPERATE_COST":"1500000","SALE_EXPENSE":"100000","MANAGE_EXPENSE":"120000",
+                "FINANCE_EXPENSE":"50000","TOTAL_OPERATE_COST":"2000000",
+                "OPERATE_PROFIT":"900000","TOTAL_PROFIT":"880000",
+                "NOTICE_DATE":"2024-04-10 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &LRB_RENAME, &LRB_SELECT, &LRB_NUMERIC, Some("序号")).unwrap();
+        df.cast_date(&LRB_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], LRB_SELECT);
+        let np = df.inner().column("净利润").unwrap().f64().unwrap();
+        assert_eq!(np.get(0), Some(600000.0));
+        let yoy = df.inner().column("净利润同比").unwrap().f64().unwrap();
+        assert_eq!(yoy.get(0), Some(8.0));
+        let d = df.inner().column("公告日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-04-10"));
+    }
+
+    /// 离线验证现金流量表列契约（序号 + 数值化 + 日期截断）。
+    #[test]
+    fn xjll_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME_ABBR":"平安银行",
+                "CCE_ADD":"700000","CCE_ADD_RATIO":"6.0",
+                "NETCASH_OPERATE":"400000","NETCASH_OPERATE_RATIO":"57.0",
+                "NETCASH_INVEST":"-150000","NETCASH_INVEST_RATIO":"-21.0",
+                "NETCASH_FINANCE":"450000","NETCASH_FINANCE_RATIO":"64.0",
+                "NOTICE_DATE":"2024-04-10 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &XJLL_RENAME,
+            &XJLL_SELECT,
+            &XJLL_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&XJLL_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], XJLL_SELECT);
+        let cce = df
+            .inner()
+            .column("净现金流-净现金流")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(cce.get(0), Some(700000.0));
+        let op = df
+            .inner()
+            .column("经营性现金流-净现金流占比")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(op.get(0), Some(57.0));
+        let d = df.inner().column("公告日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-04-10"));
+    }
+
+    /// 离线验证北交所资产负债表复用同一列契约。
+    #[test]
+    fn zcfz_bj_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"830799","SECURITY_NAME_ABBR":"北交所股",
+                "MONETARYFUNDS":"100000","ACCOUNTS_RECE":"50000","INVENTORY":"30000",
+                "TOTAL_ASSETS":"500000","TOTAL_ASSETS_RATIO":"5.0",
+                "ACCOUNTS_PAYABLE":"20000","ADVANCE_RECEIVABLES":"8000",
+                "TOTAL_LIABILITIES":"200000","TOTAL_LIAB_RATIO":"10.0",
+                "DEBT_ASSET_RATIO":"40.0","TOTAL_EQUITY":"300000",
+                "NOTICE_DATE":"2024-04-10 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &ZCFZ_RENAME,
+            &ZCFZ_SELECT,
+            &ZCFZ_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&ZCFZ_DATE).unwrap();
+        assert_eq!(df.column_names()[0], "序号");
+        assert_eq!(df.column_names()[1..], ZCFZ_SELECT);
+        let ta = df.inner().column("资产-总资产").unwrap().f64().unwrap();
+        assert_eq!(ta.get(0), Some(500000.0));
     }
 
     #[test]

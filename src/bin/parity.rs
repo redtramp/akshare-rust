@@ -45,10 +45,11 @@ use akshare_rust::stock_feature::{
     stock_gpzy_pledge_ratio_detail_em, stock_gpzy_pledge_ratio_em, stock_gpzy_profile_em,
     stock_hk_ggt_components_em, stock_hk_main_board_spot_em, stock_hsgt_stock_statistics_em,
     stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_jgmmtj_em,
-    stock_lhb_stock_statistic_em, stock_margin_account_info, stock_new_a_spot_em, stock_pg_em,
-    stock_qbzf_em, stock_qsjy_em, stock_sy_jz_em, stock_sy_profile_em, stock_sy_yq_em,
-    stock_tfp_em, stock_value_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em,
-    stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_b_spot_em,
+    stock_lhb_stock_statistic_em, stock_lrb_em, stock_margin_account_info, stock_new_a_spot_em,
+    stock_pg_em, stock_qbzf_em, stock_qsjy_em, stock_sy_jz_em, stock_sy_profile_em, stock_sy_yq_em,
+    stock_tfp_em, stock_value_em, stock_xjll_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em,
+    stock_yysj_em, stock_zcfz_bj_em, stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs,
+    stock_zh_b_spot_em,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
@@ -358,6 +359,22 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_sy_jz_em" => {
             let [d] = take1(func, args)?;
             Ok(stock_sy_jz_em(d)?)
+        }
+        "stock_zcfz_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_zcfz_em(d)?)
+        }
+        "stock_zcfz_bj_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_zcfz_bj_em(d)?)
+        }
+        "stock_lrb_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_lrb_em(d)?)
+        }
+        "stock_xjll_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_xjll_em(d)?)
         }
         _ => Err(format!("未知函数: {func}").into()),
     }
