@@ -351,6 +351,37 @@ pub(crate) fn finalize_spot(
     Ok(df)
 }
 
+/// 东财 datacenter `RPT_*` 报表的通用收尾：按「json 字段键 → 中文列名」映射表，从每行抽取 `select` 顺序的中文列，并对 `numeric` 列做数值化。
+///
+/// 对应 akshare 的 `big_df.columns = [...]`（键→中文重命名）+ `df[cols]`（选择）+ `pd.to_numeric(errors="coerce")`。与 [`finalize_spot`] 不同，本函数按**字段键**而非 f-字段码重命名（如 `SECURITY_CODE`），因此对响应列序不敏感，映射更稳健。
+pub(crate) fn finalize_report(
+    rows: &[Value],
+    rename: &[(&str, &str)],
+    select: &[&str],
+    numeric: &[&str],
+) -> Result<Df> {
+    if rows.is_empty() {
+        // 空表也按最终列名构造，保证调用方拿到的列契约一致
+        return Df::from_string_rows(select, &[]);
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let Some(obj) = row.as_object() else {
+            return Err(AkshareError::Empty("报表行不是 JSON 对象".into()));
+        };
+        let mut r: Vec<Option<String>> = Vec::with_capacity(select.len());
+        for col in select {
+            let key = rename.iter().find(|(_, c)| c == col).map(|(k, _)| *k);
+            let val = key.and_then(|k| obj.get(k)).and_then(json_value_to_string);
+            r.push(val);
+        }
+        out.push(r);
+    }
+    let mut df = Df::from_string_rows(select, &out)?;
+    df.cast_numeric(numeric)?;
+    Ok(df)
+}
+
 /// 板块名称/概念列表公共列契约（行业/概念一致）。
 pub(crate) const BOARD_NAME_SELECT: [&str; 12] = [
     "排名",

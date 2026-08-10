@@ -64,6 +64,116 @@
 
 ---
 
+### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-10）
+
+> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以各公开函数 doc comment「对应 akshare `akshare.X`」声明的 45 个为准，并逐一与 akshare 公开名交叉验证（全部命中，无虚报）。
+
+| 指标 | 数值 |
+|---|---|
+| akshare 公开 API 总数 | **1094** |
+| Rust 已实现并验证函数数 | **52**（`cargo check` 全绿，非 stub）|
+| 整体覆盖率 | **≈ 4.8%** |
+| 已触及功能大类 | **4 / 47**（按 API 前缀分类）|
+| README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
+
+**已覆盖大类（纵深够、但窄）：**
+
+| 大类 | 已实现 | akshare 总数 | 覆盖率 |
+|---|---|---|---|
+| stock | 37 | 407 | 9.1% |
+| fund | 5 | 74 | 6.8% |
+| index | 3 | 79 | 3.8% |
+| stock_feature（新增）| 7 | 211 | 3.3% |
+
+**完全未覆盖大类（0%）：** economic(226)、stock_feature(余 204)、futures(70)、stock_fundamental(57)、option(47)、bond(46)，以及其余长尾 24 类（spot/futures_derivative/movie/energy/currency/news/fx/fortune/cal/qdii/reits/event/forex/crypto/rate/nlp/tool/hf/interest_rate/bank/pro/other/article/air/qhkc_web）全部为 0。
+
+**已落地的 52 个函数（按类别）：**
+
+- **stock（37）**：`stock_zh_a_hist`、`stock_zh_a_spot_em`、`stock_sh_a_spot_em`、`stock_sz_a_spot_em`、`stock_bj_a_spot_em`、`stock_zh_a_hist_min_em`、`stock_individual_info_em`、`stock_bid_ask_em`、`stock_board_industry_name_em`、`stock_board_concept_name_em`、`stock_board_industry_cons_em`、`stock_board_concept_cons_em`、`stock_board_industry_hist_em`、`stock_board_concept_hist_em`、`stock_zt_pool_em`、`stock_individual_fund_flow`、`stock_lhb_detail_em`、`stock_hsgt_fund_flow_summary_em`、`stock_gpzy_profile_em`、`stock_zh_a_st_em`、`stock_zh_a_new_em`、`stock_hk_spot_em`、`stock_profile_cninfo`、`stock_ipo_summary_cninfo`、`stock_dividend_cninfo`、`stock_new_ipo_cninfo`、`stock_new_gh_cninfo`、`stock_margin_sse`、`stock_margin_detail_sse`、`stock_margin_szse`、`stock_hot_follow_xq`、`stock_hot_tweet_xq`、`stock_hk_spot`、`stock_zh_a_minute`、`stock_a_gxl_lg`、`stock_hk_gxl_lg`、`stock_a_ttm_lyr`
+- **stock_feature（7 · 批次 1 阶段 1a）**：`stock_cy_a_spot_em`、`stock_kc_a_spot_em`、`stock_zh_b_spot_em`、`stock_new_a_spot_em`、`stock_hk_main_board_spot_em`、`stock_hk_ggt_components_em`、`stock_zh_a_gdhs`
+- **fund（5）**：`fund_etf_hist_em`、`fund_etf_spot_em`、`fund_lof_spot_em`、`fund_etf_category_ths`、`fund_etf_spot_ths`
+- **index（3）**：`index_code_id_map_em`、`index_zh_a_hist`、`index_zh_a_hist_min_em`
+
+> **批次进度（用户决策：分批执行，每阶段完成后提交 git）：**
+> - **批次 1 · 阶段 1a（stock_feature 东财系快照 + 股东户数）**：✅ 已完成并验证（2026-08-10）。`stock_zh_a_gdhs('最新')` 差分对账通过（16 列 × 5544 行，与 akshare 逐字一致）；6 个 push2 clist 快照函数列契约与已对账的 `stock_zh_a_spot_em` 同构（`finalize_clist`→`finalize_spot` + 共享重命名表，仅 `fs`/`fid` 不同），本机东财 clist 接口临时限流未能生成 golden，环境恢复后补对账。
+> - **批次 1 · 后续阶段**：stock_feature 其余东财 datacenter `RPT_*` 报表（财务/股本类）、同花顺 `ths.js` 系、乐咕/新浪系。
+
+**关键判断：**
+
+1. **基础设施杠杆远大于函数计数**——已实现 `eastmoney` 源层（`fetch_clist` 分页 + 多节点容灾、`fetch_kline` 链路），而 akshare 约 **1008** 个函数走东财。stock/fund/index 下大量同构接口（含 `stock_feature` 的 `stock_margin_*` 系列）可低成本批量封装，目前只是尚未做。
+2. **数据源底层能力基本就位**：东财、巨潮（cninfo JS）、同花顺（ths JS）、乐咕（两步流）、雪球（会话 cookie）、新浪（JSONP）、交易所（sse/szse）七大源均已打通模板，覆盖 PLAN §3 阶段 A/B/C/D 的骨干。
+3. **质量高于数量**：每个实现均列名/列序逐字对齐、离线单测、JS 引擎验证，满足 §9 生产级标准（clippy `-D warnings`、无 unwrap）。
+4. **真实网络验证有缺口**（见 README「已知限制」）：legulegu 当前返回 403、部分东财 clist 接口因限流未能真实验证，靠键名映射 + 离线单测保障正确性——这部分计入「已实现」但需在环境恢复后补真实对账。
+
+**结论：** 已完成一条纵深的「样板通路」（7 类数据源 + 完整管线），约覆盖 4% 公开函数、集中在 stock/fund/index。距 1099 全量目标，剩余 ~95% 主要是**同类数据源下的广度扩展**（economic 226、stock_feature 211、futures/option/bond 约 230 个），底层能力基本已就位，属可批量推进区间。
+
+---
+
+### 1.3 未覆盖大类实现路线图（按数据源拆解）
+
+> 上节 §1.2 已确认 economic / stock_feature / futures / stock_fundamental / option / bond 及 24 个长尾分类覆盖率为 0%。本节按 akshare 源码实测的**主导数据源**逐一拆解，明确每个大类需要新建/复用的 Rust 源模块、依赖的既有 PLAN 步骤、反爬风险与建议批次。
+>
+> 数据源分布来自对 `sample/akshare` 各分类目录的 URL 频次扫描（见下表「主导源」）。Rust 侧已建源模块：`sources/eastmoney`、`cninfo`、`legu`、`sina`、`exchange`、`xueqiu`；**尚缺**：`jin10`、`ths`（目前 ths 逻辑内联在 `fund/mod.rs`，未独立成源模块）、`jisilu`、`chinamoney`、各期货交易所、air/movie 等。
+
+**路线图总表：**
+
+| 未覆盖大类 | 函数数 | 主导数据源（占比） | 所需 Rust 源模块 | 依赖 PLAN 步骤 | 反爬风险 | 建议批次 |
+|---|---|---|---|---|---|---|
+| **stock_feature** | 211 | 东财(124) · 同花顺(85) · 乐咕(47) · 新浪(34) | 复用 `eastmoney` + 独立 `ths` + 复用 `legu`/`sina` | B1 / C2 / D1 | 低–中 | **批次 1（最高杠杆）** |
+| **economic** | 226 | 金十(252) · 东财 datacenter-web(64) · 统计局(15) | 新建 `jin10` + 复用 `eastmoney` | B4 / B1 | 低–中 | 批次 3 |
+| **futures** | 70 | 郑商所(34) · 广期所(22) · 大商所(20) · 新浪(18) | 新建 `futures_exchange`（B3 扩展）· 复用 `sina` | B3 / B2 | 低–中 | 批次 2 |
+| **stock_fundamental** | 57 | 同花顺(30) · 新浪(27) · 东财(27) | 独立 `ths`（财务）· 复用 `sina`/`eastmoney` | C2 / B1 / B2 | 低–中 | 批次 3 |
+| **option** | 47 | 新浪(38) · 交易所(sse/cffex/czce/gfex) · 东财(8) | 复用 `sina` + B3 扩展（期权）· 复用 `eastmoney` | B2 / B3 / B1 | 低–中 | 批次 2 |
+| **bond** | 46 | 外汇交易中心(39) · cninfo(21) · 集思录(13) · 新浪/东财 | 新建 `chinamoney` + 新建 `jisilu` + 复用 `cninfo` | C1 / D2 | 中 | 批次 4 |
+| **长尾 24 类** | ~130 | 搜猪网/air(js)/movie(js)/能源/汇率/新闻 等 | 按站建 `soozhu`/`air`/`movie`/`energy`… | C3 / E1 | 低–高 | 批次 5 |
+
+#### 1.3.1 批次 1 · stock_feature（杠杆最大，优先）
+
+- **为什么优先**：该大类 211 个函数里东财系占 ~124（含 `stock_margin_*`、`stock_info_*`、`stock_zycwzb_em` 等），与已建好的 `sources/eastmoney` 的 `fetch_clist`/`fetch_kline` 模板**完全同构**，可脚本批量生成，单个函数边际成本极低。
+- **任务**：
+  1. 复用 `eastmoney` 源层，按 `akshare/__init__.py` 的 `stock_*` 导入清单对照，先把东财系 ~120 个函数批量落地（含已验证的 10 核心之外的 `stock_margin_sse/szse` 之外增量）。
+  2. 同花顺系（`stock_rank_*_ths`、`stock_technology_ths`、`stock_finance_ths`）→ 将 `fund/mod.rs` 内联的 ths 逻辑抽成独立 `sources/ths.rs`（`fetch_ths(url)` + `ths_get_v()`），服务 stock_feature 与 stock_fundamental 两处。
+  3. 乐咕系（`stock_a_indicator_lg`、`stock_buffett_index_lg`）→ 复用 `legu` 两步流（D1 已建）。
+  4. 新浪系（`stock_*` 财务/资金）→ 复用 `sina`。
+- **退出标准**：stock_feature 东财系差分覆盖率 ≥ 80%；ths 独立源模块跑通且两个 `ths.js` 副本均验证。
+
+#### 1.3.2 批次 2 · futures + option
+
+- **futures（70）**：新建 `sources/futures_exchange.rs`，覆盖郑商所/广期所/大商所/上期所/中金所结算与合约（`futures_settle_*`、`futures_contract_info_*`），多为 CSV/zip——依赖 A1 的 `core/html.rs`/CSV 解析与 `http.rs` 的 `verify=false`；新浪期货（`futures_main_sina` 等）直接复用 `sina` 模板（B2）。
+- **option（47）**：新浪 `stock.finance.sina.cn` 占 38 个，复用 `sina` 批量落地；交易所期权（sse/cffex/czce/gfex）并入 B3 扩展；东财期权（`option_premium_analysis_em`）复用 `eastmoney`。
+- **退出标准**：期货结算/合约接口差分 PASS ≥ 80%；期权新浪系差分 PASS。
+
+#### 1.3.3 批次 3 · economic + stock_fundamental
+
+- **economic（226）**：新建 `sources/jin10.rs`（B4 步骤，目前尚未落地），金十 `datacenter.jin10.com` / `datacenter-api.jin10.com` 报表 JSON + 常规头，低风险；宏观东财系（`macro_*` 走 `datacenter-web.eastmoney.com`）复用 `eastmoney`；统计局 `data.stats.gov.cn` 少量接口单独处理（HTML/JSON）。
+- **stock_fundamental（57）**：同花顺财务（`basic.10jqka.com.cn`，占 30）→ 复用批次 1 的 `ths` 源模块；新浪财务（`vip.stock.finance.sina.cn`，占 27）复用 `sina`；东财基本面（`stock_individual_basic_info_*` 等）复用 `eastmoney`。
+- **退出标准**：金十宏观抽样差分 PASS；基本面东财/新浪/ths 三源交叉校验误差 < 1%。
+
+#### 1.3.4 批次 4 · bond
+
+- **bond（46）**：新建 `sources/chinamoney.rs`（外汇交易中心 `www.chinamoney.com.cn`，占 39，中风险，可能有反爬/登录态）；新建 `sources/jisilu.rs`（D2 步骤，集思录 `www.jisilu.cn` 占 13，webapi 直连需 Referer/UA）；cninfo 债券（`webapi.cninfo.com.cn` 占 21）直接复用已建的 `cninfo`；新浪/东财债券复用对应源。
+- **退出标准**：cninfo 债券差分 PASS（C1 已验证机制）；chinamoney/jisilu 在环境可达时抽样 PASS，不可达时明确 `AuthRequired`/`Blocked` 而非脏数据。
+
+#### 1.3.5 批次 5 · 长尾 24 类（E1）
+
+- 按 §4 E1 既有规划推进，按「同源模板复用」逐个站点落地：搜猪网（spot 生猪 15）、air/movie（C3 的 JS 解密）、energy（碳交易 8）、currency（7）、article（7）、news（6）、fx（6）、fortune（5）、cal（3）、qdii（3）、reits（3）、event/forex/crypto/rate/nlp/utils（各 2）、tool/hf/interest_rate/bank/pro（各 1）。
+- 每分类对照 `akshare/__init__.py` 建**覆盖率登记表**（函数名 → done/todo/skip + 原因），明确 skip 项须记录理由（如 `nlp_answer` 需外部 AI 服务）。
+
+#### 1.3.6 需新增的 Rust 源模块清单（当前缺口）
+
+| 模块 | 服务大类 | 对应 PLAN 步骤 | 当前状态 |
+|---|---|---|---|
+| `sources/jin10.rs` | economic | B4 | **未建** |
+| `sources/ths.rs`（从 `fund/mod.rs` 抽出独立） | stock_feature / stock_fundamental | C2 | 内联，未独立 |
+| `sources/futures_exchange.rs`（B3 扩展，含 5 家期货交易所 + 期权） | futures / option | B3 | **未建**（仅 sse/szse 两融） |
+| `sources/chinamoney.rs` | bond | 新增（批次 4） | **未建** |
+| `sources/jisilu.rs` | bond | D2 | **未建** |
+| `sources/{air,movie,soozhu,energy,...}.rs` | 长尾 | C3 / E1 | **未建** |
+
+**推进原则（与 §0 决策一致）**：按「反爬风险从低到高」+「基础设施杠杆」双重排序；同源模板批量生成优先于零散补函数；每批落地后同步刷新 §1.2 覆盖率快照与 E1 登记表。
+
+---
+
 ## 2. 总体架构
 
 ```

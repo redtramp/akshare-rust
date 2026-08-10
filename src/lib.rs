@@ -27,6 +27,7 @@ pub mod legu;
 pub mod sina;
 pub mod sources;
 pub mod stock;
+pub mod stock_feature;
 pub mod xueqiu;
 
 /// 库版本（与 Cargo.toml 保持一致）

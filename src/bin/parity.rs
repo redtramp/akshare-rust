@@ -35,6 +35,10 @@ use akshare_rust::stock::{
     stock_zt_pool_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
+use akshare_rust::stock_feature::{
+    stock_cy_a_spot_em, stock_hk_ggt_components_em, stock_hk_main_board_spot_em,
+    stock_kc_a_spot_em, stock_new_a_spot_em, stock_zh_a_gdhs, stock_zh_b_spot_em,
+};
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
 
@@ -203,6 +207,16 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_hot_tweet_xq" => {
             let [s] = take1(func, args)?;
             Ok(stock_hot_tweet_xq(s)?)
+        }
+        "stock_cy_a_spot_em" => Ok(stock_cy_a_spot_em()?),
+        "stock_kc_a_spot_em" => Ok(stock_kc_a_spot_em()?),
+        "stock_zh_b_spot_em" => Ok(stock_zh_b_spot_em()?),
+        "stock_new_a_spot_em" => Ok(stock_new_a_spot_em()?),
+        "stock_hk_main_board_spot_em" => Ok(stock_hk_main_board_spot_em()?),
+        "stock_hk_ggt_components_em" => Ok(stock_hk_ggt_components_em()?),
+        "stock_zh_a_gdhs" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_a_gdhs(s)?)
         }
         _ => Err(format!("未知函数: {func}").into()),
     }
