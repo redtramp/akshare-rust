@@ -175,6 +175,11 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_xgsglb_em", ["全部股票"], "loose", "新股申购与中签查询"),
     ("stock_analyst_rank_em", ["2024"], "loose", "分析师指数排名"),
     ("stock_analyst_detail_em", ["11000200926", "最新跟踪成分股"], "loose", "分析师详情-最新跟踪成分股"),
+    # 批次3 阶段3a 东财 datacenter 限售股解禁（4个）
+    ("stock_restricted_release_summary_em", ["全部股票", "20221101", "20221209"], "loose", "限售股解禁-汇总"),
+    ("stock_restricted_release_detail_em", ["20221202", "20221204"], "loose", "限售股解禁-详情"),
+    ("stock_restricted_release_queue_em", ["600000"], "loose", "限售股解禁-个股批次"),
+    ("stock_restricted_release_stockholder_em", ["600000", "20200904"], "loose", "限售股解禁-股东"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

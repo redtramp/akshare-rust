@@ -917,7 +917,7 @@ const GGCG_NUMERIC: [&str; 9] = [
 const GGCG_DATE: [&str; 3] = ["变动开始日", "变动截止日", "公告日"];
 
 /// 东财 datacenter-web 固定 token（akshare 源码硬编码常量）。
-const EM_TOKEN: &str = "894050c76af8597a853f5b408b759f5d";
+pub(crate) const EM_TOKEN: &str = "894050c76af8597a853f5b408b759f5d";
 
 /// 构造 push2 clist 公共参数（pn/pz/po/np/fltt/invt 固定）。
 fn clist_params(fs: &str, fid: &str, fields: &str) -> Map<String, Value> {
@@ -931,7 +931,7 @@ fn clist_params(fs: &str, fid: &str, fields: &str) -> Map<String, Value> {
 }
 
 /// 构造 datacenter 报表公共 `extra`（sort 必填；filter/quoteColumns/token/quoteType 可选）。
-fn report_extra(
+pub(crate) fn report_extra(
     sort_columns: &str,
     sort_types: &str,
     filter: Option<&str>,
@@ -958,7 +958,7 @@ fn report_extra(
 }
 
 /// 拉取 datacenter 报表全部分页。
-fn datacenter(
+pub(crate) fn datacenter(
     report: &str,
     columns: &str,
     extra: &Map<String, Value>,
@@ -969,7 +969,7 @@ fn datacenter(
 }
 
 /// 把 `YYYYMMDD` 转换为 `YYYY-MM-DD`；非法格式报错。
-fn fmt_ymd(d: &str) -> Result<String> {
+pub(crate) fn fmt_ymd(d: &str) -> Result<String> {
     if d.len() != 8 || !d.bytes().all(|b| b.is_ascii_digit()) {
         return Err(AkshareError::Param(format!(
             "无效日期: {d}（应为 YYYYMMDD）"

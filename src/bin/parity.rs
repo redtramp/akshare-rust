@@ -59,6 +59,10 @@ use akshare_rust::stock_feature::{
     stock_xjll_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em, stock_zcfz_bj_em,
     stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em, stock_zh_b_spot_em,
 };
+use akshare_rust::stock_fundamental::{
+    stock_restricted_release_detail_em, stock_restricted_release_queue_em,
+    stock_restricted_release_stockholder_em, stock_restricted_release_summary_em,
+};
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
 
@@ -477,6 +481,22 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_analyst_detail_em" => {
             let [id, ind] = take2(func, args)?;
             Ok(stock_analyst_detail_em(id, ind)?)
+        }
+        "stock_restricted_release_summary_em" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_restricted_release_summary_em(s, d0, d1)?)
+        }
+        "stock_restricted_release_detail_em" => {
+            let [d0, d1] = take2(func, args)?;
+            Ok(stock_restricted_release_detail_em(d0, d1)?)
+        }
+        "stock_restricted_release_queue_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_restricted_release_queue_em(s)?)
+        }
+        "stock_restricted_release_stockholder_em" => {
+            let [s, d] = take2(func, args)?;
+            Ok(stock_restricted_release_stockholder_em(s, d)?)
         }
         _ => Err(format!("未知函数: {func}").into()),
     }
