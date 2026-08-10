@@ -24,20 +24,82 @@ let df = stock_zh_a_hist("000001", "daily", "20240101", "20240131", "qfq")?;
 println!("{}", df);
 ```
 
-## 已实现接口（首批）
+## 已实现接口
 
-| 函数 | 对应 akshare | 数据源 |
+> 截至当前共 46 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
+
+### 东方财富（行情/K线/资金/板块）
+
+| 函数 | 对应 akshare | 说明 |
 |---|---|---|
-| `stock_zh_a_hist` | `ak.stock_zh_a_hist` | 东财 K 线 |
-| `stock_zh_a_hist_min_em` | `ak.stock_zh_a_hist_min_em` | 东财分钟 K 线/分时 |
-| `stock_zh_a_spot_em` / `stock_sh_a_spot_em` / `stock_sz_a_spot_em` / `stock_bj_a_spot_em` | `ak.stock_*_spot_em` | 东财行情列表 |
-| `stock_individual_info_em` | `ak.stock_individual_info_em` | 东财个股信息 |
-| `stock_bid_ask_em` | `ak.stock_bid_ask_em` | 东财五档盘口 |
-| `index_zh_a_hist` | `ak.index_zh_a_hist` | 东财指数 K 线 |
-| `index_zh_a_hist_min_em` | `ak.index_zh_a_hist_min_em` | 东财指数分钟 K 线/分时 |
-| `index_code_id_map_em` | `ak.index_code_id_map_em` | 东财指数映射 |
-| `fund_etf_hist_em` | `ak.fund_etf_hist_em` | 东财 ETF K 线 |
-| `fund_etf_spot_em` / `fund_lof_spot_em` | `ak.fund_etf_spot_em` / `ak.fund_lof_spot_em` | 东财基金行情列表 |
+| `stock_zh_a_hist` | `ak.stock_zh_a_hist` | A 股日/周/月 K 线（前复权/后复权/不复权） |
+| `stock_zh_a_hist_min_em` | `ak.stock_zh_a_hist_min_em` | 分钟 K 线/分时 |
+| `stock_zh_a_spot_em` / `stock_sh_a_spot_em` / `stock_sz_a_spot_em` / `stock_bj_a_spot_em` | `ak.stock_*_spot_em` | 沪深京实时行情 |
+| `stock_zh_a_st_em` | `ak.stock_zh_a_st_em` | ST 风险警示板 |
+| `stock_zh_a_new_em` | `ak.stock_zh_a_new_em` | 新股板块 |
+| `stock_hk_spot_em` | `ak.stock_hk_spot_em` | 港股实时行情 |
+| `stock_individual_info_em` | `ak.stock_individual_info_em` | 个股信息 |
+| `stock_bid_ask_em` | `ak.stock_bid_ask_em` | 五档盘口 |
+| `stock_individual_fund_flow` | `ak.stock_individual_fund_flow` | 个股资金流向 |
+| `stock_hsgt_fund_flow_summary_em` | `ak.stock_hsgt_fund_flow_summary_em` | 沪深港通资金流向 |
+| `stock_lhb_detail_em` | `ak.stock_lhb_detail_em` | 龙虎榜详情 |
+| `stock_zt_pool_em` | `ak.stock_zt_pool_em` | 涨停股池 |
+| `stock_gpzy_profile_em` | `ak.stock_gpzy_profile_em` | 股权质押 |
+| `stock_board_industry_name_em` / `stock_board_industry_cons_em` / `stock_board_industry_hist_em` | `ak.stock_board_industry_*_em` | 行业板块 |
+| `stock_board_concept_name_em` / `stock_board_concept_cons_em` / `stock_board_concept_hist_em` | `ak.stock_board_concept_*_em` | 概念板块 |
+| `index_zh_a_hist` | `ak.index_zh_a_hist` | 指数 K 线 |
+| `index_zh_a_hist_min_em` | `ak.index_zh_a_hist_min_em` | 指数分钟 K 线/分时 |
+| `index_code_id_map_em` | `ak.index_code_id_map_em` | 指数代码映射 |
+| `fund_etf_hist_em` | `ak.fund_etf_hist_em` | ETF K 线 |
+| `fund_etf_spot_em` / `fund_lof_spot_em` | `ak.fund_etf_spot_em` / `ak.fund_lof_spot_em` | ETF/LOF 行情列表 |
+
+### 巨潮资讯（cninfo）
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `stock_profile_cninfo` | `ak.stock_profile_cninfo` | 公司概况 |
+| `stock_dividend_cninfo` | `ak.stock_dividend_cninfo` | 分红送配 |
+| `stock_ipo_summary_cninfo` | `ak.stock_ipo_summary_cninfo` | IPO 明细 |
+| `stock_new_ipo_cninfo` | `ak.stock_new_ipo_cninfo` | 新股申购 |
+| `stock_new_gh_cninfo` | `ak.stock_new_gh_cninfo` | 新股过会 |
+
+### 乐咕乐股（legulegu，两步流：md5 token + 会话 cookie + csrf）
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `stock_a_gxl_lg` | `ak.stock_a_gxl_lg` | A 股股息率 |
+| `stock_hk_gxl_lg` | `ak.stock_hk_gxl_lg` | 港股股息率 |
+| `stock_a_ttm_lyr` | `ak.stock_a_ttm_lyr` | A 股 TTM 市盈率 |
+| `get_token_lg` | （akshare 内部） | md5 本地日期 token |
+
+### 新浪财经
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `stock_hk_spot` | `ak.stock_hk_spot` | 港股实时行情（分页） |
+| `stock_zh_a_minute` | `ak.stock_zh_a_minute` | A 股分钟线（JSONP） |
+
+### 交易所（上交所/深交所）
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `stock_margin_sse` | `ak.stock_margin_sse` | 上交所融资融券汇总 |
+| `stock_margin_detail_sse` | `ak.stock_margin_detail_sse` | 上交所融资融券明细 |
+| `stock_margin_szse` | `ak.stock_margin_szse` | 深交所融资融券汇总 |
+
+### 雪球（会话 cookie 两步流）
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `stock_hot_follow_xq` | `ak.stock_hot_follow_xq` | 关注热度榜 |
+| `stock_hot_tweet_xq` | `ak.stock_hot_tweet_xq` | 讨论热度榜 |
+
+### 同花顺
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `fund_etf_category_ths` | `ak.fund_etf_category_ths` | ETF 分类 |
+| `fund_etf_spot_ths` | `ak.fund_etf_spot_ths` | ETF 实时行情（JS 加密） |
 
 > 完整实施计划见 [`PLAN.md`](PLAN.md)（1099 个函数 / 33 个分类的迁移路线图）。
 
@@ -53,10 +115,17 @@ src/
 │   └── js_engine.rs# rquickjs 封装：eval 加密 JS + 浏览器全局 shim 注入
 ├── sources/        # 数据源层（一个源一个模块）
 │   └── eastmoney.rs# 东财：clist 分页（多节点故障转移）/ K 线 / 市场判定
+├── cninfo/         # 巨潮资讯：datacenter 查询 + 内置 JS 加密
+├── legu/           # 乐咕乐股：md5 token + 会话 cookie + csrf 两步流
+├── sina/           # 新浪财经：港股现货分页 / 分钟线 JSONP
+├── exchange/       # 交易所：上交所/深交所融资融券
+├── xueqiu/         # 雪球：会话 cookie + 热度榜分页
 ├── stock/          # 股票接口（对应 akshare stock_* 函数）
 ├── index/          # 指数接口（对应 akshare index_* 函数）
 ├── fund/           # 基金接口（对应 akshare fund_* 函数）
-└── bin/demo.rs     # 命令行冒烟演示
+└── bin/
+    ├── demo.rs     # 命令行冒烟演示
+    └── parity.rs   # 差分对比 CLI（供 tools/parity_runner.py 调用）
 ```
 
 ### 关键设计
@@ -67,6 +136,8 @@ src/
   与 akshare 行为一致；请求较早日期的分钟数据会得到空表。
 - **JS 加密**：一律用 rquickjs 执行 akshare 原版 JS，不在 Rust 手写算法；
   通过注入 `var BROWSER_LIST; var time;` 等浏览器全局 shim 兼容非严格模式写法。
+- **会话两步流**：legulegu/雪球等需先访问页面建立 cookie + 提取 csrf/token 再请求 API，
+  `get_text_allow_blocked` 用于会话建立（cookie 才是目的，不校验页面内容）。
 - **反爬识别**：响应含 `_waf`/`Just a moment`/`challenge-platform` 判为 `Blocked`，
   含 `400016`/`xq_a_token` 等判为 `AuthRequired`，明确报错而非返回脏数据。
 - **4xx 不重试**：客户端错误立即返回；仅 5xx 与连接错误进入退避重试
@@ -83,3 +154,7 @@ src/
 
 - 东财 push2 集群对本机 IP 有临时限流（表现为 TLS close_notify 连接重置），
   Python akshare 同样受影响；容灾与重试会尽量规避，必要时稍后重试。
+- legulegu（乐咕）当前对本机 IP 返回 403（nginx 封禁），接口已按 akshare 原逻辑实现
+  并通过 token 交叉验证，待环境恢复后做真实验证。
+- 东财 clist 系接口（st/new/hk_spot_em）在 push2 限流窗口内无法做真实验证，
+  已通过键名映射（与已验证的 spot_em 同构）+ 离线单测保障正确性。

@@ -6,8 +6,11 @@ use akshare_rust::cninfo::{
     stock_dividend_cninfo, stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo,
     stock_profile_cninfo,
 };
+use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
 use akshare_rust::fund::{fund_etf_spot_em, fund_lof_spot_em};
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
+use akshare_rust::legu::{stock_a_gxl_lg, stock_a_ttm_lyr, stock_hk_gxl_lg};
+use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
 use akshare_rust::stock::{
     stock_bid_ask_em, stock_board_concept_hist_em, stock_board_concept_name_em,
     stock_board_industry_cons_em, stock_board_industry_hist_em, stock_board_industry_name_em,
@@ -15,6 +18,8 @@ use akshare_rust::stock::{
     stock_individual_info_em, stock_lhb_detail_em, stock_zh_a_hist, stock_zh_a_hist_min_em,
     stock_zh_a_spot_em, stock_zt_pool_em,
 };
+use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
+use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 
 type BoxErr = Box<dyn std::error::Error>;
 
@@ -195,6 +200,97 @@ fn main() {
 
     section("stock_new_gh_cninfo()", || {
         let df = stock_new_gh_cninfo()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_zh_a_st_em()", || {
+        let df = stock_zh_a_st_em()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_zh_a_new_em()", || {
+        let df = stock_zh_a_new_em()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_hk_spot_em()", || {
+        let df = stock_hk_spot_em()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_hk_spot()", || {
+        let df = stock_hk_spot()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_zh_a_minute(600000, period=5)", || {
+        let df = stock_zh_a_minute("sh600000", "5", "")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_margin_sse(20240801~20240810)", || {
+        let df = stock_margin_sse("20240801", "20240810")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_margin_detail_sse(20240807)", || {
+        let df = stock_margin_detail_sse("20240807")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_margin_szse(20240411)", || {
+        let df = stock_margin_szse("20240411")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_hot_follow_xq(最热门)", || {
+        let df = stock_hot_follow_xq("最热门")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_hot_tweet_xq(最热门)", || {
+        let df = stock_hot_tweet_xq("最热门")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_a_gxl_lg(上证A股)", || {
+        let df = stock_a_gxl_lg("上证A股")?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_hk_gxl_lg()", || {
+        let df = stock_hk_gxl_lg()?;
+        println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
+        println!("{}", df.head_preview(3));
+        Ok(())
+    });
+
+    section("stock_a_ttm_lyr()", || {
+        let df = stock_a_ttm_lyr()?;
         println!("共 {} 行, 列: {:?}", df.height(), df.column_names());
         println!("{}", df.head_preview(3));
         Ok(())
