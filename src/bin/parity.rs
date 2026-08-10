@@ -46,7 +46,9 @@ use akshare_rust::stock_feature::{
     stock_gpzy_distribute_statistics_bank_em, stock_gpzy_distribute_statistics_company_em,
     stock_gpzy_individual_pledge_ratio_detail_em, stock_gpzy_industry_data_em,
     stock_gpzy_pledge_ratio_detail_em, stock_gpzy_pledge_ratio_em, stock_gpzy_profile_em,
-    stock_hk_ggt_components_em, stock_hk_main_board_spot_em, stock_hsgt_stock_statistics_em,
+    stock_hk_ggt_components_em, stock_hk_main_board_spot_em, stock_hsgt_board_rank_em,
+    stock_hsgt_hist_em, stock_hsgt_hold_stock_em, stock_hsgt_individual_detail_em,
+    stock_hsgt_individual_em, stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em,
     stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
     stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
     stock_lhb_stock_detail_date_em, stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em,
@@ -385,6 +387,30 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_hsgt_stock_statistics_em" => {
             let [s, e] = take2(func, args)?;
             Ok(stock_hsgt_stock_statistics_em(s, e)?)
+        }
+        "stock_hsgt_hold_stock_em" => {
+            let [m, ind, d] = take3(func, args)?;
+            Ok(stock_hsgt_hold_stock_em(m, ind, d)?)
+        }
+        "stock_hsgt_institution_statistics_em" => {
+            let [m, s, e] = take3(func, args)?;
+            Ok(stock_hsgt_institution_statistics_em(m, s, e)?)
+        }
+        "stock_hsgt_hist_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hsgt_hist_em(s)?)
+        }
+        "stock_hsgt_board_rank_em" => {
+            let [s, ind, d] = take3(func, args)?;
+            Ok(stock_hsgt_board_rank_em(s, ind, d)?)
+        }
+        "stock_hsgt_individual_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hsgt_individual_em(s)?)
+        }
+        "stock_hsgt_individual_detail_em" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_hsgt_individual_detail_em(s, d0, d1)?)
         }
         "stock_sy_yq_em" => {
             let [d] = take1(func, args)?;

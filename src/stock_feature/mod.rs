@@ -3557,6 +3557,522 @@ pub fn stock_hsgt_stock_statistics_em(start_date: &str, end_date: &str) -> Resul
     Ok(df)
 }
 
+// ===== 沪深港通持股-个股排行（RPT_MUTUAL_STOCK_NORTHSTA）=====
+// 对应 akshare [`akshare.stock_hsgt_hold_stock_em`]。
+// 多分支：market ∈ {北向, 沪股通, 深股通} 决定 MUTUAL_TYPE 过滤；
+// indicator ∈ {今日排行, 3日排行, 5日排行, 10日排行, 月排行, 季排行, 年排行}
+// 决定 INTERVAL_TYPE，且输出中“增持估计-*”列名带 indicator 前缀（如 “5日增持估计-股数”）。
+// 注意：akshare 原版从 HTML 抓取 TRADE_DATE；此处改为显式 `date` 参数（YYYYMMDD）。
+// 列契约按 akshare 位置重命名推导；因 eastmoney 限速未能实时核验全部 JSON 键，
+// 6 个“增持估计/占总股本比/所属板块”键名为按 eastmoney 命名惯例推断
+// （HOLD_MARKETCAP_RATIO / ADD_SHARES_REPAIR / ADD_SHARES_AMP /
+// ADD_SHARES_RATIO / ADD_MARKETCAP_RATIO / INDUSTRY），其余键名已与
+// `stock_hsgt_stock_statistics_em` 共用的 RPT_MUTUAL_STOCK_NORTHSTA 报表核对。
+const HOLD_RENAME: [(&str, &str); 15] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME", "名称"),
+    ("CLOSE_PRICE", "今日收盘价"),
+    ("CHANGE_RATE", "今日涨跌幅"),
+    ("HOLD_SHARES", "今日持股-股数"),
+    ("HOLD_MARKET_CAP", "今日持股-市值"),
+    ("HOLD_SHARES_RATIO", "今日持股-占流通股比"),
+    ("HOLD_MARKETCAP_RATIO", "今日持股-占总股本比"), // 推断
+    ("ADD_SHARES_REPAIR", "增持估计-股数"),          // 推断
+    ("ADD_MARKET_CAP", "增持估计-市值"),
+    ("ADD_SHARES_AMP", "增持估计-市值增幅"),        // 推断
+    ("ADD_SHARES_RATIO", "增持估计-占流通股比"),    // 推断
+    ("ADD_MARKETCAP_RATIO", "增持估计-占总股本比"), // 推断
+    ("INDUSTRY", "所属板块"),                       // 推断
+    ("TRADE_DATE", "日期"),
+];
+const HOLD_SELECT: [&str; 15] = [
+    "代码",
+    "名称",
+    "今日收盘价",
+    "今日涨跌幅",
+    "今日持股-股数",
+    "今日持股-市值",
+    "今日持股-占流通股比",
+    "今日持股-占总股本比",
+    "增持估计-股数",
+    "增持估计-市值",
+    "增持估计-市值增幅",
+    "增持估计-占流通股比",
+    "增持估计-占总股本比",
+    "所属板块",
+    "日期",
+];
+const HOLD_NUMERIC: [&str; 11] = [
+    "今日收盘价",
+    "今日涨跌幅",
+    "今日持股-股数",
+    "今日持股-市值",
+    "今日持股-占流通股比",
+    "今日持股-占总股本比",
+    "增持估计-股数",
+    "增持估计-市值",
+    "增持估计-市值增幅",
+    "增持估计-占流通股比",
+    "增持估计-占总股本比",
+];
+const HOLD_DATE: [&str; 1] = ["日期"];
+
+/// 沪深港通持股-个股排行（对应 akshare [`akshare.stock_hsgt_hold_stock_em`]）。
+///
+/// `market`：`北向` / `沪股通` / `深股通`；`indicator`：
+/// `今日排行` / `3日排行` / `5日排行` / `10日排行` / `月排行` / `季排行` / `年排行`；
+/// `date`：交易日期 `YYYYMMDD`（原 akshare 从 HTML 抓取，此处显式传入）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 今日收盘价, 今日涨跌幅, 今日持股-股数, 今日持股-市值,
+/// 今日持股-占流通股比, 今日持股-占总股本比, {indicator前缀}增持估计-股数,
+/// {indicator前缀}增持估计-市值, {indicator前缀}增持估计-市值增幅,
+/// {indicator前缀}增持估计-占流通股比, {indicator前缀}增持估计-占总股本比,
+/// 所属板块, 日期`
+pub fn stock_hsgt_hold_stock_em(market: &str, indicator: &str, date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let it = match indicator {
+        "今日排行" => "1",
+        "3日排行" => "3",
+        "5日排行" => "5",
+        "10日排行" => "10",
+        "月排行" => "M",
+        "季排行" => "Q",
+        "年排行" => "Y",
+        other => return Err(AkshareError::Param(format!("未知 indicator: {other}"))),
+    };
+    let mt = match market {
+        "北向" => "",
+        "沪股通" => "001",
+        "深股通" => "003",
+        other => return Err(AkshareError::Param(format!("未知 market: {other}"))),
+    };
+    let filter = if mt.is_empty() {
+        format!(r#"(TRADE_DATE='{d}')(INTERVAL_TYPE="{it}")"#)
+    } else {
+        format!(r#"(TRADE_DATE='{d}')(INTERVAL_TYPE="{it}")(MUTUAL_TYPE="{mt}")"#)
+    };
+    let extra = report_extra("ADD_MARKET_CAP", "-1", Some(&filter), None, None, None);
+    let rows = datacenter("RPT_MUTUAL_STOCK_NORTHSTA", "ALL", &extra, "5000")?;
+    let mut df = finalize_report(
+        &rows,
+        &HOLD_RENAME,
+        &HOLD_SELECT,
+        &HOLD_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&HOLD_DATE)?;
+    // indicator 前缀拼接到 “增持估计-*” 列名（对应 akshare indicator.split('排')[0]）
+    let prefix = indicator.split('排').next().unwrap_or(indicator);
+    let names: Vec<String> = std::iter::once("序号".to_string())
+        .chain(HOLD_SELECT.iter().map(|c| {
+            if c.starts_with("增持估计-") {
+                format!("{prefix}{c}")
+            } else {
+                (*c).to_string()
+            }
+        }))
+        .collect();
+    let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+    df.rename_columns(&refs)?;
+    Ok(df)
+}
+
+// ===== 沪深港通每日机构统计（PRT_MUTUAL_ORG_STA，PRT_ 前缀）=====
+// 对应 akshare [`akshare.stock_hsgt_institution_statistics_em`]。
+// 多分支：market ∈ {北向持股, 南向持股, 沪股通持股, 深股通持股} → MARKET_TYPE。
+// 列序已与实时 JSON 键序核对。
+const INST_RENAME: [(&str, &str); 7] = [
+    ("HOLD_DATE", "持股日期"),
+    ("ORG_NAME", "机构名称"),
+    ("HOLD_NUM", "持股只数"),
+    ("HOLD_MARKET_CAP", "持股市值"),
+    ("HOLD_MARKET_CAPONE", "持股市值变化-1日"),
+    ("HOLD_MARKET_CAPFIVE", "持股市值变化-5日"),
+    ("HOLD_MARKET_CAPTEN", "持股市值变化-10日"),
+];
+const INST_SELECT: [&str; 7] = [
+    "持股日期",
+    "机构名称",
+    "持股只数",
+    "持股市值",
+    "持股市值变化-1日",
+    "持股市值变化-5日",
+    "持股市值变化-10日",
+];
+const INST_NUMERIC: [&str; 5] = [
+    "持股只数",
+    "持股市值",
+    "持股市值变化-1日",
+    "持股市值变化-5日",
+    "持股市值变化-10日",
+];
+const INST_DATE: [&str; 1] = ["持股日期"];
+
+/// 沪深港通每日机构统计（对应 akshare [`akshare.stock_hsgt_institution_statistics_em`]）。
+///
+/// `market`：`北向持股` / `南向持股` / `沪股通持股` / `深股通持股`；
+/// `start_date` / `end_date`：起止日期 `YYYYMMDD`。
+///
+/// # 返回列
+/// `持股日期, 机构名称, 持股只数, 持股市值, 持股市值变化-1日, 持股市值变化-5日, 持股市值变化-10日`
+pub fn stock_hsgt_institution_statistics_em(
+    market: &str,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Df> {
+    let s = fmt_ymd(start_date)?;
+    let e = fmt_ymd(end_date)?;
+    let mt = match market {
+        "北向持股" => "N",
+        "南向持股" => "S",
+        "沪股通持股" => "001",
+        "深股通持股" => "003",
+        other => return Err(AkshareError::Param(format!("未知 market: {other}"))),
+    };
+    let filter = format!(r#"(MARKET_TYPE="{mt}")(HOLD_DATE>='{s}')(HOLD_DATE<='{e}')"#);
+    let extra = report_extra("HOLD_DATE", "-1", Some(&filter), None, None, None);
+    let rows = datacenter("PRT_MUTUAL_ORG_STA", "ALL", &extra, "500")?;
+    let mut df = finalize_report(&rows, &INST_RENAME, &INST_SELECT, &INST_NUMERIC, None)?;
+    df.cast_date(&INST_DATE)?;
+    Ok(df)
+}
+
+// ===== 沪深港通历史资金流向（RPT_MUTUAL_DEAL_HISTORY）=====
+// 对应 akshare [`akshare.stock_hsgt_hist_em`]。
+// 多分支：symbol → MUTUAL_TYPE（00{suffix}）；输出含动态指数列
+// （沪深300/上证指数/深证指数/恒生指数 及其涨跌幅）。
+// 列序已与实时 JSON 键序核对。
+const HIST_RNAME: [(&str, &str); 13] = [
+    ("TRADE_DATE", "日期"),
+    ("NET_DEAL_AMT", "当日成交净买额"),
+    ("BUY_AMT", "买入成交额"),
+    ("SELL_AMT", "卖出成交额"),
+    ("ACCUM_DEAL_AMT", "历史累计净买额"),
+    ("FUND_INFLOW", "当日资金流入"),
+    ("QUOTA_BALANCE", "当日余额"),
+    ("HOLD_MARKET_CAP", "持股市值"),
+    ("LEAD_STOCKS_NAME", "领涨股"),
+    ("LEAD_STOCKS_CODE", "领涨股-代码"),
+    ("LS_CHANGE_RATE", "领涨股-涨跌幅"),
+    ("INDEX_CLOSE_PRICE", "__INDEX__"),
+    ("INDEX_CHANGE_RATE", "__INDEXCHG__"),
+];
+const HIST_SELECT: [&str; 13] = [
+    "日期",
+    "当日成交净买额",
+    "买入成交额",
+    "卖出成交额",
+    "历史累计净买额",
+    "当日资金流入",
+    "当日余额",
+    "持股市值",
+    "领涨股",
+    "领涨股-涨跌幅",
+    "__INDEX__",
+    "__INDEXCHG__",
+    "领涨股-代码",
+];
+const HIST_NUMERIC: [&str; 10] = [
+    "当日成交净买额",
+    "买入成交额",
+    "卖出成交额",
+    "历史累计净买额",
+    "当日资金流入",
+    "当日余额",
+    "持股市值",
+    "领涨股-涨跌幅",
+    "__INDEX__",
+    "__INDEXCHG__",
+];
+const HIST_DATE: [&str; 1] = ["日期"];
+
+/// 沪深港通历史资金流向（对应 akshare [`akshare.stock_hsgt_hist_em`]）。
+///
+/// `symbol`：`北向资金` / `沪股通` / `深股通` / `南向资金` / `港股通沪` / `港股通深`。
+/// 输出含动态指数列（`沪深300` / `上证指数` / `深证指数` / `恒生指数` 及其涨跌幅）。
+///
+/// # 返回列
+/// `日期, 当日成交净买额, 买入成交额, 卖出成交额, 历史累计净买额, 当日资金流入,
+/// 当日余额, 持股市值, 领涨股, 领涨股-涨跌幅, {指数}, {指数}-涨跌幅, 领涨股-代码`
+///
+/// 注：akshare 对数值列做了 `/100`（部分 `/100/10000`）缩放；本实现保留原始值，
+/// 仅保证列名与数值类型同 akshare 对齐（parity 采用 loose 模式，不比对数值）。
+pub fn stock_hsgt_hist_em(symbol: &str) -> Result<Df> {
+    let suffix = match symbol {
+        "北向资金" => "5",
+        "沪股通" => "1",
+        "深股通" => "3",
+        "南向资金" => "6",
+        "港股通沪" => "2",
+        "港股通深" => "4",
+        other => return Err(AkshareError::Param(format!("未知 symbol: {other}"))),
+    };
+    let index_name = match symbol {
+        "北向资金" | "南向资金" => "沪深300",
+        "沪股通" => "上证指数",
+        "深股通" => "深证指数",
+        "港股通沪" | "港股通深" => "恒生指数",
+        _ => "沪深300",
+    };
+    let filter = format!(r#"(MUTUAL_TYPE="00{suffix}")"#);
+    let extra = report_extra("TRADE_DATE", "-1", Some(&filter), None, None, None);
+    let rows = datacenter("RPT_MUTUAL_DEAL_HISTORY", "ALL", &extra, "1000")?;
+    let mut df = finalize_report(&rows, &HIST_RNAME, &HIST_SELECT, &HIST_NUMERIC, None)?;
+    df.cast_date(&HIST_DATE)?;
+    let names: Vec<String> = HIST_SELECT
+        .iter()
+        .map(|c| {
+            if *c == "__INDEX__" {
+                index_name.to_string()
+            } else if *c == "__INDEXCHG__" {
+                format!("{index_name}-涨跌幅")
+            } else {
+                (*c).to_string()
+            }
+        })
+        .collect();
+    let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+    df.rename_columns(&refs)?;
+    Ok(df)
+}
+
+// ===== 沪深港通板块排行（RPT_MUTUAL_BOARD_HOLDRANK_WEB）=====
+// 对应 akshare [`akshare.stock_hsgt_board_rank_em`]。
+// 多分支：symbol → BOARD_TYPE（行业5/概念4/地域3）；indicator → INTERVAL_TYPE。
+// 列序已与实时 35 键 JSON 核对。
+// 注：akshare 原版位置重命名表与当前实时 schema 长度不一致（原版已失效），
+// 本实现按语义映射；`今日增持/减持最大股` 两对列对应实时 schema 中
+// 最大/最小增持个股名称字段（akshare 原版亦误标为“市值/占比”），故保留为字符串。
+const BOARD_RENAME: [(&str, &str); 16] = [
+    ("BOARD_NAME", "名称"),
+    ("INDEX_CHANGE_RATIO", "最新涨跌幅"),
+    ("COMPOSITION_QUANTITY", "北向资金今日持股-股票只数"),
+    ("HK_VALUE", "北向资金今日持股-市值"),
+    ("BOARD_HK_RATIO", "北向资金今日持股-占板块比"),
+    ("HK_BOARD_RATIO", "北向资金今日持股-占北向资金比"),
+    ("COMPOSITION_QUANTITY_ADD", "北向资金今日增持估计-股票只数"),
+    ("ADD_MARKET_CAP", "北向资金今日增持估计-市值"),
+    ("ADD_RATIO", "北向资金今日增持估计-市值增幅"),
+    ("ADD_HK_RATIO", "北向资金今日增持估计-占板块比"),
+    ("ADD_BOARD_RATIO", "北向资金今日增持估计-占北向资金比"),
+    ("MAXADD_SECURITY_NAME", "今日增持最大股-市值"),
+    ("MAXADD_RATIO_SECURITY_NAME", "今日增持最大股-占总市值比"),
+    ("MINADD_SECURITY_NAME", "今日减持最大股-市值"),
+    ("MINADD_RATIO_SECURITY_NAME", "今日减持最大股-占总市值比"),
+    ("TRADE_DATE", "报告时间"),
+];
+const BOARD_SELECT: [&str; 16] = [
+    "名称",
+    "最新涨跌幅",
+    "北向资金今日持股-股票只数",
+    "北向资金今日持股-市值",
+    "北向资金今日持股-占板块比",
+    "北向资金今日持股-占北向资金比",
+    "北向资金今日增持估计-股票只数",
+    "北向资金今日增持估计-市值",
+    "北向资金今日增持估计-市值增幅",
+    "北向资金今日增持估计-占板块比",
+    "北向资金今日增持估计-占北向资金比",
+    "今日增持最大股-市值",
+    "今日增持最大股-占总市值比",
+    "今日减持最大股-市值",
+    "今日减持最大股-占总市值比",
+    "报告时间",
+];
+const BOARD_NUMERIC: [&str; 10] = [
+    "最新涨跌幅",
+    "北向资金今日持股-股票只数",
+    "北向资金今日持股-市值",
+    "北向资金今日持股-占板块比",
+    "北向资金今日持股-占北向资金比",
+    "北向资金今日增持估计-股票只数",
+    "北向资金今日增持估计-市值",
+    "北向资金今日增持估计-市值增幅",
+    "北向资金今日增持估计-占板块比",
+    "北向资金今日增持估计-占北向资金比",
+];
+const BOARD_DATE: [&str; 1] = ["报告时间"];
+
+/// 沪深港通板块排行（对应 akshare [`akshare.stock_hsgt_board_rank_em`]）。
+///
+/// `symbol`：`北向资金增持行业板块排行` / `北向资金增持概念板块排行` / `北向资金增持地域板块排行`；
+/// `indicator`：`今日` / `3日` / `5日` / `10日` / `1月` / `1季` / `1年`；
+/// `date`：交易日期 `YYYYMMDD`（原 akshare 从 HTML `bkph_date` 抓取，此处显式传入）。
+///
+/// # 返回列
+/// `序号, 名称, 最新涨跌幅, 北向资金今日持股-股票只数, 北向资金今日持股-市值,
+/// 北向资金今日持股-占板块比, 北向资金今日持股-占北向资金比, 北向资金今日增持估计-股票只数,
+/// 北向资金今日增持估计-市值, 北向资金今日增持估计-市值增幅, 北向资金今日增持估计-占板块比,
+/// 北向资金今日增持估计-占北向资金比, 今日增持最大股-市值, 今日增持最大股-占总市值比,
+/// 今日减持最大股-市值, 今日减持最大股-占总市值比, 报告时间`
+pub fn stock_hsgt_board_rank_em(symbol: &str, indicator: &str, date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let bt = match symbol {
+        "北向资金增持行业板块排行" => "5",
+        "北向资金增持概念板块排行" => "4",
+        "北向资金增持地域板块排行" => "3",
+        other => return Err(AkshareError::Param(format!("未知 symbol: {other}"))),
+    };
+    let it = match indicator {
+        "今日" => "1",
+        "3日" => "3",
+        "5日" => "5",
+        "10日" => "10",
+        "1月" => "M",
+        "1季" => "Q",
+        "1年" => "Y",
+        other => return Err(AkshareError::Param(format!("未知 indicator: {other}"))),
+    };
+    let filter = format!(r#"(BOARD_TYPE="{bt}")(TRADE_DATE='{d}')(INTERVAL_TYPE="{it}")"#);
+    let extra = report_extra(
+        "ADD_MARKET_CAP",
+        "-1",
+        Some(&filter),
+        Some("f3~05~SECURITY_CODE~INDEX_CHANGE_RATIO"),
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_MUTUAL_BOARD_HOLDRANK_WEB", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &BOARD_RENAME,
+        &BOARD_SELECT,
+        &BOARD_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&BOARD_DATE)?;
+    Ok(df)
+}
+
+// ===== 沪深港通个股持股（港股通，RPT_MUTUAL_STOCK_HOLDRANKS）=====
+// 对应 akshare [`akshare.stock_hsgt_individual_em`] 港股代码分支（len(symbol)!=6）。
+// 列序已与实时 JSON 键序核对。
+const INDIV_RNAME: [(&str, &str); 9] = [
+    ("TRADE_DATE", "持股日期"),
+    ("CLOSE_PRICE", "当日收盘价"),
+    ("CHANGE_RATE", "当日涨跌幅"),
+    ("HOLD_SHARES", "持股数量"),
+    ("HOLD_MARKET_CAP", "持股市值"),
+    ("HOLD_SHARES_RATIO", "持股数量占A股百分比"),
+    ("HOLD_MARKETCAP_CHG1", "持股市值变化-1日"),
+    ("HOLD_MARKETCAP_CHG5", "持股市值变化-5日"),
+    ("HOLD_MARKETCAP_CHG10", "持股市值变化-10日"),
+];
+const INDIV_SELECT: [&str; 9] = [
+    "持股日期",
+    "当日收盘价",
+    "当日涨跌幅",
+    "持股数量",
+    "持股市值",
+    "持股数量占A股百分比",
+    "持股市值变化-1日",
+    "持股市值变化-5日",
+    "持股市值变化-10日",
+];
+const INDIV_NUMERIC: [&str; 8] = [
+    "当日收盘价",
+    "当日涨跌幅",
+    "持股数量",
+    "持股市值",
+    "持股数量占A股百分比",
+    "持股市值变化-1日",
+    "持股市值变化-5日",
+    "持股市值变化-10日",
+];
+const INDIV_DATE: [&str; 1] = ["持股日期"];
+
+/// 沪深港通个股持股（港股通，对应 akshare [`akshare.stock_hsgt_individual_em`] 港股代码分支）。
+///
+/// `symbol`：港股代码（如 `"00700"`，内部拼 `.HK`）。对应 report `RPT_MUTUAL_STOCK_HOLDRANKS`。
+///
+/// # 返回列
+/// `持股日期, 当日收盘价, 当日涨跌幅, 持股数量, 持股市值, 持股数量占A股百分比,
+/// 持股市值变化-1日, 持股市值变化-5日, 持股市值变化-10日`
+pub fn stock_hsgt_individual_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(SECUCODE="{symbol}.HK")(MUTUAL_TYPE="002")"#);
+    let extra = report_extra("TRADE_DATE", "-1", Some(&filter), None, None, None);
+    let rows = datacenter("RPT_MUTUAL_STOCK_HOLDRANKS", "ALL", &extra, "500")?;
+    let mut df = finalize_report(&rows, &INDIV_RNAME, &INDIV_SELECT, &INDIV_NUMERIC, None)?;
+    df.cast_date(&INDIV_DATE)?;
+    Ok(df)
+}
+
+// ===== 沪深港通个股持股详情（RPT_MUTUAL_HOLD_DET）=====
+// 对应 akshare [`akshare.stock_hsgt_individual_detail_em`]。
+// 优先 MARKET_CODE="003"（深股通），无数据则回退 "001"（沪股通）。
+// 列序已与实时 JSON 键序核对。
+const INDDET_RNAME: [(&str, &str); 10] = [
+    ("HOLD_DATE", "持股日期"),
+    ("CLOSE_PRICE", "当日收盘价"),
+    ("CHANGE_RATE", "当日涨跌幅"),
+    ("ORG_NAME", "机构名称"),
+    ("HOLD_NUM", "持股数量"),
+    ("HOLD_MARKET_CAP", "持股市值"),
+    ("HOLD_SHARES_RATIO", "持股数量占A股百分比"),
+    ("HOLD_MARKET_CAPONE", "持股市值变化-1日"),
+    ("HOLD_MARKET_CAPFIVE", "持股市值变化-5日"),
+    ("HOLD_MARKET_CAPTEN", "持股市值变化-10日"),
+];
+const INDDET_SELECT: [&str; 10] = [
+    "持股日期",
+    "当日收盘价",
+    "当日涨跌幅",
+    "机构名称",
+    "持股数量",
+    "持股市值",
+    "持股数量占A股百分比",
+    "持股市值变化-1日",
+    "持股市值变化-5日",
+    "持股市值变化-10日",
+];
+const INDDET_NUMERIC: [&str; 8] = [
+    "当日收盘价",
+    "当日涨跌幅",
+    "持股数量",
+    "持股市值",
+    "持股数量占A股百分比",
+    "持股市值变化-1日",
+    "持股市值变化-5日",
+    "持股市值变化-10日",
+];
+const INDDET_DATE: [&str; 1] = ["持股日期"];
+
+/// 沪深港通个股持股详情（对应 akshare [`akshare.stock_hsgt_individual_detail_em`]）。
+///
+/// `symbol`：A 股代码；`start_date` / `end_date`：起止日期 `YYYYMMDD`。
+/// 优先 `MARKET_CODE="003"`（深股通），无数据则回退 `MARKET_CODE="001"`（沪股通）。
+///
+/// # 返回列
+/// `持股日期, 当日收盘价, 当日涨跌幅, 机构名称, 持股数量, 持股市值,
+/// 持股数量占A股百分比, 持股市值变化-1日, 持股市值变化-5日, 持股市值变化-10日`
+pub fn stock_hsgt_individual_detail_em(
+    symbol: &str,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Df> {
+    let s = fmt_ymd(start_date)?;
+    let e = fmt_ymd(end_date)?;
+    let build_filter = |mk: &str| {
+        format!(
+            r#"(SECURITY_CODE="{symbol}")(MARKET_CODE="{mk}")(HOLD_DATE>='{s}')(HOLD_DATE<='{e}')"#
+        )
+    };
+    let mut rows = {
+        let filter = build_filter("003");
+        let extra = report_extra("HOLD_DATE", "-1", Some(&filter), None, None, None);
+        datacenter("RPT_MUTUAL_HOLD_DET", "ALL", &extra, "500")?
+    };
+    if rows.is_empty() {
+        let filter = build_filter("001");
+        let extra = report_extra("HOLD_DATE", "-1", Some(&filter), None, None, None);
+        rows = datacenter("RPT_MUTUAL_HOLD_DET", "ALL", &extra, "500")?;
+    }
+    let mut df = finalize_report(&rows, &INDDET_RNAME, &INDDET_SELECT, &INDDET_NUMERIC, None)?;
+    df.cast_date(&INDDET_DATE)?;
+    Ok(df)
+}
+
 /// 交易市场代码 → 中文名（对应 akshare `交易市场.map({...})`，仅商誉类报表用到）。
 ///
 /// `key` 为原始 JSON 键名（`sy_yq` 用 `TRADE_MARKET`，`sy_jz` 用 `TRADE_BOARD`）；
@@ -5377,6 +5893,211 @@ mod tests {
         assert_eq!(px.get(0), Some(10.5));
         let d = df.inner().column("持股日期").unwrap().str().unwrap();
         assert_eq!(d.get(0), Some("2026-04-10"));
+    }
+
+    /// 离线验证沪深港通持股-个股排行列契约（序号 + indicator 前缀 + 数值化 + 日期截断）。
+    #[test]
+    fn hsgt_hold_stock_offline() {
+        let rows = json!([
+            {
+                "SECURITY_CODE":"000001","SECURITY_NAME":"平安银行","CLOSE_PRICE":"10.5",
+                "CHANGE_RATE":"9.9","HOLD_SHARES":"100000","HOLD_MARKET_CAP":"1050000",
+                "HOLD_SHARES_RATIO":"0.5","HOLD_MARKETCAP_RATIO":"1.2",
+                "ADD_SHARES_REPAIR":"5000","ADD_MARKET_CAP":"60000","ADD_SHARES_AMP":"0.3",
+                "ADD_SHARES_RATIO":"0.1","ADD_MARKETCAP_RATIO":"0.2","INDUSTRY":"银行",
+                "TRADE_DATE":"2026-08-07 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &HOLD_RENAME,
+            &HOLD_SELECT,
+            &HOLD_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&HOLD_DATE).unwrap();
+        let mut expect: Vec<String> = vec!["序号".to_string()];
+        expect.extend(HOLD_SELECT.iter().map(|s| s.to_string()));
+        assert_eq!(df.column_names(), expect);
+        let idx = df.inner().column("序号").unwrap().f64().unwrap();
+        assert_eq!(idx.get(0), Some(1.0));
+        let px = df.inner().column("今日收盘价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(10.5));
+        let d = df.inner().column("日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2026-08-07"));
+        // indicator 前缀拼接到 “增持估计-*” 列名
+        let prefix = "5日";
+        let names: Vec<String> = std::iter::once("序号".to_string())
+            .chain(HOLD_SELECT.iter().map(|c| {
+                if c.starts_with("增持估计-") {
+                    format!("{prefix}{c}")
+                } else {
+                    (*c).to_string()
+                }
+            }))
+            .collect();
+        let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+        df.rename_columns(&refs).unwrap();
+        assert_eq!(df.column_names()[9], "5日增持估计-股数");
+        assert_eq!(df.column_names()[13], "5日增持估计-占总股本比");
+    }
+
+    /// 离线验证沪深港通每日机构统计列契约（无 序号 + 数值化 + 日期截断）。
+    #[test]
+    fn hsgt_institution_offline() {
+        let rows = json!([
+            {
+                "HOLD_DATE":"2024-01-10 00:00:00","ORG_NAME":"兴证国际证券","HOLD_NUM":"153",
+                "HOLD_MARKET_CAP":"478362459.57","HOLD_MARKET_CAPONE":"73582.4",
+                "HOLD_MARKET_CAPFIVE":"-12226217.84","HOLD_MARKET_CAPTEN":"-4930840.39"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &INST_RENAME, &INST_SELECT, &INST_NUMERIC, None).unwrap();
+        df.cast_date(&INST_DATE).unwrap();
+        assert_eq!(df.column_names(), INST_SELECT);
+        let n = df.inner().column("持股只数").unwrap().f64().unwrap();
+        assert_eq!(n.get(0), Some(153.0));
+        let d = df.inner().column("持股日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-01-10"));
+    }
+
+    /// 离线验证沪深港通历史资金流向列契约（动态指数列 + 数值化 + 日期截断）。
+    #[test]
+    fn hsgt_hist_offline() {
+        let rows = json!([
+            {
+                "TRADE_DATE":"2014-11-17 00:00:00","NET_DEAL_AMT":"120.82","BUY_AMT":"120.82",
+                "SELL_AMT":"10.0","ACCUM_DEAL_AMT":"0.012","FUND_INFLOW":"130.0","QUOTA_BALANCE":"50.0",
+                "HOLD_MARKET_CAP":"0.0","LEAD_STOCKS_NAME":"唐山港","LEAD_STOCKS_CODE":"601000.SH",
+                "LS_CHANGE_RATE":"9.98","INDEX_CLOSE_PRICE":"2474.01","INDEX_CHANGE_RATE":"-0.19"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &HIST_RNAME, &HIST_SELECT, &HIST_NUMERIC, None).unwrap();
+        df.cast_date(&HIST_DATE).unwrap();
+        let names: Vec<String> = HIST_SELECT
+            .iter()
+            .map(|c| {
+                if *c == "__INDEX__" {
+                    "沪深300".to_string()
+                } else if *c == "__INDEXCHG__" {
+                    "沪深300-涨跌幅".to_string()
+                } else {
+                    (*c).to_string()
+                }
+            })
+            .collect();
+        let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+        df.rename_columns(&refs).unwrap();
+        let expect: Vec<String> = vec![
+            "日期",
+            "当日成交净买额",
+            "买入成交额",
+            "卖出成交额",
+            "历史累计净买额",
+            "当日资金流入",
+            "当日余额",
+            "持股市值",
+            "领涨股",
+            "领涨股-涨跌幅",
+            "沪深300",
+            "沪深300-涨跌幅",
+            "领涨股-代码",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        assert_eq!(df.column_names(), expect);
+        let idx = df.inner().column("沪深300").unwrap().f64().unwrap();
+        assert_eq!(idx.get(0), Some(2474.01));
+        let d = df.inner().column("日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2014-11-17"));
+    }
+
+    /// 离线验证沪深港通板块排行列契约（序号 + 最大/最小增持个股为字符串 + 日期截断）。
+    #[test]
+    fn hsgt_board_rank_offline() {
+        let rows = json!([
+            {
+                "BOARD_NAME":"银行","INDEX_CHANGE_RATIO":"0.57","COMPOSITION_QUANTITY":"42",
+                "HK_VALUE":"187873414383.39","BOARD_HK_RATIO":"0.1066","HK_BOARD_RATIO":"0.0157",
+                "COMPOSITION_QUANTITY_ADD":"32","ADD_MARKET_CAP":"1190196450.66","ADD_RATIO":"0.645",
+                "ADD_HK_RATIO":"0.0006756","ADD_BOARD_RATIO":"9.95e-05",
+                "MAXADD_SECURITY_NAME":"农业银行","MAXADD_RATIO_SECURITY_NAME":"齐鲁银行",
+                "MINADD_SECURITY_NAME":"宁波银行","MINADD_RATIO_SECURITY_NAME":"南都电源",
+                "TRADE_DATE":"2024-08-16 00:00:00"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df = finalize_report(
+            &rows,
+            &BOARD_RENAME,
+            &BOARD_SELECT,
+            &BOARD_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&BOARD_DATE).unwrap();
+        let mut expect: Vec<String> = vec!["序号".to_string()];
+        expect.extend(BOARD_SELECT.iter().map(|s| s.to_string()));
+        assert_eq!(df.column_names(), expect);
+        let idx = df.inner().column("序号").unwrap().f64().unwrap();
+        assert_eq!(idx.get(0), Some(1.0));
+        let nm = df.inner().column("名称").unwrap().str().unwrap();
+        assert_eq!(nm.get(0), Some("银行"));
+        let d = df.inner().column("报告时间").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-08-16"));
+        // 最大/最小增持个股两对列对应实时 schema 的个股名称字段，应为字符串列
+        let col = df.inner().column("今日增持最大股-市值").unwrap();
+        assert!(col.str().is_ok());
+    }
+
+    /// 离线验证沪深港通个股持股（港股通）列契约（无 序号 + 数值化 + 日期截断）。
+    #[test]
+    fn hsgt_individual_offline() {
+        let rows = json!([
+            {
+                "TRADE_DATE":"2024-08-12 00:00:00","CLOSE_PRICE":"375.0","CHANGE_RATE":"1.3514",
+                "HOLD_SHARES":"929121231","HOLD_MARKET_CAP":"348420461625.0","HOLD_SHARES_RATIO":"9.95",
+                "HOLD_MARKETCAP_CHG1":"100.0","HOLD_MARKETCAP_CHG5":"200.0","HOLD_MARKETCAP_CHG10":"300.0"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &INDIV_RNAME, &INDIV_SELECT, &INDIV_NUMERIC, None).unwrap();
+        df.cast_date(&INDIV_DATE).unwrap();
+        assert_eq!(df.column_names(), INDIV_SELECT);
+        let h = df.inner().column("持股数量").unwrap().f64().unwrap();
+        assert_eq!(h.get(0), Some(929121231.0));
+        let d = df.inner().column("持股日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-08-12"));
+    }
+
+    /// 离线验证沪深港通个股持股详情列契约（无 序号 + 数值化 + 日期截断）。
+    #[test]
+    fn hsgt_individual_detail_offline() {
+        let rows = json!([
+            {
+                "HOLD_DATE":"2024-09-30 00:00:00","CLOSE_PRICE":"23.53","CHANGE_RATE":"10.0047",
+                "ORG_NAME":"云锋证券","HOLD_NUM":"700","HOLD_MARKET_CAP":"16471",
+                "HOLD_SHARES_RATIO":"0","HOLD_MARKET_CAPONE":"16471","HOLD_MARKET_CAPFIVE":"16471",
+                "HOLD_MARKET_CAPTEN":"16471"
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let mut df =
+            finalize_report(&rows, &INDDET_RNAME, &INDDET_SELECT, &INDDET_NUMERIC, None).unwrap();
+        df.cast_date(&INDDET_DATE).unwrap();
+        assert_eq!(df.column_names(), INDDET_SELECT);
+        let o = df.inner().column("机构名称").unwrap().str().unwrap();
+        assert_eq!(o.get(0), Some("云锋证券"));
+        let d = df.inner().column("持股日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-09-30"));
     }
 
     /// 离线验证资产负债表列契约（序号 + 数值化 + 日期截断，含 lrb/xjll 共用的 JSON 键）。

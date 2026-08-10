@@ -165,6 +165,13 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_lhb_stock_detail_date_em", ["600077"], "loose", "个股龙虎榜详情-日期"),
     ("stock_lhb_stock_detail_em", ["000788", "20220315", "卖出"], "loose", "个股龙虎榜详情"),
     ("stock_lhb_yyb_detail_em", ["10188715"], "loose", "营业部历史交易明细"),
+    # 批次1 阶段1k 东财 datacenter 沪深港通 持股/成交/机构/板块排名（6个）
+    ("stock_hsgt_hold_stock_em", ["沪股通", "5日排行", "20260807"], "loose", "沪深港通持股-个股排行"),
+    ("stock_hsgt_institution_statistics_em", ["北向持股", "20240110", "20240110"], "loose", "沪深港通每日机构统计"),
+    ("stock_hsgt_hist_em", ["北向资金"], "loose", "沪深港通历史资金流向"),
+    ("stock_hsgt_board_rank_em", ["北向资金增持行业板块排行", "今日", "20240816"], "loose", "沪深港通板块排行"),
+    ("stock_hsgt_individual_em", ["00700"], "loose", "沪深港通个股持股(港股)"),
+    ("stock_hsgt_individual_detail_em", ["002008", "20240801", "20240831"], "loose", "沪深港通个股持股详情"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]
