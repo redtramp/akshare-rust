@@ -24,6 +24,10 @@ use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_ma
 use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
 };
+use akshare_rust::futures::{
+    futures_settle_cffex, futures_settle_czce, futures_settle_gfex, futures_settle_ine,
+    futures_settle_shfe,
+};
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
 use akshare_rust::stock::{
@@ -524,6 +528,26 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_rank_ljqs_ths" => Ok(stock_rank_ljqs_ths()?),
         "stock_rank_ljqd_ths" => Ok(stock_rank_ljqd_ths()?),
         "stock_rank_xzjp_ths" => Ok(stock_rank_xzjp_ths()?),
+        "futures_settle_cffex" => {
+            let [d] = take1(func, args)?;
+            Ok(futures_settle_cffex(d)?)
+        }
+        "futures_settle_czce" => {
+            let [d] = take1(func, args)?;
+            Ok(futures_settle_czce(d)?)
+        }
+        "futures_settle_gfex" => {
+            let [d] = take1(func, args)?;
+            Ok(futures_settle_gfex(d)?)
+        }
+        "futures_settle_shfe" => {
+            let [d] = take1(func, args)?;
+            Ok(futures_settle_shfe(d)?)
+        }
+        "futures_settle_ine" => {
+            let [d] = take1(func, args)?;
+            Ok(futures_settle_ine(d)?)
+        }
         _ => Err(format!("未知函数: {func}").into()),
     }
 }

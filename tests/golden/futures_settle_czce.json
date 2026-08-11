@@ -1,0 +1,144 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "date",
+      "dtype": "str"
+    },
+    {
+      "name": "symbol",
+      "dtype": "str"
+    },
+    {
+      "name": "variety",
+      "dtype": "str"
+    },
+    {
+      "name": "settle_price",
+      "dtype": "str"
+    },
+    {
+      "name": "is_single_market",
+      "dtype": "str"
+    },
+    {
+      "name": "single_market_days",
+      "dtype": "str"
+    },
+    {
+      "name": "margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "limit_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "trade_fee",
+      "dtype": "str"
+    },
+    {
+      "name": "fee_type",
+      "dtype": "str"
+    },
+    {
+      "name": "delivery_fee",
+      "dtype": "str"
+    },
+    {
+      "name": "close_today_fee",
+      "dtype": "str"
+    },
+    {
+      "name": "position_limit",
+      "dtype": "str"
+    },
+    {
+      "name": "trade_limit",
+      "dtype": "str"
+    }
+  ],
+  "height": 241,
+  "head": [
+    [
+      "20260119",
+      "AP603",
+      "AP",
+      "9,436.00",
+      "N",
+      "0",
+      "10",
+      "±9",
+      "5.00",
+      "绝对值",
+      "0.00",
+      "20.00",
+      "1000",
+      ""
+    ],
+    [
+      "20260119",
+      "AP604",
+      "AP",
+      "9,389.00",
+      "N",
+      "0",
+      "10",
+      "±9",
+      "5.00",
+      "绝对值",
+      "0.00",
+      "20.00",
+      "1000",
+      ""
+    ],
+    [
+      "20260119",
+      "AP605",
+      "AP",
+      "9,400.00",
+      "N",
+      "0",
+      "10",
+      "±9",
+      "5.00",
+      "绝对值",
+      "0.00",
+      "20.00",
+      "1000",
+      ""
+    ],
+    [
+      "20260119",
+      "AP610",
+      "AP",
+      "8,113.00",
+      "N",
+      "0",
+      "10",
+      "±9",
+      "5.00",
+      "绝对值",
+      "0.00",
+      "20.00",
+      "1000",
+      ""
+    ],
+    [
+      "20260119",
+      "AP611",
+      "AP",
+      "7,929.00",
+      "N",
+      "0",
+      "10",
+      "±9",
+      "5.00",
+      "绝对值",
+      "0.00",
+      "20.00",
+      "1000",
+      ""
+    ]
+  ]
+}

@@ -192,6 +192,12 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_rank_ljqs_ths", [], "loose", "技术选股-量价齐升"),
     ("stock_rank_ljqd_ths", [], "loose", "技术选股-量价齐跌"),
     ("stock_rank_xzjp_ths", [], "loose", "技术选股-险资举牌"),
+    # 批次2 期货交易所结算参数（5 个）：固定历史交易日数据不变，可安全 loose 对比
+    ("futures_settle_cffex", ["20260119"], "loose", "中金所-结算参数"),
+    ("futures_settle_czce", ["20260119"], "loose", "郑商所-结算参数"),
+    ("futures_settle_gfex", ["20260119"], "loose", "广期所-结算参数"),
+    ("futures_settle_shfe", ["20260119"], "loose", "上期所-结算参数"),
+    ("futures_settle_ine", ["20260119"], "loose", "上能中心-结算参数"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

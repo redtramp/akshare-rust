@@ -1,0 +1,117 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "date",
+      "dtype": "str"
+    },
+    {
+      "name": "symbol",
+      "dtype": "str"
+    },
+    {
+      "name": "variety",
+      "dtype": "str"
+    },
+    {
+      "name": "settle_price",
+      "dtype": "float64"
+    },
+    {
+      "name": "spec_long_margin_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "hedge_long_margin_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "spec_short_margin_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "hedge_short_margin_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "trade_fee_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "close_today_fee_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "is_close_today",
+      "dtype": "int64"
+    }
+  ],
+  "height": 62,
+  "head": [
+    [
+      "20260119",
+      "sc2602",
+      "sc",
+      "440.0",
+      "0.1",
+      "0.1",
+      "0.1",
+      "0.1",
+      "0.0",
+      "0.0",
+      "0"
+    ],
+    [
+      "20260119",
+      "sc2603",
+      "sc",
+      "442.6",
+      "0.09",
+      "0.08",
+      "0.09",
+      "0.08",
+      "0.0",
+      "0.0",
+      "0"
+    ],
+    [
+      "20260119",
+      "sc2604",
+      "sc",
+      "443.4",
+      "0.09",
+      "0.08",
+      "0.09",
+      "0.08",
+      "0.0",
+      "0.0",
+      "0"
+    ],
+    [
+      "20260119",
+      "sc2605",
+      "sc",
+      "444.5",
+      "0.09",
+      "0.08",
+      "0.09",
+      "0.08",
+      "0.0",
+      "0.0",
+      "0"
+    ],
+    [
+      "20260119",
+      "sc2606",
+      "sc",
+      "445.6",
+      "0.09",
+      "0.08",
+      "0.09",
+      "0.08",
+      "0.0",
+      "0.0",
+      "0"
+    ]
+  ]
+}
