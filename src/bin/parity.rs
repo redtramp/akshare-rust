@@ -67,6 +67,10 @@ use akshare_rust::stock_feature::{
     stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em, stock_zh_b_spot_em,
 };
 use akshare_rust::stock_fundamental::{
+    stock_financial_abstract_new_ths, stock_financial_abstract_ths,
+    stock_financial_benefit_new_ths, stock_financial_benefit_ths,
+    stock_financial_cash_new_ths, stock_financial_cash_ths,
+    stock_financial_debt_new_ths, stock_financial_debt_ths,
     stock_restricted_release_detail_em, stock_restricted_release_queue_em,
     stock_restricted_release_stockholder_em, stock_restricted_release_summary_em,
 };
@@ -504,6 +508,38 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_restricted_release_stockholder_em" => {
             let [s, d] = take2(func, args)?;
             Ok(stock_restricted_release_stockholder_em(s, d)?)
+        }
+        "stock_financial_abstract_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_financial_abstract_ths(s, i)?)
+        }
+        "stock_financial_debt_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_financial_debt_ths(s, i)?)
+        }
+        "stock_financial_benefit_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_financial_benefit_ths(s, i)?)
+        }
+        "stock_financial_cash_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_financial_cash_ths(s, i)?)
+        }
+        "stock_financial_abstract_new_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_financial_abstract_new_ths(s, i)?)
+        }
+        "stock_financial_debt_new_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_financial_debt_new_ths(s, i)?)
+        }
+        "stock_financial_benefit_new_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_financial_benefit_new_ths(s, i)?)
+        }
+        "stock_financial_cash_new_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_financial_cash_new_ths(s, i)?)
         }
         "stock_rank_cxg_ths" => {
             let [s] = take1(func, args)?;

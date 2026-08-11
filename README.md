@@ -26,7 +26,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 64 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
+> 截至当前共 72 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
 ### 东方财富（行情/K线/资金/板块）
 
@@ -106,6 +106,15 @@ println!("{}", df);
 | `stock_rank_ljqd_ths` / `stock_rank_ljqs_ths` | `ak.stock_rank_ljqd_ths` / `ak.stock_rank_ljqs_ths` | 量价齐跌/齐升 |
 | `stock_rank_xstp_ths` / `stock_rank_xxtp_ths` | `ak.stock_rank_xstp_ths` / `ak.stock_rank_xxtp_ths` | 向上/向下突破 |
 | `stock_rank_xzjp_ths` | `ak.stock_rank_xzjp_ths` | 险资举牌 |
+
+### 同花顺财务指标（stock_fundamental）
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `stock_financial_abstract_ths` | `ak.stock_financial_abstract_ths` | 主要指标（旧系列，HTML 内嵌 JSON） |
+| `stock_financial_debt_ths` / `stock_financial_benefit_ths` / `stock_financial_cash_ths` | `ak.stock_financial_*_ths` | 资产负债/利润/现金流量表（旧系列，flashData 双重 JSON） |
+| `stock_financial_abstract_new_ths` | `ak.stock_financial_abstract_new_ths` | 重要指标（新系列，app_data 报表） |
+| `stock_financial_debt_new_ths` / `stock_financial_benefit_new_ths` / `stock_financial_cash_new_ths` | `ak.stock_financial_*_new_ths` | 资产负债/利润/现金流量表（新系列） |
 
 ### 期货交易所（结算参数 + 合约详情）
 

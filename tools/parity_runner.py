@@ -206,6 +206,15 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("futures_settle", ["20260119", "INE"], "strict", "结算参数统一入口-上能中心"),
     # 批次2 新浪期货合约详情：合约基础信息为静态数据，可安全 strict 对比
     ("futures_contract_detail", ["V2201"], "strict", "期货合约详情"),
+    # 批次3 阶段3b 同花顺财务指标（8 个）：报告期集合随时间增长，loose 只比列契约
+    ("stock_financial_abstract_ths", ["000063", "按报告期"], "loose", "同花顺财务-主要指标"),
+    ("stock_financial_debt_ths", ["000063", "按报告期"], "loose", "同花顺财务-资产负债表"),
+    ("stock_financial_benefit_ths", ["000063", "按报告期"], "loose", "同花顺财务-利润表"),
+    ("stock_financial_cash_ths", ["000063", "按报告期"], "loose", "同花顺财务-现金流量表"),
+    ("stock_financial_abstract_new_ths", ["000063", "按报告期"], "loose", "同花顺财务-重要指标(新)"),
+    ("stock_financial_debt_new_ths", ["000063", "按报告期"], "loose", "同花顺财务-资产负债表(新)"),
+    ("stock_financial_benefit_new_ths", ["000063", "按报告期"], "loose", "同花顺财务-利润表(新)"),
+    ("stock_financial_cash_new_ths", ["000063", "按报告期"], "loose", "同花顺财务-现金流量表(新)"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

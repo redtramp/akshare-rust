@@ -1,0 +1,108 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "report_date",
+      "dtype": "str"
+    },
+    {
+      "name": "report_name",
+      "dtype": "str"
+    },
+    {
+      "name": "report_period",
+      "dtype": "str"
+    },
+    {
+      "name": "quarter_name",
+      "dtype": "str"
+    },
+    {
+      "name": "metric_name",
+      "dtype": "str"
+    },
+    {
+      "name": "value",
+      "dtype": "str"
+    },
+    {
+      "name": "single",
+      "dtype": "str"
+    },
+    {
+      "name": "yoy",
+      "dtype": "str"
+    },
+    {
+      "name": "mom",
+      "dtype": "str"
+    },
+    {
+      "name": "single_yoy",
+      "dtype": "str"
+    }
+  ],
+  "height": 5950,
+  "head": [
+    [
+      "2026-03-31",
+      "2026一季报",
+      "2026-1",
+      "2026一季度",
+      "treasury_stock",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "2026-03-31",
+      "2026一季报",
+      "2026-1",
+      "2026一季度",
+      "productive_biological_assets",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "2026-03-31",
+      "2026一季报",
+      "2026-1",
+      "2026一季度",
+      "deferred_tax_debt",
+      "63061000.0000",
+      "",
+      "-0.28885255",
+      "",
+      ""
+    ],
+    [
+      "2026-03-31",
+      "2026一季报",
+      "2026-1",
+      "2026一季度",
+      "other_payable_total",
+      "2611288000.0000",
+      "",
+      "-0.57308289",
+      "",
+      ""
+    ],
+    [
+      "2026-03-31",
+      "2026一季报",
+      "2026-1",
+      "2026一季度",
+      "equity",
+      "4783535000.0000",
+      "",
+      "0.00000000",
+      "",
+      ""
+    ]
+  ]
+}
