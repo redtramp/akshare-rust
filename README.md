@@ -26,7 +26,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 96 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
+> 截至当前共 106 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
 ### 东方财富（行情/K线/资金/板块）
 
@@ -70,6 +70,12 @@ println!("{}", df);
 | `stock_a_gxl_lg` | `ak.stock_a_gxl_lg` | A 股股息率 |
 | `stock_hk_gxl_lg` | `ak.stock_hk_gxl_lg` | 港股股息率 |
 | `stock_a_ttm_lyr` | `ak.stock_a_ttm_lyr` | A 股 TTM 市盈率 |
+| `stock_market_pe_lg` / `stock_index_pe_lg` | `ak.stock_market_pe_lg` / `ak.stock_index_pe_lg` | 主板/指数市盈率 |
+| `stock_market_pb_lg` / `stock_index_pb_lg` | `ak.stock_market_pb_lg` / `ak.stock_index_pb_lg` | 主板/指数市净率 |
+| `stock_a_congestion_lg` | `ak.stock_a_congestion_lg` | 大盘拥挤度 |
+| `stock_buffett_index_lg` | `ak.stock_buffett_index_lg` | 巴菲特指标 |
+| `stock_ebs_lg` | `ak.stock_ebs_lg` | 股债利差 |
+| `fund_stock_position_lg` / `fund_balance_position_lg` / `fund_linghuo_position_lg` | `ak.fund_*_position_lg` | 股票型/平衡混合/灵活配置基金仓位 |
 | `get_token_lg` | （akshare 内部） | md5 本地日期 token |
 
 ### 新浪财经

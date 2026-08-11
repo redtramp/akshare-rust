@@ -163,6 +163,332 @@ pub fn stock_a_ttm_lyr() -> Result<Df> {
     Ok(out)
 }
 
+/// 拉取乐咕数据 `data` 数组并归一化 `date` 列（对应 akshare `pd.to_datetime().dt.date`）。
+///
+/// `page_url` / `api_path` / `params` 由各函数提供；`select` 为输出列序。
+fn fetch_legu_data(
+    page_url: &str,
+    api_path: &str,
+    params: &[(&str, &str)],
+    select: &[&str],
+) -> Result<Df> {
+    let http = HttpClient::default();
+    let token = get_token_lg();
+    let mut query: Vec<String> = vec![format!("token={token}")];
+    for (k, v) in params {
+        query.push(format!("{k}={v}"));
+    }
+    let api_url = format!("https://legulegu.com{api_path}?{}", query.join("&"));
+    let data = api_get(&http, page_url, &api_url)?;
+    let rows = data
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Df::from_json_rows(&rows)?;
+    out.cast_date(&["date"])?;
+    out = out.select(select)?;
+    Ok(out)
+}
+
+/// 乐咕乐股-主板市盈率（对应 akshare [`akshare.stock_market_pe_lg`]）。
+///
+/// `symbol`：`上证` / `深证` / `创业板` / `科创版`。科创版走独立接口，
+/// 输出列名不同（`总市值`/`市盈率` vs `指数`/`平均市盈率`）。
+///
+/// # 返回列
+/// - 上证/深证/创业板：`日期, 指数, 平均市盈率`
+/// - 科创版：`日期, 总市值, 市盈率`
+pub fn stock_market_pe_lg(symbol: &str) -> Result<Df> {
+    let (market_id, page) = match symbol {
+        "上证" => ("1", "https://legulegu.com/stockdata/shanghaiPE"),
+        "深证" => ("2", "https://legulegu.com/stockdata/shenzhenPE"),
+        "创业板" => ("4", "https://legulegu.com/stockdata/cybPE"),
+        "科创版" => ("", "https://legulegu.com/stockdata/ke-chuang-ban-pe"),
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 上证/深证/创业板/科创版）"
+            )))
+        }
+    };
+    if market_id.is_empty() {
+        let mut df = fetch_legu_data(page, "/api/stockdata/get-ke-chuang-ban-pe", &[], &["date", "close", "pe"])?;
+        df.rename_columns(&["日期", "总市值", "市盈率"])?;
+        df.cast_numeric(&["总市值", "市盈率"])?;
+        return Ok(df);
+    }
+    let mut df = fetch_legu_data(
+        page,
+        "/api/stock-data/market-pe",
+        &[("marketId", market_id)],
+        &["date", "close", "pe"],
+    )?;
+    df.rename_columns(&["日期", "指数", "平均市盈率"])?;
+    df.cast_numeric(&["指数", "平均市盈率"])?;
+    Ok(df)
+}
+
+/// 乐咕乐股-指数市盈率（对应 akshare [`akshare.stock_index_pe_lg`]）。
+///
+/// `symbol`：`上证50/沪深300/上证380/创业板50/中证500/上证180/深证红利/深证100/
+/// 中证1000/上证红利/中证100/中证800`。
+///
+/// # 返回列
+/// `日期, 指数, 等权静态市盈率, 静态市盈率, 静态市盈率中位数,
+/// 等权滚动市盈率, 滚动市盈率, 滚动市盈率中位数`
+pub fn stock_index_pe_lg(symbol: &str) -> Result<Df> {
+    let code = match symbol {
+        "上证50" => "000016.SH",
+        "沪深300" => "000300.SH",
+        "上证380" => "000009.SH",
+        "创业板50" => "399673.SZ",
+        "中证500" => "000905.SH",
+        "上证180" => "000010.SH",
+        "深证红利" => "399324.SZ",
+        "深证100" => "399330.SZ",
+        "中证1000" => "000852.SH",
+        "上证红利" => "000015.SH",
+        "中证100" => "000903.SH",
+        "中证800" => "000906.SH",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 上证50/沪深300/上证380/创业板50/中证500/上证180/深证红利/深证100/中证1000/上证红利/中证100/中证800）"
+            )))
+        }
+    };
+    let mut df = fetch_legu_data(
+        "https://legulegu.com/stockdata/sz50-ttm-lyr",
+        "/api/stockdata/index-basic-pe",
+        &[("indexCode", code)],
+        &["date", "close", "lyrPe", "addLyrPe", "middleLyrPe", "ttmPe", "addTtmPe", "middleTtmPe"],
+    )?;
+    df.rename_columns(&[
+        "日期",
+        "指数",
+        "等权静态市盈率",
+        "静态市盈率",
+        "静态市盈率中位数",
+        "等权滚动市盈率",
+        "滚动市盈率",
+        "滚动市盈率中位数",
+    ])?;
+    df.cast_numeric(&[
+        "指数",
+        "等权静态市盈率",
+        "静态市盈率",
+        "静态市盈率中位数",
+        "等权滚动市盈率",
+        "滚动市盈率",
+        "滚动市盈率中位数",
+    ])?;
+    Ok(df)
+}
+
+/// 乐咕乐股-主板市净率（对应 akshare [`akshare.stock_market_pb_lg`]）。
+///
+/// `symbol`：`上证` / `深证` / `创业板` / `科创版`。
+///
+/// # 返回列
+/// `日期, 指数, 市净率, 等权市净率, 市净率中位数`
+pub fn stock_market_pb_lg(symbol: &str) -> Result<Df> {
+    let (code, page) = match symbol {
+        "上证" => ("1", "https://legulegu.com/stockdata/shanghaiPB"),
+        "深证" => ("2", "https://legulegu.com/stockdata/shenzhenPB"),
+        "创业板" => ("4", "https://legulegu.com/stockdata/cybPB"),
+        "科创版" => ("7", "https://legulegu.com/stockdata/ke-chuang-ban-pb"),
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 上证/深证/创业板/科创版）"
+            )))
+        }
+    };
+    let mut df = fetch_legu_data(
+        page,
+        "/api/stockdata/index-basic-pb",
+        &[("indexCode", code)],
+        &["date", "close", "addPb", "pb", "middlePb"],
+    )?;
+    df.rename_columns(&["日期", "指数", "市净率", "等权市净率", "市净率中位数"])?;
+    df.cast_numeric(&["指数", "市净率", "等权市净率", "市净率中位数"])?;
+    Ok(df)
+}
+
+/// 乐咕乐股-指数市净率（对应 akshare [`akshare.stock_index_pb_lg`]）。
+///
+/// `symbol`：同 [`stock_index_pe_lg`] 的 12 个指数。
+///
+/// # 返回列
+/// `日期, 指数, 市净率, 等权市净率, 市净率中位数`
+pub fn stock_index_pb_lg(symbol: &str) -> Result<Df> {
+    let code = match symbol {
+        "上证50" => "000016.SH",
+        "沪深300" => "000300.SH",
+        "上证380" => "000009.SH",
+        "创业板50" => "399673.SZ",
+        "中证500" => "000905.SH",
+        "上证180" => "000010.SH",
+        "深证红利" => "399324.SZ",
+        "深证100" => "399330.SZ",
+        "中证1000" => "000852.SH",
+        "上证红利" => "000015.SH",
+        "中证100" => "000903.SH",
+        "中证800" => "000906.SH",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 上证50/沪深300/上证380/创业板50/中证500/上证180/深证红利/深证100/中证1000/上证红利/中证100/中证800）"
+            )))
+        }
+    };
+    let mut df = fetch_legu_data(
+        "https://legulegu.com/stockdata/zz500-ttm-lyr",
+        "/api/stockdata/index-basic-pb",
+        &[("indexCode", code)],
+        &["date", "close", "addPb", "pb", "middlePb"],
+    )?;
+    df.rename_columns(&["日期", "指数", "市净率", "等权市净率", "市净率中位数"])?;
+    df.cast_numeric(&["指数", "市净率", "等权市净率", "市净率中位数"])?;
+    Ok(df)
+}
+
+/// 乐咕乐股-大盘拥挤度（对应 akshare [`akshare.stock_a_congestion_lg`]）。
+///
+/// 响应为 `items` 数组，akshare 不改列名（保留英文键）。
+///
+/// # 返回列
+/// `date, close, congestion`
+pub fn stock_a_congestion_lg() -> Result<Df> {
+    let http = HttpClient::default();
+    let token = get_token_lg();
+    let page_url = "https://legulegu.com/stockdata/ashares-congestion";
+    let api_url = format!("https://legulegu.com/api/stockdata/ashares-congestion?token={token}");
+    let data = api_get(&http, page_url, &api_url)?;
+    let rows = data
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Df::from_json_rows(&rows)?;
+    out.cast_date(&["date"])?;
+    out = out.select(&["date", "close", "congestion"])?;
+    out.cast_numeric(&["close", "congestion"])?;
+    Ok(out)
+}
+
+/// 乐咕乐股-巴菲特指标（对应 akshare [`akshare.stock_buffett_index_lg`]）。
+///
+/// # 返回列
+/// `日期, 收盘价, 总市值, GDP`（可选 `近十年分位数, 总历史分位数`）
+pub fn stock_buffett_index_lg() -> Result<Df> {
+    let http = HttpClient::default();
+    let token = get_token_lg();
+    let page_url = "https://legulegu.com/stockdata/marketcap-gdp";
+    let api_url = format!(
+        "https://legulegu.com/api/stockdata/marketcap-gdp/get-marketcap-gdp?token={token}"
+    );
+    let data = api_get(&http, page_url, &api_url)?;
+    let rows = data
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let out = Df::from_json_rows(&rows)?;
+    // akshare 条件重命名 + 可选列（quantile 列存在才输出）
+    let rename_map = [
+        ("marketCap", "总市值"),
+        ("gdp", "GDP"),
+        ("close", "收盘价"),
+        ("date", "日期"),
+        ("quantileInAllHistory", "总历史分位数"),
+        ("quantileInRecent10Years", "近十年分位数"),
+    ];
+    let mut names: Vec<String> = out.column_names();
+    let mut has: Vec<&str> = Vec::new();
+    for (from, to) in rename_map {
+        if let Some(pos) = names.iter().position(|n| n == from) {
+            names[pos] = to.to_string();
+            has.push(to);
+        }
+    }
+    // 输出列序 = akshare base_cols + 可选列（近十年分位数/总历史分位数）
+    let mut final_cols: Vec<&str> = Vec::new();
+    for c in ["日期", "收盘价", "总市值", "GDP", "近十年分位数", "总历史分位数"] {
+        if has.contains(&c) {
+            final_cols.push(c);
+        }
+    }
+    let names_ref: Vec<&str> = names.iter().map(String::as_str).collect();
+    let mut out2 = out.clone();
+    let _ = out2.rename_columns(&names_ref);
+    out2.cast_date(&["日期"])?;
+    out2 = out2.select(&final_cols)?;
+    let numeric: Vec<&str> = final_cols
+        .iter()
+        .copied()
+        .filter(|c| *c != "日期")
+        .collect();
+    out2.cast_numeric(&numeric)?;
+    Ok(out2)
+}
+
+/// 乐咕乐股-股债利差（对应 akshare [`akshare.stock_ebs_lg`]）。
+///
+/// # 返回列
+/// `日期, 沪深300指数, 股债利差, 股债利差均线`
+pub fn stock_ebs_lg() -> Result<Df> {
+    let mut df = fetch_legu_data(
+        "https://legulegu.com/stockdata/equity-bond-spread",
+        "/api/stockdata/equity-bond-spread",
+        &[("code", "000300.SH")],
+        &["date", "close", "peSpread", "peSpreadAverage"],
+    )?;
+    df.rename_columns(&["日期", "沪深300指数", "股债利差", "股债利差均线"])?;
+    df.cast_numeric(&["沪深300指数", "股债利差", "股债利差均线"])?;
+    Ok(df)
+}
+
+/// 基金仓位公共实现（`type` 区分 股票型/平衡混合型/灵活配置型）。
+///
+/// 响应为顶层数组，akshare 不改列名。
+fn fund_position_lg_impl(page_suffix: &str, pos_type: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let token = get_token_lg();
+    let page_url = format!("https://legulegu.com/stockdata/fund-position/{page_suffix}");
+    let api_url = format!(
+        "https://legulegu.com/api/stockdata/fund-position?token={token}&type={pos_type}&category=%E6%80%BB%E4%BB%93%E4%BD%8D&marketId=5"
+    );
+    let data = api_get(&http, &page_url, &api_url)?;
+    let rows = data.as_array().cloned().unwrap_or_default();
+    let mut out = Df::from_json_rows(&rows)?;
+    out.cast_date(&["date"])?;
+    out = out.select(&["date", "close", "position"])?;
+    out.cast_numeric(&["close", "position"])?;
+    Ok(out)
+}
+
+/// 乐咕乐股-基金仓位-股票型基金仓位（对应 akshare [`akshare.fund_stock_position_lg`]）。
+///
+/// # 返回列
+/// `date, close, position`
+pub fn fund_stock_position_lg() -> Result<Df> {
+    fund_position_lg_impl("pos-stock", "pos_stock")
+}
+
+/// 乐咕乐股-基金仓位-平衡混合型基金仓位（对应 akshare [`akshare.fund_balance_position_lg`]）。
+///
+/// # 返回列
+/// `date, close, position`
+pub fn fund_balance_position_lg() -> Result<Df> {
+    fund_position_lg_impl("pos-pingheng", "pos_pingheng")
+}
+
+/// 乐咕乐股-基金仓位-灵活配置型基金仓位（对应 akshare [`akshare.fund_linghuo_position_lg`]）。
+///
+/// # 返回列
+/// `date, close, position`
+pub fn fund_linghuo_position_lg() -> Result<Df> {
+    fund_position_lg_impl("pos-linghuo", "pos_linghuo")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

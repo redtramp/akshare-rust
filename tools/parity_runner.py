@@ -241,6 +241,17 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_profit_forecast_ths", ["000063", "预测年报每股收益"], "loose", "同花顺盈利预测"),
     ("stock_management_change_ths", ["000063"], "loose", "同花顺高管持股变动"),
     ("stock_shareholder_change_ths", ["000063"], "loose", "同花顺股东持股变动"),
+    # 批次3 阶段3e 乐咕系（历史序列长且持续追加，loose 只比列契约）
+    ("stock_market_pe_lg", ["上证"], "loose", "乐咕主板市盈率"),
+    ("stock_index_pe_lg", ["沪深300"], "loose", "乐咕指数市盈率"),
+    ("stock_market_pb_lg", ["上证"], "loose", "乐咕主板市净率"),
+    ("stock_index_pb_lg", ["上证50"], "loose", "乐咕指数市净率"),
+    ("stock_a_congestion_lg", [], "loose", "乐咕大盘拥挤度"),
+    ("stock_buffett_index_lg", [], "loose", "乐咕巴菲特指标"),
+    ("stock_ebs_lg", [], "loose", "乐咕股债利差"),
+    ("fund_stock_position_lg", [], "loose", "乐咕股票型基金仓位"),
+    ("fund_balance_position_lg", [], "loose", "乐咕平衡混合型基金仓位"),
+    ("fund_linghuo_position_lg", [], "loose", "乐咕灵活配置型基金仓位"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

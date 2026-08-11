@@ -36,6 +36,11 @@ use akshare_rust::futures::{
     futures_settle_gfex, futures_settle_ine, futures_settle_shfe,
 };
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
+use akshare_rust::legu::{
+    fund_balance_position_lg, fund_linghuo_position_lg, fund_stock_position_lg,
+    stock_a_congestion_lg, stock_buffett_index_lg, stock_ebs_lg, stock_index_pb_lg,
+    stock_index_pe_lg, stock_market_pb_lg, stock_market_pe_lg,
+};
 use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
 use akshare_rust::stock::{
     fund_etf_hist_em, stock_bid_ask_em, stock_board_concept_cons_em, stock_board_concept_hist_em,
@@ -650,6 +655,29 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(stock_shareholder_change_ths(s)?)
         }
+        // 批次3 阶段3e 乐咕系
+        "stock_market_pe_lg" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_market_pe_lg(s)?)
+        }
+        "stock_index_pe_lg" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_index_pe_lg(s)?)
+        }
+        "stock_market_pb_lg" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_market_pb_lg(s)?)
+        }
+        "stock_index_pb_lg" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_index_pb_lg(s)?)
+        }
+        "stock_a_congestion_lg" => Ok(stock_a_congestion_lg()?),
+        "stock_buffett_index_lg" => Ok(stock_buffett_index_lg()?),
+        "stock_ebs_lg" => Ok(stock_ebs_lg()?),
+        "fund_stock_position_lg" => Ok(fund_stock_position_lg()?),
+        "fund_balance_position_lg" => Ok(fund_balance_position_lg()?),
+        "fund_linghuo_position_lg" => Ok(fund_linghuo_position_lg()?),
         _ => Err(format!("未知函数: {func}").into()),
     }
 }
