@@ -2,7 +2,7 @@
 
 A Rust implementation of [akshare](https://github.com/akfamily/akshare): a financial data library built on pure HTTP + a built-in JS engine.
 
-> 🤖 This project was **developed by AI** (generated end-to-end by the Freebuff AI coding assistant); every interface is diff-verified against its Python akshare counterpart.
+> 🤖 This project was **developed by AI**; every interface is diff-verified against its Python akshare counterpart.
 
 Data retrieval **fully mirrors akshare's technical approach** (v1.0 does not use a browser):
 
