@@ -5757,6 +5757,210 @@ pub fn stock_rank_xzjp_ths() -> Result<Df> {
     )
 }
 
+// ============ 批次3 阶段3d 同花顺板块/新股/分红详情（HTML 表格 + v token） ============
+
+/// 行业板块名称列表（对应 akshare [`akshare.stock_board_industry_name_ths`]）。
+///
+/// 解析 `https://q.10jqka.com.cn/thshy/detail/code/881272/` 的 `div.cate_inner` 链接。
+///
+/// # 返回列
+/// `name, code`（均为字符串，代码为 6 位数字串）
+pub fn stock_board_industry_name_ths() -> Result<Df> {
+    let html =
+        crate::sources::ths::fetch_ths("https://q.10jqka.com.cn/thshy/detail/code/881272/")?;
+    let pairs = crate::sources::ths::parse_cate_inner(&html)?;
+    let rows: Vec<Vec<Option<String>>> = pairs
+        .iter()
+        .map(|(n, c)| vec![Some(n.clone()), Some(c.clone())])
+        .collect();
+    Df::from_string_rows(&["name", "code"], &rows)
+}
+
+/// 行业板块简介（对应 akshare [`akshare.stock_board_industry_info_ths`]）。
+///
+/// `symbol`：板块名称（如 `半导体`），内部先经名称列表解析出板块代码。
+///
+/// # 返回列
+/// `项目, 值`（值内换行折叠为 `/`）
+pub fn stock_board_industry_info_ths(symbol: &str) -> Result<Df> {
+    let name_df = stock_board_industry_name_ths()?;
+    let code = board_name_to_code(&name_df, symbol)?;
+    let url = format!("http://q.10jqka.com.cn/thshy/detail/code/{code}/");
+    let html = crate::sources::ths::fetch_ths(&url)?;
+    let pairs = crate::sources::ths::parse_board_infos(&html)?;
+    let rows: Vec<Vec<Option<String>>> = pairs
+        .iter()
+        .map(|(n, v)| vec![Some(n.clone()), Some(v.clone())])
+        .collect();
+    Df::from_string_rows(&["项目", "值"], &rows)
+}
+
+/// 概念板块名称列表（对应 akshare [`akshare.stock_board_concept_name_ths`]）。
+///
+/// 由 `https://q.10jqka.com.cn/gn/detail/code/307822/` 的 `cate_inner` 链接
+/// 与「概念时间表」分页（`gn/index`，对应 akshare `__stock_board_concept_summary_ths`）
+/// 合并得到；后者补充新概念，重复名称以后者为准（dict.update 语义）。
+///
+/// # 返回列
+/// `name, code`
+pub fn stock_board_concept_name_ths() -> Result<Df> {
+    let html =
+        crate::sources::ths::fetch_ths("https://q.10jqka.com.cn/gn/detail/code/307822/")?;
+    let mut pairs = crate::sources::ths::parse_cate_inner(&html)?;
+    let summary = crate::sources::ths::fetch_ths_summary(&|page: u32| {
+        format!("http://q.10jqka.com.cn/gn/index/field/addtime/order/desc/page/{page}/ajax/1/")
+    })?;
+    // dict.update 语义：已有名称更新代码，新名称追加（保持插入顺序）
+    for (name, code) in summary {
+        match pairs.iter_mut().find(|(n, _)| *n == name) {
+            Some(p) => p.1 = code,
+            None => pairs.push((name, code)),
+        }
+    }
+    let rows: Vec<Vec<Option<String>>> = pairs
+        .iter()
+        .map(|(n, c)| vec![Some(n.clone()), Some(c.clone())])
+        .collect();
+    Df::from_string_rows(&["name", "code"], &rows)
+}
+
+/// 概念板块简介（对应 akshare [`akshare.stock_board_concept_info_ths`]）。
+///
+/// `symbol`：板块名称（如 `阿里巴巴概念`），内部先经名称列表解析出板块代码。
+///
+/// # 返回列
+/// `项目, 值`
+pub fn stock_board_concept_info_ths(symbol: &str) -> Result<Df> {
+    let name_df = stock_board_concept_name_ths()?;
+    let code = board_name_to_code(&name_df, symbol)?;
+    let url = format!("http://q.10jqka.com.cn/gn/detail/code/{code}/");
+    let html = crate::sources::ths::fetch_ths(&url)?;
+    let pairs = crate::sources::ths::parse_board_infos(&html)?;
+    let rows: Vec<Vec<Option<String>>> = pairs
+        .iter()
+        .map(|(n, v)| vec![Some(n.clone()), Some(v.clone())])
+        .collect();
+    Df::from_string_rows(&["项目", "值"], &rows)
+}
+
+/// 板块名称 → 代码（在 `name/code` 双列表中按名称查找）。
+fn board_name_to_code(name_df: &Df, symbol: &str) -> Result<String> {
+    let (Some(names), Some(codes)) = (
+        name_df.inner().column("name").ok().and_then(|c| c.str().ok()),
+        name_df.inner().column("code").ok().and_then(|c| c.str().ok()),
+    ) else {
+        return Err(AkshareError::Empty("板块名称列表为空".into()));
+    };
+    for (n, c) in names.iter().zip(codes.iter()) {
+        if let (Some(n), Some(c)) = (n, c) {
+            if n == symbol {
+                return Ok(c.to_string());
+            }
+        }
+    }
+    Err(AkshareError::Param(format!("未知板块名称: {symbol}")))
+}
+
+/// 新股申购与中签（对应 akshare [`akshare.stock_ipo_ths`]）。
+///
+/// `symbol`：`全部A股/沪市主板/深市主板/创业板/科创板/京市主板`。
+///
+/// # 返回列
+/// `股票代码, 股票简称, 申购代码, 发行总数（万股）, 网上发行（万股）, 申购上限（万股）,
+/// 顶格申购需配市值（万元）, 发行价格, 发行市盈率, 行业市盈率, 申购日期, 中签率（%）,
+/// 中签号, 中签缴款日期, 上市日期, 打新收益（元）, 首日最高涨幅, 连板天数`
+pub fn stock_ipo_ths(symbol: &str) -> Result<Df> {
+    let code = match symbol {
+        "全部A股" => "all",
+        "沪市主板" => "hszb",
+        "深市主板" => "sszb",
+        "创业板" => "cyb",
+        "科创板" => "kcbsg",
+        "京市主板" => "bjzb",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "未知 symbol: {symbol}（可选：全部A股/沪市主板/深市主板/创业板/科创板/京市主板）"
+            )))
+        }
+    };
+    let url = format!("https://data.10jqka.com.cn/ipo/xgsgyzq/{code}/");
+    let html = crate::sources::ths::fetch_ths(&url)?;
+    ipo_ths_finalize(&html)
+}
+
+/// 港股新股申购与中签（对应 akshare [`akshare.stock_ipo_hk_ths`]）。
+///
+/// # 返回列
+/// 与 [`stock_ipo_ths`] 相同的 18 列
+pub fn stock_ipo_hk_ths() -> Result<Df> {
+    let html = crate::sources::ths::fetch_ths("https://data.10jqka.com.cn/ipo/xgsgyzq/hkstock/")?;
+    ipo_ths_finalize(&html)
+}
+
+/// 新股申购页公共收尾：解析 `table#maintable`（thead 表头 + tbody 数据行）。
+fn ipo_ths_finalize(html: &str) -> Result<Df> {
+    let (headers, rows) = crate::sources::ths::parse_ths_theaded_table(html)?;
+    if headers.is_empty() {
+        return Err(AkshareError::Empty("新股申购页缺少表头".into()));
+    }
+    let cols: Vec<&str> = headers.iter().map(|s| s.as_str()).collect();
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| r.iter().cloned().map(Some).collect())
+        .collect();
+    Df::from_string_rows(&cols, &string_rows)
+}
+
+/// 同花顺-分红融资-分红情况（对应 akshare [`akshare.stock_fhps_detail_ths`]）。
+///
+/// `symbol`：股票代码。页面为 GBK 编码，返回单表；日期列（董事会日期/
+/// 股东大会预案公告日期/实施公告日 + A股或B股登记日/除权除息日）截断为
+/// `YYYY-MM-DD`（无效值置 None），并按董事会日期升序。
+///
+/// # 返回列
+/// `报告期, 董事会日期, 股东大会预案公告日期, 实施公告日, 分红方案说明,`
+/// `(A股|B股)股权登记日, (A股|B股)除权除息日, 分红总额, 方案进度, 股利支付率, 税前分红率`
+pub fn stock_fhps_detail_ths(symbol: &str) -> Result<Df> {
+    let url = format!("https://basic.10jqka.com.cn/new/{symbol}/bonus.html");
+    let html = crate::sources::ths::fetch_ths(&url)?;
+    let (headers, rows) = crate::sources::ths::parse_ths_theaded_table(&html)?;
+    if headers.is_empty() {
+        return Err(AkshareError::Empty("分红页缺少表头".into()));
+    }
+    // 日期列：董事会日期/股东大会预案公告日期/实施公告日 + 登记日/除权除息日
+    let date_cols: Vec<&str> = headers
+        .iter()
+        .filter(|h| {
+            **h == "董事会日期"
+                || **h == "股东大会预案公告日期"
+                || **h == "实施公告日"
+                || h.ends_with("股权登记日")
+                || h.ends_with("除权除息日")
+        })
+        .map(|s| s.as_str())
+        .collect();
+    let cols: Vec<&str> = headers.iter().map(|s| s.as_str()).collect();
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| {
+            (0..cols.len())
+                .map(|i| {
+                    let v = r.get(i).cloned().unwrap_or_default();
+                    if v == "--" || v.is_empty() {
+                        None
+                    } else {
+                        Some(v)
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    let mut df = Df::from_string_rows(&cols, &string_rows)?;
+    df.cast_date(&date_cols)?;
+    df = df.sort_by("董事会日期", true, false)?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -7919,5 +8123,71 @@ mod tests {
         // 百分比列数值化
         let ratio = df.inner().column("增持数量占总股本比例").unwrap().f64().unwrap();
         assert_eq!(ratio.get(0), Some(5.0));
+    }
+
+    /// 板块名称列表：cate_inner 链接 → (name, code)。
+    #[test]
+    fn board_cate_inner_offline() {
+        let html = r#"<div class="cate_inner">
+            <a href="http://q.10jqka.com.cn/thshy/detail/code/881121/">半导体</a>
+            <a href="http://q.10jqka.com.cn/thshy/detail/code/881273/">白酒</a>
+        </div>"#;
+        let pairs = crate::sources::ths::parse_cate_inner(html).unwrap();
+        assert_eq!(pairs, vec![("半导体".into(), "881121".into()), ("白酒".into(), "881273".into())]);
+    }
+
+    /// 板块简介：dt/dd 提取 + 值内换行折叠为 `/`。
+    #[test]
+    fn board_infos_offline() {
+        let html = r#"<div class="board-infos">
+            <dt>今开</dt><dd>0.00</dd>
+            <dt>最新</dt><dd>2026-08-07
+收盘</dd>
+        </div>"#;
+        let pairs = crate::sources::ths::parse_board_infos(html).unwrap();
+        assert_eq!(
+            pairs,
+            vec![("今开".into(), "0.00".into()), ("最新".into(), "2026-08-07/收盘".into())]
+        );
+    }
+
+    /// 新股申购表格：thead th + tbody td（GBK 解码后的 HTML）。
+    #[test]
+    fn ipo_theaded_table_offline() {
+        let html = r#"<table id="maintable">
+            <thead><tr><th>股票代码</th><th>股票简称</th><th>发行价格</th></tr></thead>
+            <tbody>
+                <tr><td>301688</td><td>格林生物</td><td>-</td></tr>
+                <tr><td>600001</td><td>示例</td><td>10.50</td></tr>
+            </tbody>
+        </table>"#;
+        let (headers, rows) = crate::sources::ths::parse_ths_theaded_table(html).unwrap();
+        assert_eq!(headers, vec!["股票代码", "股票简称", "发行价格"]);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0], vec!["301688", "格林生物", "-"]);
+    }
+
+    /// 公司大事页两张 data_table_1 表格的 nth 选取。
+    #[test]
+    fn event_table_nth_offline() {
+        let html = r#"<table class="data_table_1 m_table m_hl">
+            <thead><tr><th>变动日期</th><th>变动人</th></tr></thead>
+            <tbody><tr><td>2026.04.20</td><td>阎大勇</td></tr></tbody>
+        </table>
+        <table class="m_table data_table_1 m_hl">
+            <thead><tr><th>公告日期</th><th>变动股东</th></tr></thead>
+            <tbody><tr><th>2025-08-05</th><td>华夏基金</td></tr></tbody>
+        </table>"#;
+        // 高管变动（第 0 张，th+td 单元格）
+        let (h1, r1) =
+            crate::sources::ths::parse_ths_theaded_table_sel(html, "table.data_table_1.m_table", 0)
+                .unwrap();
+        assert_eq!(h1, vec!["变动日期", "变动人"]);
+        assert_eq!(r1[0], vec!["2026.04.20", "阎大勇"]);
+        // 股东变动（第 1 张，首列日期为 th）
+        let (h2, r2) =
+            crate::sources::ths::parse_ths_theaded_table_sel(html, "table.m_table", 1).unwrap();
+        assert_eq!(h2, vec!["公告日期", "变动股东"]);
+        assert_eq!(r2[0], vec!["2025-08-05", "华夏基金"]);
     }
 }

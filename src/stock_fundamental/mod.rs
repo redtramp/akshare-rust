@@ -679,6 +679,347 @@ fn cell(v: &Value) -> Option<String> {
     }
 }
 
+// ============ 6. 同花顺-盈利预测/公司大事（4 个） ============
+
+/// 同花顺-盈利预测（对应 akshare [`akshare.stock_profit_forecast_ths`]）。
+///
+/// `symbol`：股票代码；`indicator`：
+/// `预测年报每股收益 / 预测年报净利润 / 业绩预测详表-机构 / 业绩预测详表-详细指标预测`。
+/// 页面为 GBK 编码的 `worth.html`；当页面含「本年度暂无机构做出业绩预测」时
+/// 前两个 indicator 返回空表，后两个改读前两张表（与 akshare 分支一致）。
+///
+/// # 返回列
+/// - 前两 indicator：`年度, 预测机构数, 最小值, 均值, 最大值, 行业平均数`
+/// - 机构详表：`机构名称, 研究员, 预测年报每股收益{年}预测 ×N, 预测年报净利润{年}预测 ×N, 报告日期`
+/// - 详细指标：`预测指标, {年}-实际值 ×M, 预测{年}-平均 ×K`
+pub fn stock_profit_forecast_ths(symbol: &str, indicator: &str) -> Result<Df> {
+    let url = format!("https://basic.10jqka.com.cn/new/{symbol}/worth.html");
+    let html = crate::sources::ths::fetch_ths(&url)?;
+    let no_forecast = html.contains("本年度暂无机构做出业绩预测");
+    match indicator {
+        "预测年报每股收益" => {
+            if no_forecast {
+                return Df::from_string_rows(
+                    &["年度", "预测机构数", "最小值", "均值", "最大值", "行业平均数"],
+                    &[],
+                );
+            }
+            pf_eps_net(&html, 0)
+        }
+        "预测年报净利润" => {
+            if no_forecast {
+                return Df::from_string_rows(
+                    &["年度", "预测机构数", "最小值", "均值", "最大值", "行业平均数"],
+                    &[],
+                );
+            }
+            pf_eps_net(&html, 1)
+        }
+        "业绩预测详表-机构" => {
+            // 有预测读第 2 张表，无预测读第 0 张（akshare 分支）
+            pf_org(&html, if no_forecast { 0 } else { 2 })
+        }
+        "业绩预测详表-详细指标预测" => {
+            let idx = if no_forecast { 1 } else { 3 };
+            pf_detail_idx(&html, idx)
+        }
+        _ => Err(AkshareError::Param(format!(
+            "未知 indicator: {indicator}（可选：预测年报每股收益/预测年报净利润/业绩预测详表-机构/业绩预测详表-详细指标预测）"
+        ))),
+    }
+}
+
+/// 每股收益/净利润年度汇总表（第 idx 张表）：`年度, 预测机构数, 最小值, 均值, 最大值, 行业平均数`。
+fn pf_eps_net(html: &str, idx: usize) -> Result<Df> {
+    let (headers, rows) = parse_table_nth(html, idx)?;
+    let cols: Vec<&str> = headers.iter().map(|s| s.as_str()).collect();
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| (0..cols.len()).map(|i| r.get(i).cloned()).collect())
+        .collect();
+    let mut df = Df::from_string_rows(&cols, &string_rows)?;
+    // 年度保持字符串（akshare astype(str)），其余数值化
+    let numeric: Vec<&str> = cols
+        .iter()
+        .copied()
+        .filter(|c| *c != "年度")
+        .collect();
+    df.cast_numeric(&numeric)?;
+    Ok(df)
+}
+
+/// 机构详表：两级表头展开为 9 列 + 前缀拼接（对应 akshare MultiIndex `item[1]` 处理）。
+///
+/// 页面表头结构：
+/// ```text
+/// 机构名称(rowspan2) | 研究员(rowspan2) | 预测年报每股收益（元）(colspan3) | 预测年报净利润（元）(colspan3) | 报告日期(rowspan2)
+///                   |                 | 2026预测 2027预测 2028预测 | 2026预测 2027预测 2028预测 |
+/// ```
+/// pandas 展开为 9 列 MultiIndex，akshare 取第 2 层再对每股收益/净利润列加前缀。
+pub(crate) fn pf_org(html: &str, idx: usize) -> Result<Df> {
+    // 解析 thead 两行单元格（含 colspan/rowspan）
+    let cells = parse_thead_rows(html, idx)?;
+    let col_count = cells.iter().map(|r| r.iter().map(|c| c.1).sum::<usize>()).max().unwrap_or(0);
+    if col_count == 0 {
+        return Err(AkshareError::Empty("机构详表无表头".into()));
+    }
+    // level0：第一行按 colspan 展开
+    let mut level0: Vec<&str> = Vec::with_capacity(col_count);
+    for (text, span) in &cells[0] {
+        for _ in 0..*span {
+            level0.push(text);
+        }
+    }
+    // level1：第二行补位；rowspan=2 的列（机构名称/研究员/报告日期）沿用 level0
+    let mut level1: Vec<&str> = level0.clone();
+    if let Some(row1) = cells.get(1) {
+        let mut pos = 0;
+        for (text, span) in row1 {
+            for _ in 0..*span {
+                if pos < level1.len() {
+                    level1[pos] = text;
+                }
+                pos += 1;
+            }
+        }
+    }
+    // 列名：前 2 列与末列取 level1，中间按 level0 分组加前缀
+    let mut cols: Vec<String> = Vec::with_capacity(col_count);
+    for (i, l0) in level0.iter().enumerate() {
+        if i < 2 || i + 1 == col_count {
+            cols.push(level1[i].to_string());
+        } else if l0.contains("每股收益") {
+            cols.push(format!("预测年报每股收益{}", level1[i]));
+        } else {
+            cols.push(format!("预测年报净利润{}", level1[i]));
+        }
+    }
+    let cols_ref: Vec<&str> = cols.iter().map(|s| s.as_str()).collect();
+    let string_rows: Vec<Vec<Option<String>>> = parse_table_rows(html, idx, col_count)?
+        .iter()
+        .map(|r| (0..col_count).map(|i| r.get(i).cloned()).collect())
+        .collect();
+    let mut df = Df::from_string_rows(&cols_ref, &string_rows)?;
+    df.cast_date(&["报告日期"])?;
+    // 每股收益三列数值化（akshare 中为 float64；净利润带「亿」单位保持字符串）
+    let eps_cols: Vec<&str> = cols_ref
+        .iter()
+        .copied()
+        .filter(|c| c.starts_with("预测年报每股收益"))
+        .collect();
+    if !eps_cols.is_empty() {
+        df.cast_numeric(&eps_cols)?;
+    }
+    Ok(df)
+}
+
+/// 解析第 `idx` 张表 thead 的单元格：`(文本, 展开列数)`，colspan 缺失按 1。
+fn parse_thead_rows(html: &str, idx: usize) -> Result<Vec<Vec<(String, usize)>>> {
+    let table_sel = Selector::parse("table")
+        .map_err(|e| AkshareError::js(format!("解析 table 选择器失败: {e}")))?;
+    let tr_sel = Selector::parse("tr")
+        .map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
+    let cell_sel = Selector::parse("th, td")
+        .map_err(|e| AkshareError::js(format!("解析 th/td 选择器失败: {e}")))?;
+    let doc = Html::parse_document(html);
+    let table = doc
+        .select(&table_sel)
+        .nth(idx)
+        .ok_or_else(|| AkshareError::Empty(format!("第 {idx} 张表不存在")))?;
+    let mut out = Vec::new();
+    for tr in table.select(&tr_sel) {
+        let mut row = Vec::new();
+        for cell in tr.select(&cell_sel) {
+            let span = cell
+                .value()
+                .attr("colspan")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(1);
+            row.push((collapse_text(&cell), span));
+        }
+        if !row.is_empty() {
+            out.push(row);
+        }
+    }
+    Ok(out)
+}
+
+/// 解析第 `idx` 张表 tbody 数据行（每行取前 `width` 个 td）。
+fn parse_table_rows(html: &str, idx: usize, width: usize) -> Result<Vec<Vec<String>>> {
+    let table_sel = Selector::parse("table")
+        .map_err(|e| AkshareError::js(format!("解析 table 选择器失败: {e}")))?;
+    let tbody_sel = Selector::parse("tbody")
+        .map_err(|e| AkshareError::js(format!("解析 tbody 选择器失败: {e}")))?;
+    let tr_sel = Selector::parse("tr")
+        .map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
+    let td_sel = Selector::parse("td")
+        .map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
+    let doc = Html::parse_document(html);
+    let table = doc
+        .select(&table_sel)
+        .nth(idx)
+        .ok_or_else(|| AkshareError::Empty(format!("第 {idx} 张表不存在")))?;
+    let mut out = Vec::new();
+    if let Some(tbody) = table.select(&tbody_sel).next() {
+        for tr in tbody.select(&tr_sel) {
+            let cells: Vec<String> = tr
+                .select(&td_sel)
+                .map(|td| collapse_text(&td))
+                .collect();
+            if !cells.is_empty() {
+                out.push(cells);
+            }
+        }
+    }
+    let _ = width;
+    Ok(out)
+}
+
+/// 详细指标预测表：列名 `（实际值）/（平均）` → `-实际值/-平均`（对应 akshare replace）。
+fn pf_detail_idx(html: &str, idx: usize) -> Result<Df> {
+    let (headers, rows) = parse_table_nth(html, idx)?;
+    let headers: Vec<String> = headers
+        .iter()
+        .map(|h| h.replace('（', "-").replace('）', ""))
+        .collect();
+    let cols: Vec<&str> = headers.iter().map(|s| s.as_str()).collect();
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| (0..cols.len()).map(|i| r.get(i).cloned()).collect())
+        .collect();
+    Df::from_string_rows(&cols, &string_rows)
+}
+
+/// 取第 `idx` 张 `<table>` 的 thead/tbody 内容。
+pub(crate) fn parse_table_nth(html: &str, idx: usize) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+    let table_sel = Selector::parse("table")
+        .map_err(|e| AkshareError::js(format!("解析 table 选择器失败: {e}")))?;
+    let doc = Html::parse_document(html);
+    let table = doc
+        .select(&table_sel)
+        .nth(idx)
+        .ok_or_else(|| AkshareError::Empty(format!("第 {idx} 张表不存在")))?;
+    let thead_sel = Selector::parse("thead")
+        .map_err(|e| AkshareError::js(format!("解析 thead 选择器失败: {e}")))?;
+    let tbody_sel = Selector::parse("tbody")
+        .map_err(|e| AkshareError::js(format!("解析 tbody 选择器失败: {e}")))?;
+    let tr_sel = Selector::parse("tr")
+        .map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
+    let th_sel = Selector::parse("th")
+        .map_err(|e| AkshareError::js(format!("解析 th 选择器失败: {e}")))?;
+    let td_sel = Selector::parse("td")
+        .map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
+
+    // 表头：所有 thead tr 的 th 文本（机构详表有两行，pandas 展开 MultiIndex）
+    let mut headers: Vec<String> = Vec::new();
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    if let Some(thead) = table.select(&thead_sel).next() {
+        for tr in thead.select(&tr_sel) {
+            let ths: Vec<String> = tr
+                .select(&th_sel)
+                .map(|th| collapse_text(&th))
+                .collect();
+            if !ths.is_empty() {
+                headers.extend(ths);
+            }
+        }
+    }
+    if let Some(tbody) = table.select(&tbody_sel).next() {
+        for tr in tbody.select(&tr_sel) {
+            let cells: Vec<String> = tr
+                .select(&td_sel)
+                .map(|td| collapse_text(&td))
+                .collect();
+            if !cells.is_empty() {
+                rows.push(cells);
+            }
+        }
+    }
+    Ok((headers, rows))
+}
+
+/// 折叠元素文本：逐文本节点 trim 后拼接（等价于 bs4 `get_text(strip=True)`）。
+pub(crate) fn collapse_text(el: &scraper::ElementRef<'_>) -> String {
+    el.text()
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .collect::<String>()
+}
+
+/// 同花顺-公司大事-高管持股变动（对应 akshare [`akshare.stock_management_change_ths`]）。
+///
+/// `symbol`：股票代码；页面 `event.html`（GB2312）。表格行内单元格含隐藏
+/// 节点，akshare 以「thead 文本 → 表头、tbody 文本 → 数据」整体切分重建，
+/// 此处等价：表头取 thead th 文本，数据行取 tbody 每行 th+td 文本（去空格）。
+///
+/// # 返回列
+/// `变动日期, 变动人, 与公司高管关系, 变动数量, 交易均价, 剩余股数, 股份变动途径`
+pub fn stock_management_change_ths(symbol: &str) -> Result<Df> {
+    let url = format!("https://basic.10jqka.com.cn/new/{symbol}/event.html");
+    let html = crate::sources::ths::fetch_ths(&url)?;
+    let (headers, rows) = crate::sources::ths::parse_ths_theaded_table_sel(
+        &html,
+        "table[class=\"data_table_1 m_table m_hl\"]",
+        0,
+    )?;
+    let rename = [("变动数量（股）", "变动数量"), ("交易均价（元）", "交易均价"), ("剩余股数（股）", "剩余股数")];
+    let cols: Vec<&str> = headers.iter().map(|s| s.as_str()).collect();
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| {
+            (0..cols.len())
+                .map(|i| r.get(i).map(|s| s.replace([' ', '\t'], "")))
+                .collect()
+        })
+        .collect();
+    let mut df = Df::from_string_rows(&cols, &string_rows)?;
+    for (from, to) in rename {
+        let _ = df.inner_mut().rename(from, (*to).into());
+    }
+    // 变动日期 2026.04.20 → 2026-04-20（对应 akshare to_datetime + dt.date）
+    df.cast_date(&["变动日期"])?;
+    df = df.sort_by("变动日期", true, false)?;
+    Ok(df)
+}
+
+/// 同花顺-公司大事-股东持股变动（对应 akshare [`akshare.stock_shareholder_change_ths`]）。
+///
+/// `symbol`：股票代码；页面 `event.html`。
+///
+/// # 返回列
+/// `公告日期, 变动股东, 变动数量, 交易均价, 剩余股份总数, 变动期间, 变动途径`
+pub fn stock_shareholder_change_ths(symbol: &str) -> Result<Df> {
+    let url = format!("https://basic.10jqka.com.cn/new/{symbol}/event.html");
+    let html = crate::sources::ths::fetch_ths(&url)?;
+    let (headers, rows) = crate::sources::ths::parse_ths_theaded_table_sel(
+        &html,
+        "table[class=\"m_table data_table_1 m_hl\"]",
+        0,
+    )?;
+    let rename = [
+        ("变动数量(股)", "变动数量"),
+        ("交易均价(元)", "交易均价"),
+        ("剩余股份总数(股)", "剩余股份总数"),
+    ];
+    let cols: Vec<&str> = headers.iter().map(|s| s.as_str()).collect();
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| {
+            (0..cols.len())
+                .map(|i| r.get(i).map(|s| s.replace([' ', '\t'], "")))
+                .collect()
+        })
+        .collect();
+    let mut df = Df::from_string_rows(&cols, &string_rows)?;
+    for (from, to) in rename {
+        let _ = df.inner_mut().rename(from, (*to).into());
+    }
+    df.cast_date(&["公告日期"])?;
+    df = df.sort_by("公告日期", true, false)?;
+    Ok(df)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

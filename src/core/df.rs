@@ -378,11 +378,11 @@ pub(crate) fn normalize_date(s: &str) -> Option<String> {
     if s.is_empty() {
         return None;
     }
-    // YYYY-MM-DD / YYYY/MM/DD / YYYYMMDD
+    // YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD / YYYYMMDD
     if s.len() >= 8
         && s.len() <= 10
         && s.bytes()
-            .all(|b| b.is_ascii_digit() || b == b'-' || b == b'/')
+            .all(|b| b.is_ascii_digit() || b == b'-' || b == b'/' || b == b'.')
     {
         let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
         if digits.len() == 8 {

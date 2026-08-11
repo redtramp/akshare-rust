@@ -111,6 +111,170 @@ pub fn fetch_ths_rank(url_for_page: &dyn Fn(u32) -> String) -> Result<Vec<Vec<St
     Ok(rows)
 }
 
+/// 抓取概念时间表全部分页并合并 `(名称, 代码)` 对（对应 akshare
+/// `__stock_board_concept_summary_ths`）。
+///
+/// 每页提取含 `detail` 的 `<a href=".../code/{code}/">` 链接；
+/// 页码取自 `page_info` span，找不到时仅取首页。
+pub fn fetch_ths_summary(url_for_page: &dyn Fn(u32) -> String) -> Result<Vec<(String, String)>> {
+    let first = fetch_ths(&url_for_page(1))?;
+    let total = total_pages(&first).max(1);
+    let mut out = extract_detail_links(&first);
+    for page in 2..=total {
+        let text = fetch_ths(&url_for_page(page))?;
+        out.extend(extract_detail_links(&text));
+    }
+    Ok(out)
+}
+
+/// 提取页面中所有含 `detail` 的 `<a>` 链接为 `(文本, 代码)`（代码取 href 倒数第 2 段）。
+fn extract_detail_links(html: &str) -> Vec<(String, String)> {
+    let a_sel = Selector::parse("a").expect("静态选择器");
+    let doc = Html::parse_document(html);
+    let mut out = Vec::new();
+    for a in doc.select(&a_sel) {
+        let Some(href) = a.value().attr("href") else {
+            continue;
+        };
+        if !href.contains("detail") {
+            continue;
+        }
+        let name = a.text().collect::<String>().trim().to_string();
+        let code = href.rsplit('/').nth(1).unwrap_or("").to_string();
+        if !name.is_empty() && !code.is_empty() {
+            out.push((name, code));
+        }
+    }
+    out
+}
+
+/// 解析同花顺板块名册页的 `div.cate_inner` 链接为 `(名称, 代码)` 列表
+/// （对应 akshare `_get_stock_board_industry_name_ths` / `_get_stock_board_concept_name_ths`）。
+pub fn parse_cate_inner(html: &str) -> Result<Vec<(String, String)>> {
+    let div_sel = Selector::parse("div.cate_inner")
+        .map_err(|e| AkshareError::js(format!("解析 cate_inner 选择器失败: {e}")))?;
+    let a_sel = Selector::parse("a").map_err(|e| AkshareError::js(format!("解析 a 选择器失败: {e}")))?;
+    let doc = Html::parse_document(html);
+    let Some(div) = doc.select(&div_sel).next() else {
+        return Err(AkshareError::Empty("同花顺板块页缺少 div.cate_inner".into()));
+    };
+    let mut out = Vec::new();
+    for a in div.select(&a_sel) {
+        let Some(href) = a.value().attr("href") else {
+            continue;
+        };
+        let name = a.text().collect::<String>().trim().to_string();
+        let code = href.rsplit('/').nth(1).unwrap_or("").to_string();
+        if !name.is_empty() && !code.is_empty() {
+            out.push((name, code));
+        }
+    }
+    Ok(out)
+}
+
+/// 解析板块简介页的 `div.board-infos`（dt=项目、dd=值，值内换行折叠为 `/`），
+/// 返回 `(项目, 值)` 列表（对应 akshare `stock_board_*_info_ths` 的 dt/dd 提取）。
+pub fn parse_board_infos(html: &str) -> Result<Vec<(String, String)>> {
+    let div_sel = Selector::parse("div.board-infos")
+        .map_err(|e| AkshareError::js(format!("解析 board-infos 选择器失败: {e}")))?;
+    let dt_sel = Selector::parse("dt").map_err(|e| AkshareError::js(format!("解析 dt 选择器失败: {e}")))?;
+    let dd_sel = Selector::parse("dd").map_err(|e| AkshareError::js(format!("解析 dd 选择器失败: {e}")))?;
+    let doc = Html::parse_document(html);
+    let Some(div) = doc.select(&div_sel).next() else {
+        return Err(AkshareError::Empty("同花顺板块简介页缺少 div.board-infos".into()));
+    };
+    let names: Vec<String> = div
+        .select(&dt_sel)
+        .map(|dt| dt.text().collect::<String>().trim().to_string())
+        .collect();
+    let values: Vec<String> = div
+        .select(&dd_sel)
+        .map(|dd| {
+            dd.text()
+                .collect::<String>()
+                .trim()
+                .replace('\n', "/")
+        })
+        .collect();
+    if names.len() != values.len() {
+        return Err(AkshareError::Empty(
+            "板块简介 dt/dd 数量不一致".into(),
+        ));
+    }
+    Ok(names.into_iter().zip(values).collect())
+}
+
+/// 解析含 `<thead>`/`<tbody>` 的数据表格（对应 akshare 的
+/// `thead th + tbody tr td` 提取，用于新股申购/分红/公司大事等页）。
+///
+/// 返回 `(表头, 数据行)`；表头取 thead 内首个 tr 的 th 文本，
+/// 数据行取 tbody 内每行 tr 的 th+td 单元格文本（新股页首列为日期 th）。
+pub fn parse_ths_theaded_table(html: &str) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+    parse_ths_theaded_table_sel(html, "table#maintable, table.m_table", 0)
+}
+
+/// [`parse_ths_theaded_table`] 的可选选择器版本：同一页面存在多张
+/// 同类表格时（如公司大事页两张 `data_table_1`），按选择器命中顺序
+/// 用 `nth`（0 起始）选取目标表。
+pub fn parse_ths_theaded_table_sel(
+    html: &str,
+    selector: &str,
+    nth: usize,
+) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+    let table_sel = Selector::parse(selector)
+        .map_err(|e| AkshareError::js(format!("解析表格选择器失败: {e}")))?;
+    let thead_sel = Selector::parse("thead")
+        .map_err(|e| AkshareError::js(format!("解析 thead 选择器失败: {e}")))?;
+    let tbody_sel = Selector::parse("tbody")
+        .map_err(|e| AkshareError::js(format!("解析 tbody 选择器失败: {e}")))?;
+    let th_sel = Selector::parse("th")
+        .map_err(|e| AkshareError::js(format!("解析 th 选择器失败: {e}")))?;
+    let tr_sel = Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
+    let td_sel = Selector::parse("td").map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
+
+    let doc = Html::parse_document(html);
+    let table = doc
+        .select(&table_sel)
+        .nth(nth)
+        .ok_or_else(|| {
+            AkshareError::Empty(format!("同花顺页面缺少数据表格 ({selector})"))
+        })?;
+
+    // 表头：thead 内首个 tr 的 th（get_text 折叠空白 → 拼接）
+    let mut headers: Vec<String> = Vec::new();
+    if let Some(thead) = table.select(&thead_sel).next() {
+        if let Some(tr) = thead.select(&tr_sel).next() {
+            headers = tr
+                .select(&th_sel)
+                .map(|th| collapse_text(&th))
+                .collect();
+        }
+    }
+
+    // 数据行：tbody 内每行 tr 的 th+td 单元格（新股页首列为日期 th）
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    if let Some(tbody) = table.select(&tbody_sel).next() {
+        for tr in tbody.select(&tr_sel) {
+            let mut cells: Vec<String> = Vec::new();
+            for cell in tr.select(&th_sel).chain(tr.select(&td_sel)) {
+                cells.push(collapse_text(&cell));
+            }
+            if !cells.is_empty() {
+                rows.push(cells);
+            }
+        }
+    }
+    Ok((headers, rows))
+}
+
+/// 折叠元素文本：逐文本节点 trim 后拼接（等价于 bs4 `get_text(strip=True)`）。
+fn collapse_text(el: &scraper::ElementRef<'_>) -> String {
+    el.text()
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .collect::<String>()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

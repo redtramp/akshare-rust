@@ -72,14 +72,18 @@ use akshare_rust::stock_feature::{
     stock_sy_profile_em, stock_sy_yq_em, stock_tfp_em, stock_value_em, stock_xgsglb_em,
     stock_xjll_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em, stock_zcfz_bj_em,
     stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em, stock_zh_b_spot_em,
+    stock_board_concept_info_ths, stock_board_concept_name_ths, stock_board_industry_info_ths,
+    stock_board_industry_name_ths, stock_fhps_detail_ths, stock_ipo_hk_ths, stock_ipo_ths,
 };
 use akshare_rust::stock_fundamental::{
     stock_financial_abstract_new_ths, stock_financial_abstract_ths,
     stock_financial_benefit_new_ths, stock_financial_benefit_ths,
     stock_financial_cash_new_ths, stock_financial_cash_ths,
     stock_financial_debt_new_ths, stock_financial_debt_ths,
+    stock_management_change_ths, stock_profit_forecast_ths,
     stock_restricted_release_detail_em, stock_restricted_release_queue_em,
     stock_restricted_release_stockholder_em, stock_restricted_release_summary_em,
+    stock_shareholder_change_ths,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
@@ -613,6 +617,38 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_contract_detail" => {
             let [s] = take1(func, args)?;
             Ok(futures_contract_detail(s)?)
+        }
+        // 批次3 阶段3d 同花顺板块/新股/公司大事
+        "stock_board_industry_name_ths" => Ok(stock_board_industry_name_ths()?),
+        "stock_board_industry_info_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_board_industry_info_ths(s)?)
+        }
+        "stock_board_concept_name_ths" => Ok(stock_board_concept_name_ths()?),
+        "stock_board_concept_info_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_board_concept_info_ths(s)?)
+        }
+        "stock_ipo_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_ipo_ths(s)?)
+        }
+        "stock_ipo_hk_ths" => Ok(stock_ipo_hk_ths()?),
+        "stock_fhps_detail_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_fhps_detail_ths(s)?)
+        }
+        "stock_profit_forecast_ths" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_profit_forecast_ths(s, i)?)
+        }
+        "stock_management_change_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_management_change_ths(s)?)
+        }
+        "stock_shareholder_change_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_shareholder_change_ths(s)?)
         }
         _ => Err(format!("未知函数: {func}").into()),
     }

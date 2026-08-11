@@ -26,7 +26,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 86 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
+> 截至当前共 96 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
 ### 东方财富（行情/K线/资金/板块）
 
@@ -106,8 +106,12 @@ println!("{}", df);
 | `stock_rank_ljqd_ths` / `stock_rank_ljqs_ths` | `ak.stock_rank_ljqd_ths` / `ak.stock_rank_ljqs_ths` | 量价齐跌/齐升 |
 | `stock_rank_xstp_ths` / `stock_rank_xxtp_ths` | `ak.stock_rank_xstp_ths` / `ak.stock_rank_xxtp_ths` | 向上/向下突破 |
 | `stock_rank_xzjp_ths` | `ak.stock_rank_xzjp_ths` | 险资举牌 |
+| `stock_board_industry_name_ths` / `stock_board_industry_info_ths` | `ak.stock_board_industry_*_ths` | 行业板块名称/简介 |
+| `stock_board_concept_name_ths` / `stock_board_concept_info_ths` | `ak.stock_board_concept_*_ths` | 概念板块名称/简介 |
+| `stock_ipo_ths` / `stock_ipo_hk_ths` | `ak.stock_ipo_ths` / `ak.stock_ipo_hk_ths` | 新股申购（A 股/港股） |
+| `stock_fhps_detail_ths` | `ak.stock_fhps_detail_ths` | 分红详情（GBK 页） |
 
-### 同花顺财务指标（stock_fundamental）
+### 同花顺财务/公司大事（stock_fundamental）
 
 | 函数 | 对应 akshare | 说明 |
 |---|---|---|
@@ -115,6 +119,8 @@ println!("{}", df);
 | `stock_financial_debt_ths` / `stock_financial_benefit_ths` / `stock_financial_cash_ths` | `ak.stock_financial_*_ths` | 资产负债/利润/现金流量表（旧系列，flashData 双重 JSON） |
 | `stock_financial_abstract_new_ths` | `ak.stock_financial_abstract_new_ths` | 重要指标（新系列，app_data 报表） |
 | `stock_financial_debt_new_ths` / `stock_financial_benefit_new_ths` / `stock_financial_cash_new_ths` | `ak.stock_financial_*_new_ths` | 资产负债/利润/现金流量表（新系列） |
+| `stock_profit_forecast_ths` | `ak.stock_profit_forecast_ths` | 盈利预测（两级表头展开） |
+| `stock_management_change_ths` / `stock_shareholder_change_ths` | `ak.stock_management_change_ths` / `ak.stock_shareholder_change_ths` | 高管/股东持股变动 |
 
 ### 金十数据中心（中国宏观）
 

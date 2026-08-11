@@ -230,6 +230,17 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("macro_china_non_man_pmi", [], "loose", "中国官方非制造业PMI"),
     ("macro_china_fx_reserves_yearly", [], "loose", "中国外汇储备"),
     ("macro_china_m2_yearly", [], "loose", "中国M2货币供应"),
+    # 批次3 阶段3d 同花顺板块/新股/公司大事
+    ("stock_board_industry_name_ths", [], "loose", "同花顺行业板块名称"),
+    ("stock_board_industry_info_ths", ["半导体"], "loose", "同花顺行业板块简介"),
+    ("stock_board_concept_name_ths", [], "loose", "同花顺概念板块名称"),
+    ("stock_board_concept_info_ths", ["阿里巴巴概念"], "loose", "同花顺概念板块简介"),
+    ("stock_ipo_ths", ["全部A股"], "loose", "同花顺新股申购"),
+    ("stock_ipo_hk_ths", [], "loose", "同花顺港股新股申购"),
+    ("stock_fhps_detail_ths", ["000063"], "loose", "同花顺分红详情"),
+    ("stock_profit_forecast_ths", ["000063", "预测年报每股收益"], "loose", "同花顺盈利预测"),
+    ("stock_management_change_ths", ["000063"], "loose", "同花顺高管持股变动"),
+    ("stock_shareholder_change_ths", ["000063"], "loose", "同花顺股东持股变动"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]
