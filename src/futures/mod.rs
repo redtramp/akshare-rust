@@ -1,11 +1,13 @@
 //! 期货数据（对应 akshare `futures/` 目录）。
 //!
-//! 首批实现：五家期货交易所结算参数（对应 akshare `futures/futures_settle.py`）：
-//! - [`futures_settle_cffex`]：中金所（CSV，GBK）
-//! - [`futures_settle_czce`]：郑商所（管道符分隔 txt）
-//! - [`futures_settle_gfex`]：广期所（POST JSON）
-//! - [`futures_settle_shfe`]：上期所（JSON）
-//! - [`futures_settle_ine`]：上能中心（JSON）
+//! 已实现：
+//! - 五家期货交易所结算参数（对应 akshare `futures/futures_settle.py`）：
+//!   [`futures_settle_cffex`]：中金所（CSV，GBK）、[`futures_settle_czce`]：郑商所（管道符 txt）、
+//!   [`futures_settle_gfex`]：广期所（POST JSON）、[`futures_settle_shfe`]：上期所（JSON）、
+//!   [`futures_settle_ine`]：上能中心（JSON）
+//! - 统一入口 [`futures_settle`]：按 `market` 分派到上述五家，输出 akshare 统一的
+//!   20 列规范字段（`SETTLE_OUTPUT_COLUMNS`，对应 `_normalize_settle_columns`）
+//! - 新浪期货合约详情 [`futures_contract_detail`]（对应 akshare `futures/futures_contract_detail.py`）
 //!
 //! 大商所（DCE）因网站反爬保护（412）暂缓，与 akshare 上游状态一致。
 //! 各接口均为「指定日期 → 该交易所全部期货合约的保证金/手续费/涨跌停参数」，
@@ -14,6 +16,8 @@
 use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
+use polars::prelude::*;
+use scraper::{Html, Selector};
 use serde_json::{Map, Value};
 
 /// 将「请求失败」映射为 akshare 语义的结果：
@@ -472,6 +476,296 @@ pub fn futures_settle_ine(date: &str) -> Result<Df> {
     parse_shfe_ine(&json, &d)
 }
 
+// ---------------------------------------------------------------------------
+// 统一结算参数入口（futures_settle）：20 列规范化
+// ---------------------------------------------------------------------------
+
+/// 统一的结算参数字段（对应 akshare `SETTLE_OUTPUT_COLUMNS`，20 列）。
+const SETTLE_OUTPUT_COLUMNS: [&str; 20] = [
+    "date",
+    "symbol",
+    "variety",
+    "settle_price",
+    "long_margin_ratio",
+    "short_margin_ratio",
+    "spec_long_margin_ratio",
+    "spec_short_margin_ratio",
+    "hedge_long_margin_ratio",
+    "hedge_short_margin_ratio",
+    "trade_fee_ratio",
+    "close_today_fee_ratio",
+    "delivery_fee_ratio",
+    "is_single_market",
+    "single_market_days",
+    "limit_ratio",
+    "position_limit",
+    "trade_limit",
+    "rise_limit_rate",
+    "fall_limit_rate",
+];
+
+/// 每交易所的「统一列 → 源列」映射（`None` = 无来源，输出空列）。
+///
+/// 对应 akshare `_normalize_settle_columns` 的 `field_mapping` 在各自交易所
+/// 原始列集合上求值的结果：目标列已存在则原样保留，否则取第一个命中的来源列；
+/// 一个来源列可被多个统一列复用（如 GFEX `spec_buy_rate` 同时映射到
+/// `long_margin_ratio` / `spec_long_margin_ratio` / `hedge_short_margin_ratio`，
+/// 含 akshare 上游的映射怪癖 `hedge_short_margin_ratio ← spec_buy_rate`）。
+fn settle_mapping(market: &str) -> &'static [(&'static str, Option<&'static str>)] {
+    const CFFEX: &[(&str, Option<&str>)] = &[
+        ("date", Some("date")),
+        ("symbol", Some("symbol")),
+        ("variety", Some("variety")),
+        ("settle_price", None),
+        ("long_margin_ratio", Some("long_margin_ratio")),
+        ("short_margin_ratio", Some("short_margin_ratio")),
+        ("spec_long_margin_ratio", None),
+        ("spec_short_margin_ratio", None),
+        ("hedge_long_margin_ratio", None),
+        ("hedge_short_margin_ratio", None),
+        ("trade_fee_ratio", Some("trade_fee_ratio")),
+        ("close_today_fee_ratio", Some("close_today_fee_ratio")),
+        ("delivery_fee_ratio", Some("delivery_fee_ratio")),
+        ("is_single_market", None),
+        ("single_market_days", None),
+        ("limit_ratio", None),
+        ("position_limit", None),
+        ("trade_limit", None),
+        ("rise_limit_rate", None),
+        ("fall_limit_rate", None),
+    ];
+    const CZCE: &[(&str, Option<&str>)] = &[
+        ("date", Some("date")),
+        ("symbol", Some("symbol")),
+        ("variety", Some("variety")),
+        ("settle_price", Some("settle_price")),
+        ("long_margin_ratio", Some("margin_ratio")),
+        ("short_margin_ratio", None),
+        ("spec_long_margin_ratio", None),
+        ("spec_short_margin_ratio", None),
+        ("hedge_long_margin_ratio", None),
+        ("hedge_short_margin_ratio", None),
+        ("trade_fee_ratio", None),
+        ("close_today_fee_ratio", None),
+        ("delivery_fee_ratio", None),
+        ("is_single_market", Some("is_single_market")),
+        ("single_market_days", Some("single_market_days")),
+        ("limit_ratio", Some("limit_ratio")),
+        ("position_limit", Some("position_limit")),
+        ("trade_limit", Some("trade_limit")),
+        ("rise_limit_rate", None),
+        ("fall_limit_rate", None),
+    ];
+    const GFEX: &[(&str, Option<&str>)] = &[
+        ("date", Some("date")),
+        ("symbol", Some("symbol")),
+        ("variety", Some("variety")),
+        ("settle_price", None),
+        ("long_margin_ratio", Some("spec_buy_rate")),
+        ("short_margin_ratio", Some("hedge_buy_rate")),
+        ("spec_long_margin_ratio", Some("spec_buy_rate")),
+        ("spec_short_margin_ratio", Some("hedge_buy_rate")),
+        ("hedge_long_margin_ratio", Some("hedge_buy_rate")),
+        ("hedge_short_margin_ratio", Some("spec_buy_rate")),
+        ("trade_fee_ratio", None),
+        ("close_today_fee_ratio", None),
+        ("delivery_fee_ratio", None),
+        ("is_single_market", None),
+        ("single_market_days", None),
+        ("limit_ratio", None),
+        ("position_limit", Some("client_buy_posi_quota")),
+        ("trade_limit", None),
+        ("rise_limit_rate", Some("rise_limit_rate")),
+        ("fall_limit_rate", Some("fall_limit")),
+    ];
+    const SHFE_INE: &[(&str, Option<&str>)] = &[
+        ("date", Some("date")),
+        ("symbol", Some("symbol")),
+        ("variety", Some("variety")),
+        ("settle_price", Some("settle_price")),
+        ("long_margin_ratio", None),
+        ("short_margin_ratio", None),
+        ("spec_long_margin_ratio", Some("spec_long_margin_ratio")),
+        ("spec_short_margin_ratio", Some("spec_short_margin_ratio")),
+        ("hedge_long_margin_ratio", Some("hedge_long_margin_ratio")),
+        ("hedge_short_margin_ratio", Some("hedge_short_margin_ratio")),
+        ("trade_fee_ratio", Some("trade_fee_ratio")),
+        ("close_today_fee_ratio", Some("close_today_fee_ratio")),
+        ("delivery_fee_ratio", None),
+        ("is_single_market", None),
+        ("single_market_days", None),
+        ("limit_ratio", None),
+        ("position_limit", None),
+        ("trade_limit", None),
+        ("rise_limit_rate", None),
+        ("fall_limit_rate", None),
+    ];
+    const UNSUPPORTED: &[(&str, Option<&str>)] = &[
+        ("date", None),
+        ("symbol", None),
+        ("variety", None),
+        ("settle_price", None),
+        ("long_margin_ratio", None),
+        ("short_margin_ratio", None),
+        ("spec_long_margin_ratio", None),
+        ("spec_short_margin_ratio", None),
+        ("hedge_long_margin_ratio", None),
+        ("hedge_short_margin_ratio", None),
+        ("trade_fee_ratio", None),
+        ("close_today_fee_ratio", None),
+        ("delivery_fee_ratio", None),
+        ("is_single_market", None),
+        ("single_market_days", None),
+        ("limit_ratio", None),
+        ("position_limit", None),
+        ("trade_limit", None),
+        ("rise_limit_rate", None),
+        ("fall_limit_rate", None),
+    ];
+    match market {
+        "CFFEX" => CFFEX,
+        "CZCE" => CZCE,
+        "GFEX" => GFEX,
+        "SHFE" | "INE" => SHFE_INE,
+        _ => UNSUPPORTED,
+    }
+}
+
+/// 统一结算参数规范化（对应 akshare `_normalize_settle_columns`）。
+///
+/// 按 `settle_mapping` 复制源列（保留 dtype，float64 仍是 float64），
+/// 无来源的统一列输出全空列；空表输入输出 20 列空表。
+fn normalize_settle(df: &Df, market: &str) -> Result<Df> {
+    if df.height() == 0 {
+        // 对应 akshare `if df.empty: return pd.DataFrame(columns=SETTLE_OUTPUT_COLUMNS)`
+        return Df::from_string_rows(&SETTLE_OUTPUT_COLUMNS, &[]);
+    }
+    let n = df.height();
+    let mut columns: Vec<Column> = Vec::with_capacity(SETTLE_OUTPUT_COLUMNS.len());
+    for (target, source) in settle_mapping(market) {
+        let col: Column = match source {
+            Some(src) => {
+                let mut c = df
+                    .inner()
+                    .column(src)
+                    .map_err(|e| AkshareError::Empty(format!("统一结算表缺源列 {src}: {e}")))?
+                    .clone();
+                c.rename(PlSmallStr::from_str(target));
+                c
+            }
+            None => StringChunked::from_iter_options(
+                PlSmallStr::from_str(target),
+                std::iter::repeat_n(None::<&str>, n),
+            )
+            .into_series()
+            .into(),
+        };
+        columns.push(col);
+    }
+    let inner = DataFrame::new(n, columns)
+        .map_err(|e| AkshareError::Empty(format!("构建统一结算表失败: {e}")))?;
+    Ok(Df::from_inner(inner))
+}
+
+/// 期货交易所结算参数（统一入口，对应 akshare [`akshare.futures_settle`]）。
+///
+/// `date`: 格式同 [`futures_settle_cffex`]（必填）。
+/// `market`: 交易所代码，`CFFEX` 中金所 / `CZCE` 郑商所 / `SHFE` 上期所 /
+/// `INE` 上能中心 / `GFEX` 广期所；不支持的代码返回 20 列空表
+/// （对应 akshare `print(f"Unsupported market: {market}")` 后返回空 DataFrame）。
+///
+/// # 返回列（20 列统一规范，部分列按交易所无数据为全空）
+/// `date, symbol, variety, settle_price, long_margin_ratio, short_margin_ratio,
+/// spec_long_margin_ratio, spec_short_margin_ratio, hedge_long_margin_ratio,
+/// hedge_short_margin_ratio, trade_fee_ratio, close_today_fee_ratio,
+/// delivery_fee_ratio, is_single_market, single_market_days, limit_ratio,
+/// position_limit, trade_limit, rise_limit_rate, fall_limit_rate`
+pub fn futures_settle(date: &str, market: &str) -> Result<Df> {
+    let m = market.trim().to_ascii_uppercase();
+    let raw = match m.as_str() {
+        "CFFEX" => futures_settle_cffex(date)?,
+        "CZCE" => futures_settle_czce(date)?,
+        "SHFE" => futures_settle_shfe(date)?,
+        "GFEX" => futures_settle_gfex(date)?,
+        "INE" => futures_settle_ine(date)?,
+        _ => return Df::from_string_rows(&SETTLE_OUTPUT_COLUMNS, &[]),
+    };
+    normalize_settle(&raw, &m)
+}
+
+// ---------------------------------------------------------------------------
+// 新浪期货合约详情（futures_contract_detail）
+// ---------------------------------------------------------------------------
+
+/// 新浪财经-期货合约详情（对应 akshare [`akshare.futures_contract_detail`]）。
+///
+/// `symbol`: 合约代码（如 `V2201`）。数据源
+/// `https://finance.sina.com.cn/futures/quotes/{symbol}.shtml`（GB2312 页面）。
+/// 页面第 7 张表（`id="table-futures-basic-data"`，akshare 用 `pd.read_html[6]`）
+/// 每行 6 个单元格（th/td 交替），akshare 拆成 3 组 `(item, value)` 对后纵向拼接。
+///
+/// # 返回列
+/// `item, value`
+pub fn futures_contract_detail(symbol: &str) -> Result<Df> {
+    let url = format!("https://finance.sina.com.cn/futures/quotes/{symbol}.shtml");
+    let http = HttpClient::default();
+    let text = match or_empty(http.get_text(&url, &Map::new(), None))? {
+        Some(t) => t,
+        None => return empty_df(),
+    };
+    parse_contract_detail(&text)
+}
+
+fn parse_contract_detail(text: &str) -> Result<Df> {
+    let table_sel = Selector::parse("#table-futures-basic-data")
+        .map_err(|e| AkshareError::Empty(format!("解析表格选择器失败: {e}")))?;
+    let tr_sel =
+        Selector::parse("tr").map_err(|e| AkshareError::Empty(format!("解析行选择器失败: {e}")))?;
+    let cell_sel = Selector::parse("td, th")
+        .map_err(|e| AkshareError::Empty(format!("解析单元格选择器失败: {e}")))?;
+
+    let doc = Html::parse_document(text);
+    let table = doc.select(&table_sel).next().ok_or_else(|| {
+        AkshareError::Empty("新浪期货合约详情页缺少基础数据表".into())
+    })?;
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    for tr in table.select(&tr_sel) {
+        // 单元格文本按空白折叠（对应 pandas read_html 的 `_remove_whitespace`：
+        // 上游 `交易时间` 等单元格含连续空格，pandas 折叠为单个空格）
+        let cells: Vec<String> = tr
+            .select(&cell_sel)
+            .map(|c| {
+                c.text()
+                    .collect::<String>()
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect();
+        rows.push(cells);
+    }
+    if rows.is_empty() {
+        return empty_df();
+    }
+    let width = rows.iter().map(Vec::len).max().unwrap_or(0);
+    // akshare 按列组纵向拼接：`data_one=iloc[:, :2]`、`data_two=iloc[:, 2:4]`、
+    // `data_three=iloc[:, 4:]` 各自取全部行后 concat(axis=0)。因此输出顺序是
+    // 先所有行的 (0,1) 列组、再所有行的 (2,3) 列组、最后所有行的 (4,5) 列组。
+    let mut pairs: Vec<[Option<String>; 2]> = Vec::new();
+    let mut col = 0;
+    while col + 1 < width {
+        for row in &rows {
+            let item = row.get(col).filter(|s| !s.is_empty()).cloned();
+            let value = row.get(col + 1).filter(|s| !s.is_empty()).cloned();
+            pairs.push([item, value]);
+        }
+        col += 2;
+    }
+    let rows_out: Vec<Vec<Option<String>>> =
+        pairs.into_iter().map(|p| p.to_vec()).collect();
+    Df::from_string_rows(&["item", "value"], &rows_out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -596,5 +890,116 @@ mod tests {
                 .height(),
             0
         );
+    }
+
+    #[test]
+    fn settle_mapping_is_20_columns() {
+        for m in ["CFFEX", "CZCE", "GFEX", "SHFE", "INE"] {
+            let map = settle_mapping(m);
+            assert_eq!(map.len(), 20, "{m} 映射应为 20 列");
+            let targets: Vec<&str> = map.iter().map(|(t, _)| *t).collect();
+            assert_eq!(targets, SETTLE_OUTPUT_COLUMNS, "{m} 列序须与规范一致");
+        }
+    }
+
+    #[test]
+    fn normalize_settle_czce_maps_and_keeps_dtypes() {
+        // 模拟 CZCE 原始表（全字符串列）
+        let text = "郑州商品交易所期货结算参数表(2026-01-19)\n\
+                    合约代码|当日结算价|是否单边市|连续单边市天数|交易保证金率(%)|涨跌停板(%)|交易手续费|手续费收取方式|交割手续费|日内平今仓交易手续费|日持仓限额|交易限额\n\
+                    AP603    |9,436.00   |N          |0              |10              |±9         |5.00       |绝对值           |0.00       |20.00      |1000       |\n\
+                    AP604    |9,389.00   |N          |0              |10              |±9         |5.00       |绝对值           |0.00       |20.00      |1000       |\n\
+                    AP605    |9,400.00   |N          |0              |10              |±9         |5.00       |绝对值           |0.00       |20.00      |1000       |\n\
+                    AP610    |8,113.00   |N          |0              |10              |±9         |5.00       |绝对值           |0.00       |20.00      |1000       |\n\
+                    AP611    |7,929.00   |N          |0              |10              |±9         |5.00       |绝对值           |0.00       |20.00      |1000       |\n\
+                    合计      |           |           |               |                |           |           |                 |           |           |           |\n";
+        let raw = parse_czce(text, "20260119").unwrap();
+        let unified = normalize_settle(&raw, "CZCE").unwrap();
+        assert_eq!(unified.column_names(), SETTLE_OUTPUT_COLUMNS);
+        assert_eq!(unified.height(), 5);
+        // 有映射的列保留值
+        let price = unified.inner().column("settle_price").unwrap().str().unwrap();
+        assert_eq!(price.get(0), Some("9,436.00"));
+        let margin = unified.inner().column("long_margin_ratio").unwrap().str().unwrap();
+        assert_eq!(margin.get(0), Some("10"));
+        // 无映射的列为全空
+        let sr = unified.inner().column("short_margin_ratio").unwrap().str().unwrap();
+        assert!(sr.get(0).is_none());
+        let tf = unified.inner().column("trade_fee_ratio").unwrap().str().unwrap();
+        assert!(tf.get(0).is_none());
+    }
+
+    #[test]
+    fn normalize_settle_gfex_copies_numeric_dtype() {
+        let json = serde_json::json!({
+            "code": "0",
+            "data": [
+                {"contractId": "lc2608", "specBuyRate": 0.2, "specBuy": 28944.0, "hedgeBuyRate": 0.2,
+                 "hedgeBuy": 28944.0, "riseLimitRate": 0.13, "riseLimit": 163520.0, "fallLimit": 125920,
+                 "agentTotBuyPosiQuota": -1.0, "selfTotBuyPosiQuota": 300.0, "clientBuyPosiQuota": 300.0,
+                 "selfTotBuySerLimit": 300.0, "clientBuySerLimit": 300.0, "tradeType": "0"}
+            ]
+        });
+        let raw = parse_gfex(&json, "20260119").unwrap();
+        let unified = normalize_settle(&raw, "GFEX").unwrap();
+        assert_eq!(unified.column_names(), SETTLE_OUTPUT_COLUMNS);
+        assert_eq!(unified.height(), 1);
+        // 数值源列复制后仍是 float64
+        let lmr = unified.inner().column("long_margin_ratio").unwrap().f64().unwrap();
+        assert_eq!(lmr.get(0), Some(0.2));
+        let hsr = unified.inner().column("hedge_short_margin_ratio").unwrap().f64().unwrap();
+        assert_eq!(hsr.get(0), Some(0.2)); // akshare 上游怪癖：← spec_buy_rate
+        let pos = unified.inner().column("position_limit").unwrap().f64().unwrap();
+        assert_eq!(pos.get(0), Some(300.0));
+        // 无来源列空
+        assert!(unified
+            .inner()
+            .column("settle_price")
+            .unwrap()
+            .str()
+            .unwrap()
+            .get(0)
+            .is_none());
+    }
+
+    #[test]
+    fn normalize_settle_empty_input_gives_20_empty_columns() {
+        let empty = empty_df().unwrap();
+        let unified = normalize_settle(&empty, "CZCE").unwrap();
+        assert_eq!(unified.height(), 0);
+        assert_eq!(unified.column_names(), SETTLE_OUTPUT_COLUMNS);
+    }
+
+    #[test]
+    fn parse_contract_detail_ok() {
+        let html = r#"<html><body>
+        <table id="table-futures-basic-data" class="table">
+        <tr><th>交易品种</th><td>聚氯乙烯</td><th>交易单位</th><td>5吨/手</td><th>报价单位</th><td>元(人民币/吨)</td></tr>
+        <tr><th>交易时间</th><td>上午 09:00-10:15 10:30-11:30  下午 13:30-15:00  夜间 21:00-23:00</td><th>最后交易日</th><td>合约月份第10个交易日</td><th>最后交割日</th><td>最后交易日后第3个交易日</td></tr>
+        <tr><th>交割方式</th><td>实物交割</td><th>交易代码</th><td>V</td><th>上市交易所</th><td>大连商品交易所</td></tr>
+        </table>
+        </body></html>"#;
+        let df = parse_contract_detail(html).unwrap();
+        assert_eq!(df.column_names(), vec!["item", "value"]);
+        assert_eq!(df.height(), 9); // 3 行 × 3 列组
+        let item = df.inner().column("item").unwrap().str().unwrap();
+        let value = df.inner().column("value").unwrap().str().unwrap();
+        // 列组纵向拼接：先所有行的 (0,1)，再 (2,3)，最后 (4,5)
+        assert_eq!(item.get(0), Some("交易品种"));
+        assert_eq!(value.get(0), Some("聚氯乙烯"));
+        assert_eq!(item.get(1), Some("交易时间"));
+        // 连续空格折叠为单个（对应 pandas read_html）
+        assert_eq!(value.get(1), Some("上午 09:00-10:15 10:30-11:30 下午 13:30-15:00 夜间 21:00-23:00"));
+        assert_eq!(item.get(2), Some("交割方式"));
+        assert_eq!(value.get(2), Some("实物交割"));
+        assert_eq!(item.get(3), Some("交易单位"));
+        assert_eq!(value.get(3), Some("5吨/手"));
+        assert_eq!(item.get(8), Some("上市交易所"));
+        assert_eq!(value.get(8), Some("大连商品交易所"));
+    }
+
+    #[test]
+    fn parse_contract_detail_missing_table_is_err() {
+        assert!(parse_contract_detail("<html><body>无表格</body></html>").is_err());
     }
 }

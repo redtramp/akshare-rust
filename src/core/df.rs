@@ -320,6 +320,14 @@ impl Df {
         &self.inner
     }
 
+    /// 从已有 polars DataFrame 构建（高级用法，保留列 dtype）。
+    ///
+    /// 用于需要按源列 dtype 原样复制列的场景（如期货结算统一入口
+    /// 把 float64 原始列映射到统一列名）。
+    pub fn from_inner(inner: DataFrame) -> Self {
+        Self { inner }
+    }
+
     /// 导出差分对比契约（供 `tools/parity_runner.py` 与 Python akshare 对比）。
     ///
     /// 输出：`{ok, columns:[{name,dtype}], height, head:[[..]]}`，

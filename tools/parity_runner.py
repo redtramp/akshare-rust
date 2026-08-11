@@ -198,6 +198,14 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("futures_settle_gfex", ["20260119"], "loose", "广期所-结算参数"),
     ("futures_settle_shfe", ["20260119"], "loose", "上期所-结算参数"),
     ("futures_settle_ine", ["20260119"], "loose", "上能中心-结算参数"),
+    # 批次2 期货结算参数统一入口（5 个）：20 列规范化，数据同各家原始接口
+    ("futures_settle", ["20260119", "CFFEX"], "strict", "结算参数统一入口-中金所"),
+    ("futures_settle", ["20260119", "CZCE"], "strict", "结算参数统一入口-郑商所"),
+    ("futures_settle", ["20260119", "GFEX"], "strict", "结算参数统一入口-广期所"),
+    ("futures_settle", ["20260119", "SHFE"], "strict", "结算参数统一入口-上期所"),
+    ("futures_settle", ["20260119", "INE"], "strict", "结算参数统一入口-上能中心"),
+    # 批次2 新浪期货合约详情：合约基础信息为静态数据，可安全 strict 对比
+    ("futures_contract_detail", ["V2201"], "strict", "期货合约详情"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]
@@ -268,17 +276,30 @@ def rust_contract(func: str, args: list[str]) -> dict:
         return {"ok": False, "error": f"parity bin 输出非 JSON: {e}; stdout={proc.stdout[:200]}"}
 
 
-def load_golden(func: str) -> dict | None:
-    path = os.path.join(GOLDEN_DIR, f"{func}.json")
+def golden_key(func: str, params: list[str]) -> str:
+    """golden 文件名：单用例函数直接用函数名；同名函数多个参数用例（如
+    futures_settle 分市场）追加参数摘要，避免互相覆盖。"""
+    if sum(1 for c in CASES if c[0] == func) <= 1:
+        return func
+    parts = []
+    for p in params:
+        safe = "".join(ch for ch in p if ch.isalnum())
+        parts.append(safe if safe else "_")
+    return f"{func}_{'_'.join(parts)}"
+
+
+def load_golden(func: str, params: list[str]) -> dict | None:
+    path = os.path.join(GOLDEN_DIR, f"{golden_key(func, params)}.json")
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             return json.load(f)
     return None
 
 
-def save_golden(func: str, contract: dict) -> None:
+def save_golden(func: str, params: list[str], contract: dict) -> None:
     os.makedirs(GOLDEN_DIR, exist_ok=True)
-    with open(os.path.join(GOLDEN_DIR, f"{func}.json"), "w", encoding="utf-8") as f:
+    path = os.path.join(GOLDEN_DIR, f"{golden_key(func, params)}.json")
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(contract, f, ensure_ascii=False, indent=2)
 
 
@@ -359,7 +380,9 @@ def main() -> int:
 
     if args.list:
         for func, params, mode, desc in CASES:
-            print(f"{func}({', '.join(params) or '-'})  [{mode}]  {desc}")
+            key = golden_key(func, params)
+            suffix = f" (golden: {key})" if key != func else ""
+            print(f"{func}({', '.join(params) or '-'})  [{mode}]  {desc}{suffix}")
         return 0
 
     cases = CASES
@@ -377,7 +400,7 @@ def main() -> int:
         if args.generate:
             try:
                 contract = py_contract(func, params)
-                save_golden(func, contract)
+                save_golden(func, params, contract)
                 status = "生成" if contract.get("ok") else "失败"
                 detail = (
                     f"{len(contract['columns'])} 列 x {contract['height']} 行"
@@ -393,7 +416,7 @@ def main() -> int:
             print(f"[{status}] {label} -> {detail}")
 
         if args.check:
-            golden = load_golden(func)
+            golden = load_golden(func, params)
             if golden is None:
                 print(f"[跳过] {label} (无 golden fixture，先运行 --generate)")
                 skipped += 1

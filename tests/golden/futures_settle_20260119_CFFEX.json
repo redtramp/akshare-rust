@@ -1,0 +1,198 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "date",
+      "dtype": "str"
+    },
+    {
+      "name": "symbol",
+      "dtype": "str"
+    },
+    {
+      "name": "variety",
+      "dtype": "str"
+    },
+    {
+      "name": "settle_price",
+      "dtype": "str"
+    },
+    {
+      "name": "long_margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "short_margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "spec_long_margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "spec_short_margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "hedge_long_margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "hedge_short_margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "trade_fee_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "close_today_fee_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "delivery_fee_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "is_single_market",
+      "dtype": "str"
+    },
+    {
+      "name": "single_market_days",
+      "dtype": "str"
+    },
+    {
+      "name": "limit_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "position_limit",
+      "dtype": "str"
+    },
+    {
+      "name": "trade_limit",
+      "dtype": "str"
+    },
+    {
+      "name": "rise_limit_rate",
+      "dtype": "str"
+    },
+    {
+      "name": "fall_limit_rate",
+      "dtype": "str"
+    }
+  ],
+  "height": 46,
+  "head": [
+    [
+      "20260119",
+      "IC2602",
+      "IC",
+      null,
+      "12%",
+      "12%",
+      null,
+      null,
+      null,
+      null,
+      "万分之0.23",
+      "1000%",
+      "万分之0.5",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "20260119",
+      "IC2603",
+      "IC",
+      null,
+      "12%",
+      "12%",
+      null,
+      null,
+      null,
+      null,
+      "万分之0.23",
+      "1000%",
+      "万分之0.5",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "20260119",
+      "IC2606",
+      "IC",
+      null,
+      "12%",
+      "12%",
+      null,
+      null,
+      null,
+      null,
+      "万分之0.23",
+      "1000%",
+      "万分之0.5",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "20260119",
+      "IC2609",
+      "IC",
+      null,
+      "12%",
+      "12%",
+      null,
+      null,
+      null,
+      null,
+      "万分之0.23",
+      "1000%",
+      "万分之0.5",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "20260119",
+      "IF2602",
+      "IF",
+      null,
+      "12%",
+      "12%",
+      null,
+      null,
+      null,
+      null,
+      "万分之0.23",
+      "1000%",
+      "万分之0.5",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ]
+}

@@ -25,8 +25,8 @@ use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
 };
 use akshare_rust::futures::{
-    futures_settle_cffex, futures_settle_czce, futures_settle_gfex, futures_settle_ine,
-    futures_settle_shfe,
+    futures_contract_detail, futures_settle, futures_settle_cffex, futures_settle_czce,
+    futures_settle_gfex, futures_settle_ine, futures_settle_shfe,
 };
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
@@ -547,6 +547,14 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_settle_ine" => {
             let [d] = take1(func, args)?;
             Ok(futures_settle_ine(d)?)
+        }
+        "futures_settle" => {
+            let [d, m] = take2(func, args)?;
+            Ok(futures_settle(d, m)?)
+        }
+        "futures_contract_detail" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_contract_detail(s)?)
         }
         _ => Err(format!("未知函数: {func}").into()),
     }

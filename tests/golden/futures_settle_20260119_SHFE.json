@@ -1,0 +1,198 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "date",
+      "dtype": "str"
+    },
+    {
+      "name": "symbol",
+      "dtype": "str"
+    },
+    {
+      "name": "variety",
+      "dtype": "str"
+    },
+    {
+      "name": "settle_price",
+      "dtype": "float64"
+    },
+    {
+      "name": "long_margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "short_margin_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "spec_long_margin_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "spec_short_margin_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "hedge_long_margin_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "hedge_short_margin_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "trade_fee_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "close_today_fee_ratio",
+      "dtype": "float64"
+    },
+    {
+      "name": "delivery_fee_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "is_single_market",
+      "dtype": "str"
+    },
+    {
+      "name": "single_market_days",
+      "dtype": "str"
+    },
+    {
+      "name": "limit_ratio",
+      "dtype": "str"
+    },
+    {
+      "name": "position_limit",
+      "dtype": "str"
+    },
+    {
+      "name": "trade_limit",
+      "dtype": "str"
+    },
+    {
+      "name": "rise_limit_rate",
+      "dtype": "str"
+    },
+    {
+      "name": "fall_limit_rate",
+      "dtype": "str"
+    }
+  ],
+  "height": 300,
+  "head": [
+    [
+      "20260119",
+      "cu2602",
+      "cu",
+      "100610.0",
+      null,
+      null,
+      "0.1",
+      "0.1",
+      "0.1",
+      "0.1",
+      "0.05",
+      "0.025",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "20260119",
+      "cu2603",
+      "cu",
+      "100650.0",
+      null,
+      null,
+      "0.09",
+      "0.09",
+      "0.08",
+      "0.08",
+      "0.05",
+      "0.025",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "20260119",
+      "cu2604",
+      "cu",
+      "100870.0",
+      null,
+      null,
+      "0.09",
+      "0.09",
+      "0.08",
+      "0.08",
+      "0.05",
+      "0.025",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "20260119",
+      "cu2605",
+      "cu",
+      "100780.0",
+      null,
+      null,
+      "0.09",
+      "0.09",
+      "0.08",
+      "0.08",
+      "0.05",
+      "0.025",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "20260119",
+      "cu2606",
+      "cu",
+      "100860.0",
+      null,
+      null,
+      "0.09",
+      "0.09",
+      "0.08",
+      "0.08",
+      "0.05",
+      "0.025",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ]
+}
