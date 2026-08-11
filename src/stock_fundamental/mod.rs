@@ -312,21 +312,25 @@ const THS_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.
 /// 股票所属市场代码（对应 akshare `__get_market_code`）。
 /// 深市（000/001/002/003/300）→ 33；沪市（600/601/603/605/688）→ 17；
 /// 北交所（920）→ 151；无法识别 → 0。
-fn market_code(symbol: &str) -> i64 {
+/// 代码不足 6 位报 `Param`（对应 akshare `raise "请输入正确的股票代码"`）。
+fn market_code(symbol: &str) -> Result<i64> {
+    if symbol.trim().len() < 6 {
+        return Err(AkshareError::Param("请输入正确的股票代码".into()));
+    }
     for p in ["000", "001", "002", "003", "300"] {
         if symbol.starts_with(p) {
-            return 33;
+            return Ok(33);
         }
     }
     for p in ["600", "601", "603", "605", "688"] {
         if symbol.starts_with(p) {
-            return 17;
+            return Ok(17);
         }
     }
     if symbol.starts_with("920") {
-        return 151;
+        return Ok(151);
     }
-    0
+    Ok(0)
 }
 
 /// 单元格转字符串，对齐 pandas `str()` 语义：布尔大写（`True`/`False`）、
@@ -571,7 +575,7 @@ fn fetch_new_finance(symbol: &str, indicator: &str, id: &str, periods: &[(&str, 
     let mut params = Map::new();
     params.insert("code".into(), Value::String(symbol.into()));
     params.insert("id".into(), Value::String(id.into()));
-    params.insert("market".into(), Value::from(market_code(symbol)));
+    params.insert("market".into(), Value::from(market_code(symbol)?));
     params.insert("type".into(), Value::String("stock".into()));
     params.insert("page".into(), Value::String("1".into()));
     params.insert("size".into(), Value::String("50".into()));
@@ -925,12 +929,17 @@ mod tests {
 
     #[test]
     fn market_code_mapping() {
-        assert_eq!(market_code("000063"), 33);
-        assert_eq!(market_code("300750"), 33);
-        assert_eq!(market_code("600519"), 17);
-        assert_eq!(market_code("688981"), 17);
-        assert_eq!(market_code("920001"), 151);
-        assert_eq!(market_code("123456"), 0);
+        assert_eq!(market_code("000063").unwrap(), 33);
+        assert_eq!(market_code("300750").unwrap(), 33);
+        assert_eq!(market_code("600519").unwrap(), 17);
+        assert_eq!(market_code("688981").unwrap(), 17);
+        assert_eq!(market_code("920001").unwrap(), 151);
+        assert_eq!(market_code("123456").unwrap(), 0);
+        // 代码不足 6 位报 Param（对应 akshare raise "请输入正确的股票代码"）
+        assert!(matches!(
+            market_code("123"),
+            Err(AkshareError::Param(_))
+        ));
     }
 
     #[test]

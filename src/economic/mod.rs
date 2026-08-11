@@ -42,30 +42,3 @@ macro_china_fn!(macro_china_cx_services_pmi_yearly, "中国财新服务业PMI报
 macro_china_fn!(macro_china_non_man_pmi, "中国官方非制造业PMI报告", "75");
 macro_china_fn!(macro_china_fx_reserves_yearly, "中国外汇储备报告", "76");
 macro_china_fn!(macro_china_m2_yearly, "中国M2货币供应年率报告", "59");
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn all_14_functions_exist_and_have_doc() {
-        // 编译期已保证 14 个宏展开函数存在；此处校验其返回契约（无网络，仅表头）
-        let names = [
-            macro_china_gdp_yearly,
-            macro_china_cpi_yearly,
-            macro_china_cpi_monthly,
-            macro_china_ppi_yearly,
-            macro_china_exports_yoy,
-            macro_china_imports_yoy,
-            macro_china_trade_balance,
-            macro_china_industrial_production_yoy,
-            macro_china_pmi_yearly,
-            macro_china_cx_pmi_yearly,
-            macro_china_cx_services_pmi_yearly,
-            macro_china_non_man_pmi,
-            macro_china_fx_reserves_yearly,
-            macro_china_m2_yearly,
-        ];
-        assert_eq!(names.len(), 14);
-    }
-}

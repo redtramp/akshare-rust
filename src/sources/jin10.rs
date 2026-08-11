@@ -104,6 +104,9 @@ pub fn macro_china_base(symbol: &str, attr_id: &str) -> Result<Df> {
     params.insert("attr_id".into(), Value::String(attr_id.into()));
 
     let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    // 上一页 max_date：翻页不前进（上游返回非 ISO 日期或忽略 max_date）时终止，
+    // 防御死循环；正常路径每页末行日期递减。
+    let mut prev_max = String::new();
     loop {
         params.insert("_".into(), Value::from(now_ms()));
         let json = http.get_json_with_headers(url, &params, &JIN10_HEADERS, None)?;
@@ -130,8 +133,14 @@ pub fn macro_china_base(symbol: &str, attr_id: &str) -> Result<Df> {
             .and_then(Value::as_array)
             .and_then(|a| a.first())
             .and_then(Value::as_str)
-            .unwrap_or_default();
-        params.insert("max_date".into(), Value::String(prev_day(last_date)));
+            .unwrap_or_default()
+            .to_string();
+        let next_max = prev_day(&last_date);
+        if next_max == prev_max {
+            break;
+        }
+        prev_max = next_max.clone();
+        params.insert("max_date".into(), Value::String(next_max));
     }
 
     let mut df = Df::from_string_rows(&JIN10_COLS, &rows)?;
