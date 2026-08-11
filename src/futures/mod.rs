@@ -16,8 +16,16 @@ use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use serde_json::{Map, Value};
 
-/// 默认结算参数日期（与 akshare `futures_settle.py` 默认值一致）。
-const DEFAULT_DATE: &str = "20260119";
+/// 将「请求失败」映射为 akshare 语义的结果：
+/// 非 2xx（页面不存在/数据未发布）→ 空表（akshare `if status != 200: return pd.DataFrame()`）；
+/// 传输/反爬/登录态错误 → 如实上报（akshare 对连接异常直接抛错，项目 §2.1.4 要求拦截时明确失败）。
+fn or_empty<T>(r: Result<T>) -> Result<Option<T>> {
+    match r {
+        Ok(v) => Ok(Some(v)),
+        Err(AkshareError::Status { .. }) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
 
 /// akshare 全局 UA（`futures_settle.py` 使用 `akshare.utils.cons.headers`）。
 const UA_CHROME: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
@@ -39,15 +47,15 @@ fn empty_df() -> Result<Df> {
 }
 
 /// 日期归一化为 `YYYYMMDD`（对应 akshare `cons.convert_date` 支持的三种写法）。
+///
+/// 非法日期返回 [`AkshareError::Param`]（akshare 对非法日期 `convert_date` 返回 None
+/// 后 `.strftime` 抛 AttributeError，同样是失败语义；Rust 侧显式报错更清晰）。
 fn convert_date(s: &str) -> Result<String> {
     let s = s.trim();
     let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
     if digits.len() == 8 && (s.len() == 8 || s.len() == 10) {
-        let (_y, m, d) = (
-            digits[0..4].parse::<u32>().unwrap_or(0),
-            digits[4..6].parse::<u32>().unwrap_or(0),
-            digits[6..8].parse::<u32>().unwrap_or(0),
-        );
+        let m = digits[4..6].parse::<u32>().unwrap_or(0);
+        let d = digits[6..8].parse::<u32>().unwrap_or(0);
         if (1..=12).contains(&m) && (1..=31).contains(&d) {
             return Ok(digits);
         }
@@ -91,17 +99,15 @@ const CFFEX_COLS: [&str; 8] = [
 
 /// 中国金融期货交易所-结算参数（对应 akshare [`akshare.futures_settle_cffex`]）。
 ///
-/// `date`: `YYYYMMDD` / `YYYY-MM-DD` / `YYYY/MM/DD`，缺省为当前交易日。
+/// `date`: `YYYYMMDD` / `YYYY-MM-DD` / `YYYY/MM/DD`（必填；缺省数据对应 akshare
+/// 默认日期 20260119）。
 /// 数据源 `http://www.cffex.com.cn/sj/jscs/{YYYYMM}/{DD}/{date}_1.csv`。
 ///
 /// # 返回列
 /// `date, symbol, variety, long_margin_ratio, short_margin_ratio, trade_fee_ratio,
 /// delivery_fee_ratio, close_today_fee_ratio`
 pub fn futures_settle_cffex(date: &str) -> Result<Df> {
-    let d = match convert_date(date) {
-        Ok(d) => d,
-        Err(_) => DEFAULT_DATE.to_string(),
-    };
+    let d = convert_date(date)?;
     let url = format!(
         "http://www.cffex.com.cn/sj/jscs/{}/{}/{}_1.csv",
         &d[..6],
@@ -109,10 +115,11 @@ pub fn futures_settle_cffex(date: &str) -> Result<Df> {
         d
     );
     let http = HttpClient::default();
-    let text = match http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", UA_CHROME)], None)
-    {
-        Ok(t) => t,
-        Err(_) => return empty_df(),
+    let text = match or_empty(
+        http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", UA_CHROME)], None),
+    )? {
+        Some(t) => t,
+        None => return empty_df(),
     };
     parse_cffex(&text, &d)
 }
@@ -123,6 +130,9 @@ fn parse_cffex(text: &str, date: &str) -> Result<Df> {
     if t.starts_with('<') || t.contains("要查看的页面不存在") {
         return empty_df();
     }
+    // 固定跳过前两行（表名 + 表头，对应 akshare `read_csv(skiprows=1)` 后位置重命名）。
+    // 注意：若上游 CSV 格式变化（如取消表名行），首行数据会被静默丢弃——当前实测稳定，
+    // 字段无引号/内嵌逗号，手动 split(',') 与 pandas read_csv 等价。
     let mut lines = t.lines();
     let _ = lines.next(); // 跳过表名行（如「期货合约结算业务参数表（20260119）」）
     let _ = lines.next(); // 跳过表头行（中文列名，akshare 用 skiprows=1 + 位置重命名）
@@ -180,27 +190,26 @@ const CZCE_COLS: [&str; 14] = [
 
 /// 郑州商品交易所-结算参数（对应 akshare [`akshare.futures_settle_czce`]）。
 ///
-/// `date`: 同上。数据源 `http://www.czce.com.cn/cn/DFSStaticFiles/Future/{YYYY}/{date}/FutureDataClearParams.txt`。
+/// `date`: 格式同 [`futures_settle_cffex`]（必填）。数据源
+/// `http://www.czce.com.cn/cn/DFSStaticFiles/Future/{YYYY}/{date}/FutureDataClearParams.txt`。
 ///
 /// # 返回列
 /// `date, symbol, variety, settle_price, is_single_market, single_market_days, margin_ratio,
 /// limit_ratio, trade_fee, fee_type, delivery_fee, close_today_fee, position_limit, trade_limit`
 pub fn futures_settle_czce(date: &str) -> Result<Df> {
-    let d = match convert_date(date) {
-        Ok(d) => d,
-        Err(_) => DEFAULT_DATE.to_string(),
-    };
+    let d = convert_date(date)?;
     let url = format!(
         "http://www.czce.com.cn/cn/DFSStaticFiles/Future/{}/{}/FutureDataClearParams.txt",
         &d[..4],
         d
     );
     let http = HttpClient::default();
-    let text =
-        match http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", UA_CHROME)], None) {
-            Ok(t) => t,
-            Err(_) => return empty_df(),
-        };
+    let text = match or_empty(
+        http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", UA_CHROME)], None),
+    )? {
+        Some(t) => t,
+        None => return empty_df(),
+    };
     parse_czce(&text, &d)
 }
 
@@ -281,7 +290,8 @@ const GFEX_NUMERIC: [&str; 10] = [
 
 /// 广州期货交易所-结算参数（对应 akshare [`akshare.futures_settle_gfex`]）。
 ///
-/// `date`: 同上。数据源 `http://www.gfex.com.cn/u/interfacesWebTtQueryTradPara/loadDayList`
+/// `date`: 格式同 [`futures_settle_cffex`]（必填）。数据源
+/// `http://www.gfex.com.cn/u/interfacesWebTtQueryTradPara/loadDayList`
 /// （POST `trade_type=0`，仅保留期货合约，过滤期权 `-` 合约）。
 ///
 /// # 返回列
@@ -289,18 +299,15 @@ const GFEX_NUMERIC: [&str; 10] = [
 /// rise_limit_rate, rise_limit, fall_limit, agent_tot_buy_posi_quota,
 /// self_tot_buy_posi_quota, client_buy_posi_quota`
 pub fn futures_settle_gfex(date: &str) -> Result<Df> {
-    let d = match convert_date(date) {
-        Ok(d) => d,
-        Err(_) => DEFAULT_DATE.to_string(),
-    };
+    let d = convert_date(date)?;
     let url = "http://www.gfex.com.cn/u/interfacesWebTtQueryTradPara/loadDayList";
     let mut params = Map::new();
     params.insert("trade_type".into(), Value::String("0".into()));
     let http = HttpClient::default();
     // 广期所要求表单体（裸 query 参数会因无 Content-Length 被拒 411）
-    let json = match http.post_form(url, &params, &GFEX_HEADERS) {
-        Ok(j) => j,
-        Err(_) => return empty_df(),
+    let json = match or_empty(http.post_form(url, &params, &GFEX_HEADERS))? {
+        Some(j) => j,
+        None => return empty_df(),
     };
     parse_gfex(&json, &d)
 }
@@ -427,42 +434,40 @@ fn parse_shfe_ine(json: &Value, date: &str) -> Result<Df> {
 
 /// 上海期货交易所-结算参数（对应 akshare [`akshare.futures_settle_shfe`]）。
 ///
-/// `date`: 同上。数据源 `https://www.shfe.com.cn/data/tradedata/future/dailydata/js{date}.dat`。
+/// `date`: 格式同 [`futures_settle_cffex`]（必填）。数据源
+/// `https://www.shfe.com.cn/data/tradedata/future/dailydata/js{date}.dat`。
 ///
 /// # 返回列
 /// `date, symbol, variety, settle_price, spec_long_margin_ratio, hedge_long_margin_ratio,
 /// spec_short_margin_ratio, hedge_short_margin_ratio, trade_fee_ratio,
 /// close_today_fee_ratio, is_close_today`
 pub fn futures_settle_shfe(date: &str) -> Result<Df> {
-    let d = match convert_date(date) {
-        Ok(d) => d,
-        Err(_) => DEFAULT_DATE.to_string(),
-    };
+    let d = convert_date(date)?;
     let url = format!("https://www.shfe.com.cn/data/tradedata/future/dailydata/js{d}.dat");
     let http = HttpClient::default();
-    let json = match http.get_json_with_headers(&url, &Map::new(), &[("User-Agent", UA_MSIE)], None)
-    {
-        Ok(j) => j,
-        Err(_) => return empty_df(),
+    let json = match or_empty(
+        http.get_json_with_headers(&url, &Map::new(), &[("User-Agent", UA_MSIE)], None),
+    )? {
+        Some(j) => j,
+        None => return empty_df(),
     };
     parse_shfe_ine(&json, &d)
 }
 
 /// 上海国际能源交易中心-结算参数（对应 akshare [`akshare.futures_settle_ine`]）。
 ///
-/// `date`: 同上。数据源 `https://www.ine.cn/data/tradedata/future/dailydata/js{date}.dat`。
+/// `date`: 格式同 [`futures_settle_cffex`]（必填）。数据源
+/// `https://www.ine.cn/data/tradedata/future/dailydata/js{date}.dat`。
 /// 返回列同 [`futures_settle_shfe`]。
 pub fn futures_settle_ine(date: &str) -> Result<Df> {
-    let d = match convert_date(date) {
-        Ok(d) => d,
-        Err(_) => DEFAULT_DATE.to_string(),
-    };
+    let d = convert_date(date)?;
     let url = format!("https://www.ine.cn/data/tradedata/future/dailydata/js{d}.dat");
     let http = HttpClient::default();
-    let json = match http.get_json_with_headers(&url, &Map::new(), &[("User-Agent", UA_MSIE)], None)
-    {
-        Ok(j) => j,
-        Err(_) => return empty_df(),
+    let json = match or_empty(
+        http.get_json_with_headers(&url, &Map::new(), &[("User-Agent", UA_MSIE)], None),
+    )? {
+        Some(j) => j,
+        None => return empty_df(),
     };
     parse_shfe_ine(&json, &d)
 }
