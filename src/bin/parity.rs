@@ -21,10 +21,14 @@ use akshare_rust::cninfo::{
 };
 use akshare_rust::economic::{
     macro_china_cpi_monthly, macro_china_cpi_yearly, macro_china_cx_pmi_yearly,
-    macro_china_cx_services_pmi_yearly, macro_china_exports_yoy, macro_china_fx_reserves_yearly,
-    macro_china_gdp_yearly, macro_china_imports_yoy, macro_china_industrial_production_yoy,
-    macro_china_m2_yearly, macro_china_non_man_pmi, macro_china_pmi_yearly, macro_china_ppi_yearly,
-    macro_china_trade_balance,
+    macro_china_cx_services_pmi_yearly, macro_china_exports_yoy, macro_china_fdi,
+    macro_china_fx_reserves_yearly, macro_china_gdp_yearly, macro_china_hk_building_amount,
+    macro_china_hk_building_volume, macro_china_hk_cpi, macro_china_hk_cpi_ratio,
+    macro_china_hk_gbp, macro_china_hk_gbp_ratio, macro_china_hk_ppi,
+    macro_china_hk_rate_of_unemployment, macro_china_hk_trade_diff_ratio,
+    macro_china_imports_yoy, macro_china_industrial_production_yoy, macro_china_m2_yearly,
+    macro_china_non_man_pmi, macro_china_pmi_yearly, macro_china_ppi_yearly,
+    macro_china_qyspjg, macro_china_trade_balance,
 };
 use akshare_rust::core::df::Df;
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
@@ -655,6 +659,18 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(stock_shareholder_change_ths(s)?)
         }
+        // 批次3 阶段3f 东财 datacenter-web 宏观
+        "macro_china_hk_cpi" => Ok(macro_china_hk_cpi()?),
+        "macro_china_hk_cpi_ratio" => Ok(macro_china_hk_cpi_ratio()?),
+        "macro_china_hk_rate_of_unemployment" => Ok(macro_china_hk_rate_of_unemployment()?),
+        "macro_china_hk_gbp" => Ok(macro_china_hk_gbp()?),
+        "macro_china_hk_gbp_ratio" => Ok(macro_china_hk_gbp_ratio()?),
+        "macro_china_hk_building_volume" => Ok(macro_china_hk_building_volume()?),
+        "macro_china_hk_building_amount" => Ok(macro_china_hk_building_amount()?),
+        "macro_china_hk_trade_diff_ratio" => Ok(macro_china_hk_trade_diff_ratio()?),
+        "macro_china_hk_ppi" => Ok(macro_china_hk_ppi()?),
+        "macro_china_qyspjg" => Ok(macro_china_qyspjg()?),
+        "macro_china_fdi" => Ok(macro_china_fdi()?),
         // 批次3 阶段3e 乐咕系
         "stock_market_pe_lg" => {
             let [s] = take1(func, args)?;

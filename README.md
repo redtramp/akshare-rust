@@ -26,7 +26,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 106 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
+> 截至当前共 117 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
 ### 东方财富（行情/K线/资金/板块）
 
@@ -142,6 +142,21 @@ println!("{}", df);
 | `macro_china_m2_yearly` | `ak.macro_china_m2_yearly` | M2 货币供应年率 |
 
 > 以上 14 个金十宏观函数输出统一 5 列：`商品, 日期, 今值, 预测值, 前值`（日期升序）。
+
+### 东方财富（宏观·datacenter-web）
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `macro_china_hk_cpi` / `macro_china_hk_cpi_ratio` | `ak.macro_china_hk_cpi*` | 香港 CPI（当月/同比） |
+| `macro_china_hk_rate_of_unemployment` | `ak.macro_china_hk_rate_of_unemployment` | 香港失业率 |
+| `macro_china_hk_gbp` / `macro_china_hk_gbp_ratio` | `ak.macro_china_hk_gbp*` | 香港 GDP（值/同比） |
+| `macro_china_hk_building_volume` / `macro_china_hk_building_amount` | `ak.macro_china_hk_building_*` | 香港楼宇买卖（宗数/金额） |
+| `macro_china_hk_trade_diff_ratio` | `ak.macro_china_hk_trade_diff_ratio` | 香港进出口贸易差额同比 |
+| `macro_china_hk_ppi` | `ak.macro_china_hk_ppi` | 香港 PPI |
+| `macro_china_qyspjg` | `ak.macro_china_qyspjg` | 企业商品价格指数 |
+| `macro_china_fdi` | `ak.macro_china_fdi` | 外商直接投资 |
+
+> 以上 11 个东财宏观函数统一走 `datacenter-web.eastmoney.com`（reportName 查询 + `finalize_report` 管线）。
 
 ### 期货交易所（结算参数 + 合约详情）
 

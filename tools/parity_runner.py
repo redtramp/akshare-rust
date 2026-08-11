@@ -252,6 +252,18 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("fund_stock_position_lg", [], "loose", "乐咕股票型基金仓位"),
     ("fund_balance_position_lg", [], "loose", "乐咕平衡混合型基金仓位"),
     ("fund_linghuo_position_lg", [], "loose", "乐咕灵活配置型基金仓位"),
+    # 批次3 阶段3f 东财 datacenter-web 宏观（历史序列持续追加，loose 只比列契约）
+    ("macro_china_hk_cpi", [], "loose", "香港CPI"),
+    ("macro_china_hk_cpi_ratio", [], "loose", "香港CPI年率"),
+    ("macro_china_hk_rate_of_unemployment", [], "loose", "香港失业率"),
+    ("macro_china_hk_gbp", [], "loose", "香港GDP"),
+    ("macro_china_hk_gbp_ratio", [], "loose", "香港GDP同比"),
+    ("macro_china_hk_building_volume", [], "loose", "香港楼宇买卖合约数量"),
+    ("macro_china_hk_building_amount", [], "loose", "香港楼宇买卖合约成交金额"),
+    ("macro_china_hk_trade_diff_ratio", [], "loose", "香港商品贸易差额年率"),
+    ("macro_china_hk_ppi", [], "loose", "香港制造业PPI年率"),
+    ("macro_china_qyspjg", [], "loose", "企业商品价格指数"),
+    ("macro_china_fdi", [], "loose", "外商直接投资数据"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]
