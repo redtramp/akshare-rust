@@ -2,6 +2,8 @@
 
 Rust 版 [akshare](https://github.com/akfamily/akshare)：纯 HTTP + 内置 JS 引擎的财经数据获取库。
 
+> 🤖 本项目由 **AI 开发**，每个接口均与 Python akshare 同名函数逐项差分对账验证。
+
 数据获取**完整参照 akshare 的技术实现方式**（v1.0 不使用浏览器）：
 
 - 纯 HTTP 请求（`reqwest` blocking）＋ UA 伪装 ＋ 指数退避重试 ＋ 多节点容灾
@@ -183,10 +185,10 @@ src/
 │   ├── df.rs       # Df（polars DataFrame 封装）：JSON 建表/排序/列转换，列序对齐 pandas
 │   └── js_engine.rs# rquickjs 封装：eval 加密 JS + 浏览器全局 shim 注入
 ├── sources/        # 数据源层（一个源一个模块）
-│   ├── eastmoney.rs# 东财：clist 分页（多节点故障转移）/ K 线 / 市场判定
-│   ├── ths.rs      # 同花顺：v token（JS）+ HTML 表格分页解析
+│   ├── eastmoney.rs# 东财：clist 分页（多节点故障转移）/ K 线 / 市场判定 / datacenter 报表
+│   ├── ths.rs      # 同花顺：v token（JS）+ HTML 表格/板块/公司大事解析
 │   └── jin10.rs    # 金十：数据中心报表翻页（max_date 游标）
-├── economic/       # 宏观：金十中国宏观指标 14 个（商品/日期/今值/预测值/前值）
+├── economic/       # 宏观：金十中国宏观 14 个 + 东财 datacenter-web 宏观 11 个（共 25 个）
 ├── futures/        # 期货：五家交易所结算参数 + 统一入口 + 新浪合约详情
 ├── cninfo/         # 巨潮资讯：datacenter 查询 + 内置 JS 加密
 ├── legu/           # 乐咕乐股：md5 token + 会话 cookie + csrf 两步流
@@ -194,6 +196,8 @@ src/
 ├── exchange/       # 交易所：上交所/深交所融资融券
 ├── xueqiu/         # 雪球：会话 cookie + 热度榜分页
 ├── stock/          # 股票接口（对应 akshare stock_* 函数）
+├── stock_feature/  # 股票特色接口（东财 datacenter 龙虎榜/沪深港通 + 同花顺板块/新股等）
+├── stock_fundamental/ # 基本面接口（限售股解禁 / 同花顺财务指标 / 公司大事）
 ├── index/          # 指数接口（对应 akshare index_* 函数）
 ├── fund/           # 基金接口（对应 akshare fund_* 函数）
 └── bin/
