@@ -20,6 +20,7 @@
 
 pub mod cninfo;
 pub mod core;
+pub mod economic;
 pub mod exchange;
 pub mod futures;
 pub mod fund;

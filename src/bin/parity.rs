@@ -19,6 +19,13 @@ use akshare_rust::cninfo::{
     stock_dividend_cninfo, stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo,
     stock_profile_cninfo,
 };
+use akshare_rust::economic::{
+    macro_china_cpi_monthly, macro_china_cpi_yearly, macro_china_cx_pmi_yearly,
+    macro_china_cx_services_pmi_yearly, macro_china_exports_yoy, macro_china_fx_reserves_yearly,
+    macro_china_gdp_yearly, macro_china_imports_yoy, macro_china_industrial_production_yoy,
+    macro_china_m2_yearly, macro_china_non_man_pmi, macro_china_pmi_yearly, macro_china_ppi_yearly,
+    macro_china_trade_balance,
+};
 use akshare_rust::core::df::Df;
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
 use akshare_rust::fund::{
@@ -541,6 +548,21 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s, i] = take2(func, args)?;
             Ok(stock_financial_cash_new_ths(s, i)?)
         }
+        // 批次3 金十宏观 14 个（无参）
+        "macro_china_gdp_yearly" => Ok(macro_china_gdp_yearly()?),
+        "macro_china_cpi_yearly" => Ok(macro_china_cpi_yearly()?),
+        "macro_china_cpi_monthly" => Ok(macro_china_cpi_monthly()?),
+        "macro_china_ppi_yearly" => Ok(macro_china_ppi_yearly()?),
+        "macro_china_exports_yoy" => Ok(macro_china_exports_yoy()?),
+        "macro_china_imports_yoy" => Ok(macro_china_imports_yoy()?),
+        "macro_china_trade_balance" => Ok(macro_china_trade_balance()?),
+        "macro_china_industrial_production_yoy" => Ok(macro_china_industrial_production_yoy()?),
+        "macro_china_pmi_yearly" => Ok(macro_china_pmi_yearly()?),
+        "macro_china_cx_pmi_yearly" => Ok(macro_china_cx_pmi_yearly()?),
+        "macro_china_cx_services_pmi_yearly" => Ok(macro_china_cx_services_pmi_yearly()?),
+        "macro_china_non_man_pmi" => Ok(macro_china_non_man_pmi()?),
+        "macro_china_fx_reserves_yearly" => Ok(macro_china_fx_reserves_yearly()?),
+        "macro_china_m2_yearly" => Ok(macro_china_m2_yearly()?),
         "stock_rank_cxg_ths" => {
             let [s] = take1(func, args)?;
             Ok(stock_rank_cxg_ths(s)?)

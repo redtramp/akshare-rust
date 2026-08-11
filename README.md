@@ -26,7 +26,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 72 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
+> 截至当前共 86 个数据接口，全部与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
 ### 东方财富（行情/K线/资金/板块）
 
@@ -116,6 +116,21 @@ println!("{}", df);
 | `stock_financial_abstract_new_ths` | `ak.stock_financial_abstract_new_ths` | 重要指标（新系列，app_data 报表） |
 | `stock_financial_debt_new_ths` / `stock_financial_benefit_new_ths` / `stock_financial_cash_new_ths` | `ak.stock_financial_*_new_ths` | 资产负债/利润/现金流量表（新系列） |
 
+### 金十数据中心（中国宏观）
+
+| 函数 | 对应 akshare | 说明 |
+|---|---|---|
+| `macro_china_gdp_yearly` | `ak.macro_china_gdp_yearly` | 中国 GDP 年率 |
+| `macro_china_cpi_yearly` / `macro_china_cpi_monthly` | `ak.macro_china_cpi_*` | 中国 CPI 年率/月率 |
+| `macro_china_ppi_yearly` | `ak.macro_china_ppi_yearly` | 中国 PPI 年率 |
+| `macro_china_exports_yoy` / `macro_china_imports_yoy` / `macro_china_trade_balance` | `ak.macro_china_*` | 出口/进口/贸易帐 |
+| `macro_china_industrial_production_yoy` | `ak.macro_china_industrial_production_yoy` | 规模以上工业增加值 |
+| `macro_china_pmi_yearly` / `macro_china_cx_pmi_yearly` / `macro_china_cx_services_pmi_yearly` / `macro_china_non_man_pmi` | `ak.macro_china_*_pmi*` | 官方/财新制造业/服务业/非制造业 PMI |
+| `macro_china_fx_reserves_yearly` | `ak.macro_china_fx_reserves_yearly` | 外汇储备 |
+| `macro_china_m2_yearly` | `ak.macro_china_m2_yearly` | M2 货币供应年率 |
+
+> 以上 14 个金十宏观函数输出统一 5 列：`商品, 日期, 今值, 预测值, 前值`（日期升序）。
+
 ### 期货交易所（结算参数 + 合约详情）
 
 | 函数 | 对应 akshare | 说明 |
@@ -142,7 +157,9 @@ src/
 │   └── js_engine.rs# rquickjs 封装：eval 加密 JS + 浏览器全局 shim 注入
 ├── sources/        # 数据源层（一个源一个模块）
 │   ├── eastmoney.rs# 东财：clist 分页（多节点故障转移）/ K 线 / 市场判定
-│   └── ths.rs      # 同花顺：v token（JS）+ HTML 表格分页解析
+│   ├── ths.rs      # 同花顺：v token（JS）+ HTML 表格分页解析
+│   └── jin10.rs    # 金十：数据中心报表翻页（max_date 游标）
+├── economic/       # 宏观：金十中国宏观指标 14 个（商品/日期/今值/预测值/前值）
 ├── futures/        # 期货：五家交易所结算参数 + 统一入口 + 新浪合约详情
 ├── cninfo/         # 巨潮资讯：datacenter 查询 + 内置 JS 加密
 ├── legu/           # 乐咕乐股：md5 token + 会话 cookie + csrf 两步流

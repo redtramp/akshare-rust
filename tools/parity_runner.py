@@ -215,6 +215,21 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_financial_debt_new_ths", ["000063", "按报告期"], "loose", "同花顺财务-资产负债表(新)"),
     ("stock_financial_benefit_new_ths", ["000063", "按报告期"], "loose", "同花顺财务-利润表(新)"),
     ("stock_financial_cash_new_ths", ["000063", "按报告期"], "loose", "同花顺财务-现金流量表(新)"),
+    # 批次3 阶段3c 金十宏观 14 个：历史数据随时间追加，loose 只比列契约
+    ("macro_china_gdp_yearly", [], "loose", "中国GDP年率"),
+    ("macro_china_cpi_yearly", [], "loose", "中国CPI年率"),
+    ("macro_china_cpi_monthly", [], "loose", "中国CPI月率"),
+    ("macro_china_ppi_yearly", [], "loose", "中国PPI年率"),
+    ("macro_china_exports_yoy", [], "loose", "中国出口年率"),
+    ("macro_china_imports_yoy", [], "loose", "中国进口年率"),
+    ("macro_china_trade_balance", [], "loose", "中国贸易帐"),
+    ("macro_china_industrial_production_yoy", [], "loose", "中国规模以上工业增加值"),
+    ("macro_china_pmi_yearly", [], "loose", "中国官方制造业PMI"),
+    ("macro_china_cx_pmi_yearly", [], "loose", "中国财新制造业PMI"),
+    ("macro_china_cx_services_pmi_yearly", [], "loose", "中国财新服务业PMI"),
+    ("macro_china_non_man_pmi", [], "loose", "中国官方非制造业PMI"),
+    ("macro_china_fx_reserves_yearly", [], "loose", "中国外汇储备"),
+    ("macro_china_m2_yearly", [], "loose", "中国M2货币供应"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]
