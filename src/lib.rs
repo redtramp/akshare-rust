@@ -18,16 +18,24 @@
 //! println!("{}", df);
 //! ```
 
+pub mod bond;
 pub mod cninfo;
 pub mod core;
+pub mod currency;
 pub mod economic;
+pub mod energy;
 pub mod exchange;
+pub mod fortune;
 pub mod futures;
 pub mod fund;
+pub mod fx;
 pub mod index;
 pub mod legu;
+pub mod news;
+pub mod option;
 pub mod sina;
 pub mod sources;
+pub mod spot;
 pub mod stock;
 pub mod stock_feature;
 pub mod stock_fundamental;

@@ -694,6 +694,11 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "fund_stock_position_lg" => Ok(fund_stock_position_lg()?),
         "fund_balance_position_lg" => Ok(fund_balance_position_lg()?),
         "fund_linghuo_position_lg" => Ok(fund_linghuo_position_lg()?),
+        // === BATCH2 OPTION (sina/exchange/em) ===
+        // === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
+        // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
+        // === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
+        // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),
     }
 }

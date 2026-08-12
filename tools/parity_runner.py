@@ -264,6 +264,11 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("macro_china_hk_ppi", [], "loose", "香港制造业PPI年率"),
     ("macro_china_qyspjg", [], "loose", "企业商品价格指数"),
     ("macro_china_fdi", [], "loose", "外商直接投资数据"),
+    # === BATCH2 OPTION (sina/exchange/em) ===
+    # === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
+    # === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
+    # === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
+    # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]
