@@ -11,7 +11,7 @@
 //! 日期为 `YYYY-MM-DD`（对应 pandas `.dt.date`），三个数值列转 Float64。
 
 use crate::core::df::Df;
-use crate::core::error::Result;
+use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use serde_json::{Map, Value};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -122,8 +122,7 @@ pub fn macro_china_base(symbol: &str, attr_id: &str) -> Result<Df> {
         for v in &values {
             let arr = v.as_array().cloned().unwrap_or_default();
             // 每行 4 元素：日期/今值/预测值/前值（对应 akshare 位置重命名）
-            let mut row: Vec<Option<String>> =
-                (0..4).map(|i| arr.get(i).and_then(cell)).collect();
+            let mut row: Vec<Option<String>> = (0..4).map(|i| arr.get(i).and_then(cell)).collect();
             row.insert(0, Some(symbol.to_string()));
             rows.push(row);
         }
@@ -147,6 +146,37 @@ pub fn macro_china_base(symbol: &str, attr_id: &str) -> Result<Df> {
     df.cast_numeric(&JIN10_NUMERIC)?;
     df = df.sort_by("日期", true, false)?;
     Ok(df)
+}
+
+/// 拉取金十 cdn 公开报表 JSON（`cdn.jin10.com/data_center/reports/{file}`）。
+///
+/// 对应 akshare 各 `macro_china_*` 的金十 cdn 实现（如 `sge.json` / `il_1.json` /
+/// `fs_1.json` / `exchange_rate.json` 等）。返回解析后的 JSON 根对象。
+pub(crate) fn fetch_jin10_cdn(file: &str) -> Result<Value> {
+    let url = format!("https://cdn.jin10.com/data_center/reports/{file}");
+    let http = HttpClient::default();
+    let mut params = Map::new();
+    params.insert("_".into(), Value::from(now_ms()));
+    http.get_json(&url, &params, None)
+}
+
+/// 拉取金十 cdn 公开报表原始文本（用于 `.js` 包裹的 JSON，如日度能源报告）。
+///
+/// 返回响应文本，调用方自行剥离 `var xxx = ` 前缀并解析 JSON。
+pub(crate) fn fetch_jin10_cdn_text(file: &str) -> Result<String> {
+    let url = format!("https://cdn.jin10.com/dc/reports/{file}");
+    let http = HttpClient::default();
+    let mut params = Map::new();
+    params.insert("v".into(), Value::from(now_ms()));
+    params.insert("_".into(), Value::from(now_ms() + 90));
+    let text = http.get_text(&url, &params, None)?;
+    let start = text
+        .find('{')
+        .ok_or_else(|| AkshareError::Empty("金十 cdn js 未找到 JSON".into()))?;
+    let end = text
+        .rfind('}')
+        .ok_or_else(|| AkshareError::Empty("金十 cdn js 未找到 JSON".into()))?;
+    Ok(text[start..=end].to_string())
 }
 
 #[cfg(test)]
