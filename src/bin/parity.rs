@@ -97,11 +97,11 @@ use akshare_rust::stock_fundamental::{
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use akshare_rust::currency::{currency_boc_safe, currency_boc_sina};
 use akshare_rust::energy::{energy_carbon_gz, energy_carbon_hb, energy_oil_detail, energy_oil_hist};
-use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_spot_quote, fx_swap_quote};
 use akshare_rust::news::{
     news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
     news_trade_notify_suspend_baidu,
 };
+use akshare_rust::fortune::hurun_rank;
 use akshare_rust::spot::{
     spot_corn_price_soozhu, spot_golden_benchmark_sge, spot_goods, spot_hist_sge,
     spot_hog_crossbred_soozhu, spot_hog_lean_price_soozhu, spot_hog_soozhu,
@@ -712,7 +712,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         // === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
         // === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
-        // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
+        // === BATCH5 LONGTAIL (spot/energy/currency/news/fortune) ===
         // ---- spot (搜猪网 / 上海黄金交易所 / 99期货 / 新浪) ----
         "spot_hog_soozhu" => Ok(spot_hog_soozhu()?),
         "spot_hog_year_trend_soozhu" => Ok(spot_hog_year_trend_soozhu()?),
@@ -777,11 +777,11 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(news_report_time_baidu(s)?)
         }
-        // ---- fx (中国外汇交易中心 chinamoney) ----
-        "fx_c_swap_cm" => Ok(fx_c_swap_cm()?),
-        "fx_pair_quote" => Ok(fx_pair_quote()?),
-        "fx_spot_quote" => Ok(fx_spot_quote()?),
-        "fx_swap_quote" => Ok(fx_swap_quote()?),
+        // ---- fortune (胡润研究院) ----
+        "hurun_rank" => {
+            let [a, b] = take2(func, args)?;
+            Ok(hurun_rank(a, b)?)
+        }
         _ => Err(format!("未知函数: {func}").into()),
     }
 }

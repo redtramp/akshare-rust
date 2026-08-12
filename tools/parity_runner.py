@@ -268,7 +268,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     # === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
     # === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
     # === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
-    # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
+    # === BATCH5 LONGTAIL (spot/energy/currency/news/fortune) ===
     # spot - 搜猪网
     ("spot_hog_soozhu", [], "loose", "搜猪网生猪价格"),
     ("spot_hog_year_trend_soozhu", [], "loose", "搜猪网生猪年度走势"),
@@ -305,11 +305,8 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("news_report_time_baidu", ["20251126"], "strict", "百度财报披露时间"),
     # news - 央视
     ("news_cctv", ["20240424"], "loose", "新闻联播文字稿"),
-    # fx - 中国外汇交易中心
-    ("fx_c_swap_cm", [], "loose", "人民币外汇掉期C-Swap曲线"),
-    ("fx_pair_quote", [], "loose", "外币对即期报价"),
-    ("fx_spot_quote", [], "loose", "人民币外汇即期报价"),
-    ("fx_swap_quote", [], "loose", "人民币外汇远掉报价"),
+    # fortune - 胡润研究院
+    ("hurun_rank", ["胡润百富榜", "2023"], "loose", "胡润百富榜"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

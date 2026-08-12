@@ -6,7 +6,7 @@
 pub mod carbon;
 pub mod currency_boc;
 pub mod eastmoney;
-pub mod fx_chinamoney;
+pub mod hurun;
 pub mod jin10;
 pub mod news_baidu;
 pub mod oil;
