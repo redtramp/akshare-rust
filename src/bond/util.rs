@@ -1,6 +1,6 @@
 //! bond 子模块（批次4）共享工具。
 //!
-//! 各数据源子模块（g_cm / g_jsl / g_cninfo / g_em / g_sina / g_exchange / g_calc）
+//! 各数据源子模块（g_cm / g_jsl / g_em / g_sina / g_exchange / g_calc）
 //! 共用的小工具：JSON 单元格规整、按「源字段名 → 目标列名」构建定列 DataFrame。
 
 use crate::core::df::Df;

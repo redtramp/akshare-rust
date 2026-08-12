@@ -65,7 +65,120 @@ impl Df {
         Ok(Self { inner })
     }
 
-    /// 从字符串二维数组构建数据表（列名与每行值一一对应）。
+    /// 从 JSON 对象数组构建数据表，并按 JSON 值类型推断列 dtype。
+    ///
+    /// 对应 akshare `pd.DataFrame(records)` 的类型推断：
+    /// - 含浮点数的列 → `Float64`
+    /// - 仅整数且无空值 → `Int64`
+    /// - 仅整数但含空值 → `Float64`（pandas 把含空整数列提升为 float64）
+    /// - 含字符串/布尔/其他 → `Utf8`(str)
+    ///
+    /// 与 [`Df::from_json_rows`]（全部按字符串）不同，本方法保留数值列的数值类型，
+    /// 用于需要原样输出接口字段类型（如 `bond_zh_cov_info` 按字段键直接建表）的场景。
+    pub fn from_json_rows_typed(rows: &[Value]) -> Result<Self> {
+        if rows.is_empty() {
+            return Ok(Self {
+                inner: DataFrame::empty(),
+            });
+        }
+        let Some(first) = rows.first().and_then(Value::as_object) else {
+            return Err(AkshareError::Empty("首行不是 JSON 对象".into()));
+        };
+        let col_names: Vec<&str> = first.keys().map(String::as_str).collect();
+
+        let mut columns: Vec<Column> = Vec::with_capacity(col_names.len());
+        for name in &col_names {
+            let mut nulls = 0usize;
+            let mut ints = 0usize;
+            let mut floats = 0usize;
+            let mut others = 0usize;
+            let mut int_vals: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+            let mut float_vals: Vec<Option<f64>> = Vec::with_capacity(rows.len());
+            let mut str_vals: Vec<Option<String>> = Vec::with_capacity(rows.len());
+            for r in rows {
+                match r.get(*name) {
+                    None | Some(Value::Null) => {
+                        nulls += 1;
+                        int_vals.push(None);
+                        float_vals.push(None);
+                        str_vals.push(None);
+                    }
+                    Some(Value::Number(n)) => {
+                        if n.is_i64() || n.is_u64() {
+                            let v = n.as_i64().or_else(|| n.as_u64().map(|v| v as i64));
+                            ints += 1;
+                            int_vals.push(v);
+                            float_vals.push(v.map(|v| v as f64));
+                            str_vals.push(v.map(|v| v.to_string()));
+                        } else {
+                            let v = n.as_f64();
+                            floats += 1;
+                            int_vals.push(v.map(|v| v as i64));
+                            float_vals.push(v);
+                            str_vals.push(v.map(|v| v.to_string()));
+                        }
+                    }
+                    Some(Value::Bool(b)) => {
+                        others += 1;
+                        int_vals.push(None);
+                        float_vals.push(None);
+                        str_vals.push(Some(b.to_string()));
+                    }
+                    Some(Value::String(s)) => {
+                        others += 1;
+                        int_vals.push(None);
+                        float_vals.push(None);
+                        str_vals.push(Some(s.clone()));
+                    }
+                    Some(_) => {
+                        others += 1;
+                        int_vals.push(None);
+                        float_vals.push(None);
+                        str_vals.push(Some(String::new()));
+                    }
+                }
+            }
+            let series: Column = if floats > 0 {
+                Float64Chunked::from_iter_options(
+                    PlSmallStr::from_str(name),
+                    float_vals.iter().copied(),
+                )
+                .into_series()
+                .into()
+            } else if others > 0 {
+                StringChunked::from_iter_options(
+                    PlSmallStr::from_str(name),
+                    str_vals.iter().map(|v| v.as_deref()),
+                )
+                .into_series()
+                .into()
+            } else if ints > 0 && nulls > 0 {
+                // pandas：含空值的整数列会被提升为 float64
+                Float64Chunked::from_iter_options(
+                    PlSmallStr::from_str(name),
+                    float_vals.iter().copied(),
+                )
+                .into_series()
+                .into()
+            } else if ints > 0 {
+                Int64Chunked::from_iter_options(PlSmallStr::from_str(name), int_vals.iter().copied())
+                    .into_series()
+                    .into()
+            } else {
+                // 全空列：pandas 推断为 object(str)，而非 float64
+                StringChunked::from_iter_options(
+                    PlSmallStr::from_str(name),
+                    str_vals.iter().map(|v| v.as_deref()),
+                )
+                .into_series()
+                .into()
+            };
+            columns.push(series);
+        }
+        let inner = DataFrame::new(rows.len(), columns)
+            .map_err(|e| AkshareError::Empty(format!("构建 DataFrame 失败: {e}")))?;
+        Ok(Self { inner })
+    }
     pub fn from_string_rows(col_names: &[&str], rows: &[Vec<Option<String>>]) -> Result<Self> {
         let mut columns: Vec<Column> = Vec::with_capacity(col_names.len());
         for (i, name) in col_names.iter().enumerate() {

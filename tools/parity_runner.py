@@ -267,7 +267,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     # === BATCH2 OPTION (sina/exchange/em) ===
     # === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
     # === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
-    # === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
+    # === BATCH4 BOND (chinamoney/jisilu/cninfo/em/sina/exchange/calc) ===
     # 阶段1: 外汇交易中心 chinamoney
     ("bond_spot_deal", [], "loose", "现券成交行情"),
     ("bond_spot_quote", [], "loose", "现券做市报价"),
@@ -280,12 +280,18 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("bond_cb_redeem_jsl", [], "loose", "集思录可转债强赎"),
     ("bond_cb_index_jsl", [], "loose", "集思录可转债等权指数"),
     ("bond_cb_adj_logs_jsl", ["128013"], "loose", "集思录转股价调整记录"),
-    # 阶段3: 巨潮 cninfo 债券发行
-    ("bond_corporate_issue_cninfo", ["20210911", "20211110"], "loose", "企业债发行"),
-    ("bond_cov_issue_cninfo", ["20210913", "20211112"], "loose", "可转债发行"),
-    ("bond_cov_stock_issue_cninfo", [], "loose", "可转债转股"),
-    ("bond_local_government_issue_cninfo", ["20210911", "20211110"], "loose", "地方债发行"),
-    ("bond_treasure_issue_cninfo", ["20210910", "20211109"], "loose", "国债发行"),
+    # 阶段3: 巨潮 cninfo 债券发行（已由 main a8c1ae6 在 src/cninfo/mod.rs 实现，本分支跳过）
+    # 阶段4: 东方财富 eastmoney 债券
+    ("bond_buy_back_hist_em", ["204001"], "loose", "质押式回购历史"),
+    ("bond_sh_buy_back_em", [], "loose", "上证质押式回购"),
+    ("bond_sz_buy_back_em", [], "loose", "深证质押式回购"),
+    ("bond_zh_hs_cov_min", ["sz128039", "15", "", "1979-09-01 09:32:00", "2222-01-01 09:32:00"], "loose", "可转债分钟行情"),
+    ("bond_zh_hs_cov_pre_min", ["sh113570"], "loose", "可转债盘前分时"),
+    ("bond_zh_cov", [], "loose", "可转债数据"),
+    ("bond_zh_cov_info", ["123121", "基本信息"], "loose", "可转债详情"),
+    ("bond_zh_cov_value_analysis", ["113527"], "loose", "可转债价值分析"),
+    ("bond_cov_comparison", [], "loose", "可转债比价表"),
+    ("bond_zh_us_rate", ["19901219"], "loose", "中美国债收益率"),
     # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约

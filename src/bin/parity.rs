@@ -96,10 +96,12 @@ use akshare_rust::stock_fundamental::{
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use akshare_rust::bond::{
-    bond_cb_adj_logs_jsl, bond_cb_index_jsl, bond_cb_jsl, bond_cb_redeem_jsl,
-    bond_china_close_return, bond_china_close_return_map, bond_corporate_issue_cninfo,
-    bond_cov_issue_cninfo, bond_cov_stock_issue_cninfo, bond_info_cm, bond_info_detail_cm,
-    bond_local_government_issue_cninfo, bond_spot_deal, bond_spot_quote, bond_treasure_issue_cninfo,
+    bond_buy_back_hist_em, bond_cb_adj_logs_jsl, bond_cb_index_jsl, bond_cb_jsl,
+    bond_cb_redeem_jsl, bond_china_close_return, bond_china_close_return_map,
+    bond_cov_comparison, bond_info_cm, bond_info_detail_cm, bond_sh_buy_back_em,
+    bond_spot_deal, bond_spot_quote, bond_sz_buy_back_em, bond_zh_cov,
+    bond_zh_cov_info, bond_zh_cov_value_analysis, bond_zh_hs_cov_min,
+    bond_zh_hs_cov_pre_min, bond_zh_us_rate,
 };
 use serde_json::json;
 
@@ -729,23 +731,34 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(bond_cb_adj_logs_jsl(s)?)
         }
-        // 阶段3: 巨潮 cninfo 债券发行
-        "bond_corporate_issue_cninfo" => {
-            let [s, e] = take2(func, args)?;
-            Ok(bond_corporate_issue_cninfo(s, e)?)
+        // 阶段4: 东方财富 eastmoney 债券
+        "bond_buy_back_hist_em" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_buy_back_hist_em(s)?)
         }
-        "bond_cov_issue_cninfo" => {
-            let [s, e] = take2(func, args)?;
-            Ok(bond_cov_issue_cninfo(s, e)?)
+        "bond_sh_buy_back_em" => Ok(bond_sh_buy_back_em()?),
+        "bond_sz_buy_back_em" => Ok(bond_sz_buy_back_em()?),
+        "bond_zh_hs_cov_min" => {
+            let [s, p, a, d0, d1] = take5(func, args)?;
+            Ok(bond_zh_hs_cov_min(s, p, a, d0, d1)?)
         }
-        "bond_cov_stock_issue_cninfo" => Ok(bond_cov_stock_issue_cninfo()?),
-        "bond_local_government_issue_cninfo" => {
-            let [s, e] = take2(func, args)?;
-            Ok(bond_local_government_issue_cninfo(s, e)?)
+        "bond_zh_hs_cov_pre_min" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_zh_hs_cov_pre_min(s)?)
         }
-        "bond_treasure_issue_cninfo" => {
-            let [s, e] = take2(func, args)?;
-            Ok(bond_treasure_issue_cninfo(s, e)?)
+        "bond_zh_cov" => Ok(bond_zh_cov()?),
+        "bond_zh_cov_info" => {
+            let [s, i] = take2(func, args)?;
+            Ok(bond_zh_cov_info(s, i)?)
+        }
+        "bond_zh_cov_value_analysis" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_zh_cov_value_analysis(s)?)
+        }
+        "bond_cov_comparison" => Ok(bond_cov_comparison()?),
+        "bond_zh_us_rate" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_zh_us_rate(s)?)
         }
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),

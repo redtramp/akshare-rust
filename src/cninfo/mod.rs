@@ -34,7 +34,7 @@ fn cninfo_headers(mcode: &str) -> Vec<(&'static str, String)> {
 ///
 /// 对应 akshare 每个 cninfo 函数中重复的
 /// `js_code.call("getResCode1") → requests.post(url, params, headers)` 流程。
-pub(crate) fn post_sysapi(endpoint: &str, params: &Map<String, Value>) -> Result<Vec<Value>> {
+fn post_sysapi(endpoint: &str, params: &Map<String, Value>) -> Result<Vec<Value>> {
     let mcode = cninfo_get_res_code()?;
     let headers: Vec<(&str, String)> = cninfo_headers(&mcode);
     let header_refs: Vec<(&str, &str)> = headers.iter().map(|(k, v)| (*k, v.as_str())).collect();
