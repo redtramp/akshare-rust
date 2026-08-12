@@ -109,6 +109,18 @@ use akshare_rust::legu::{
     stock_index_pe_lg, stock_market_pb_lg, stock_market_pe_lg,
 };
 use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
+use akshare_rust::option::{
+    option_cffex_hs300_daily_sina, option_cffex_hs300_spot_sina, option_cffex_sz50_daily_sina,
+    option_cffex_sz50_spot_sina, option_cffex_zz1000_daily_sina, option_cffex_zz1000_spot_sina,
+    option_commodity_hist_sina, option_contract_info_ctp, option_current_day_sse,
+    option_current_em, option_daily_stats_sse, option_daily_stats_szse, option_finance_board,
+    option_finance_minute_sina, option_finance_sse_underlying, option_hist_czce, option_hist_dce,
+    option_hist_gfex, option_hist_shfe, option_hist_yearly_czce, option_lhb_em, option_minute_em,
+    option_premium_analysis_em, option_risk_analysis_em, option_risk_indicator_sse,
+    option_sse_codes_sina, option_sse_daily_sina, option_sse_greeks_sina, option_sse_minute_sina,
+    option_sse_spot_price_sina, option_sse_underlying_spot_price_sina, option_value_analysis_em,
+    option_vol_gfex, option_vol_shfe,
+};
 use akshare_rust::stock::{
     fund_etf_hist_em, stock_bid_ask_em, stock_board_concept_cons_em, stock_board_concept_hist_em,
     stock_board_concept_name_em, stock_board_industry_cons_em, stock_board_industry_hist_em,
@@ -785,6 +797,125 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "fund_balance_position_lg" => Ok(fund_balance_position_lg()?),
         "fund_linghuo_position_lg" => Ok(fund_linghuo_position_lg()?),
         // === BATCH2 OPTION (sina/exchange/em) ===
+        "option_cffex_sz50_spot_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_sz50_spot_sina(s)?)
+        }
+        "option_cffex_sz50_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_sz50_daily_sina(s)?)
+        }
+        "option_cffex_hs300_spot_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_hs300_spot_sina(s)?)
+        }
+        "option_cffex_hs300_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_hs300_daily_sina(s)?)
+        }
+        "option_cffex_zz1000_spot_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_zz1000_spot_sina(s)?)
+        }
+        "option_cffex_zz1000_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_zz1000_daily_sina(s)?)
+        }
+        // === BATCH2 OPTION 续：新浪 SSE / 商品 / 交易所 / 东财 / 其他 ===
+        "option_sse_spot_price_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_spot_price_sina(s)?)
+        }
+        "option_sse_underlying_spot_price_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_underlying_spot_price_sina(s)?)
+        }
+        "option_sse_greeks_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_greeks_sina(s)?)
+        }
+        "option_sse_minute_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_minute_sina(s)?)
+        }
+        "option_sse_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_daily_sina(s)?)
+        }
+        "option_finance_minute_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_finance_minute_sina(s)?)
+        }
+        "option_commodity_hist_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_commodity_hist_sina(s)?)
+        }
+        "option_daily_stats_sse" => {
+            let [s] = take1(func, args)?;
+            Ok(option_daily_stats_sse(s)?)
+        }
+        "option_daily_stats_szse" => {
+            let [s] = take1(func, args)?;
+            Ok(option_daily_stats_szse(s)?)
+        }
+        "option_risk_indicator_sse" => {
+            let [s] = take1(func, args)?;
+            Ok(option_risk_indicator_sse(s)?)
+        }
+        "option_minute_em" => {
+            let [s] = take1(func, args)?;
+            Ok(option_minute_em(s)?)
+        }
+        "option_finance_sse_underlying" => {
+            let [s] = take1(func, args)?;
+            Ok(option_finance_sse_underlying(s)?)
+        }
+        "option_sse_codes_sina" => {
+            let [s, d, u] = take3(func, args)?;
+            Ok(option_sse_codes_sina(s, d, u)?)
+        }
+        "option_lhb_em" => {
+            let [s, ind, d] = take3(func, args)?;
+            Ok(option_lhb_em(s, ind, d)?)
+        }
+        "option_hist_czce" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_hist_czce(s, d)?)
+        }
+        "option_hist_yearly_czce" => {
+            let [s, y] = take2(func, args)?;
+            Ok(option_hist_yearly_czce(s, y)?)
+        }
+        "option_hist_dce" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_hist_dce(s, d)?)
+        }
+        "option_hist_gfex" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_hist_gfex(s, d)?)
+        }
+        "option_hist_shfe" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_hist_shfe(s, d)?)
+        }
+        "option_vol_shfe" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_vol_shfe(s, d)?)
+        }
+        "option_vol_gfex" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_vol_gfex(s, d)?)
+        }
+        "option_finance_board" => {
+            let [s, m] = take2(func, args)?;
+            Ok(option_finance_board(s, m)?)
+        }
+        "option_current_day_sse" => Ok(option_current_day_sse()?),
+        "option_current_em" => Ok(option_current_em()?),
+        "option_premium_analysis_em" => Ok(option_premium_analysis_em()?),
+        "option_risk_analysis_em" => Ok(option_risk_analysis_em()?),
+        "option_value_analysis_em" => Ok(option_value_analysis_em()?),
+        "option_contract_info_ctp" => Ok(option_contract_info_ctp()?),
         // === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
         // 东财 datacenter-web 宏观 36 个
         "macro_china_agricultural_index" => Ok(macro_china_agricultural_index()?),

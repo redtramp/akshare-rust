@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "日期",
+      "dtype": "str"
+    },
+    {
+      "name": "时间",
+      "dtype": "str"
+    },
+    {
+      "name": "价格",
+      "dtype": "int64"
+    },
+    {
+      "name": "成交",
+      "dtype": "int64"
+    },
+    {
+      "name": "持仓",
+      "dtype": "int64"
+    },
+    {
+      "name": "均价",
+      "dtype": "int64"
+    }
+  ],
+  "height": 0,
+  "head": []
+}

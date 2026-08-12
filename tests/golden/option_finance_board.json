@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "合约编码",
+      "dtype": "str"
+    },
+    {
+      "name": "合约简称",
+      "dtype": "str"
+    },
+    {
+      "name": "标的名称",
+      "dtype": "str"
+    },
+    {
+      "name": "类型",
+      "dtype": "str"
+    },
+    {
+      "name": "行权价",
+      "dtype": "str"
+    },
+    {
+      "name": "合约单位",
+      "dtype": "str"
+    },
+    {
+      "name": "期权行权日",
+      "dtype": "datetime"
+    },
+    {
+      "name": "行权交收日",
+      "dtype": "str"
+    }
+  ],
+  "height": 0,
+  "head": []
+}
