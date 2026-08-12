@@ -96,6 +96,7 @@ use akshare_rust::stock_fundamental::{
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use akshare_rust::bond::{
+    bond_cb_adj_logs_jsl, bond_cb_index_jsl, bond_cb_jsl, bond_cb_redeem_jsl,
     bond_china_close_return, bond_china_close_return_map, bond_info_cm, bond_info_detail_cm,
     bond_spot_deal, bond_spot_quote,
 };
@@ -716,6 +717,16 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "bond_info_cm" => {
             let [a, b, c, d, e, f, g, h] = take8(func, args)?;
             Ok(bond_info_cm(a, b, c, d, e, f, g, h)?)
+        }
+        "bond_cb_jsl" => {
+            let [c] = take1(func, args)?;
+            Ok(bond_cb_jsl(c)?)
+        }
+        "bond_cb_redeem_jsl" => Ok(bond_cb_redeem_jsl()?),
+        "bond_cb_index_jsl" => Ok(bond_cb_index_jsl()?),
+        "bond_cb_adj_logs_jsl" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_cb_adj_logs_jsl(s)?)
         }
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),
