@@ -174,7 +174,8 @@ mod tests {
         let files = available_js_files();
         assert!(files.contains(&"cninfo.js"));
         assert!(files.contains(&"ths.js"));
-        assert_eq!(files.len(), 5);
+        assert!(files.contains(&"sina.js"));
+        assert_eq!(files.len(), 6);
     }
 
     #[test]
