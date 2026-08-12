@@ -86,6 +86,49 @@ impl HttpClient {
         serde_json::from_str(&text).map_err(|e| AkshareError::json(url, e.to_string()))
     }
 
+    /// 带重试的 GET，返回解析后的 JSON，**即使 HTTP 非 2xx 也返回响应体**
+    /// （不 raise_for_status）。
+    ///
+    /// 用于检测业务级登录态错误：如雪球个股接口在无登录态时返回 HTTP 400 +
+    /// `{"error_code": 400016, ...}` 业务 JSON。响应体仍经过 [`detect_block_or_auth`]，
+    /// 命中 `400016` 等特征即返回 [`AkshareError::AuthRequired`]
+    /// （对应 akshare 抛 `APIError`，PLAN §D2 不伪造数据）。网络/连接错误仍按
+    /// 指数退避重试，仅业务级非 2xx 响应被原样返回供调用方判定。
+    pub fn get_json_allow_status(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        referer: Option<&str>,
+    ) -> Result<Value> {
+        let mut last_err: Option<AkshareError> = None;
+        for attempt in 0..self.max_retries {
+            let mut req = self.inner.get(url).query(params);
+            if let Some(r) = referer {
+                req = req.header(REFERER, r);
+            }
+            match req.send() {
+                Ok(resp) => {
+                    let bytes = resp.bytes().map_err(AkshareError::from)?;
+                    let text = decode_body(&bytes);
+                    // 反爬/登录态特征检测（命中 400016 即返回 AuthRequired）
+                    detect_block_or_auth(url, &text)?;
+                    return serde_json::from_str(&text)
+                        .map_err(|e| AkshareError::json(url, e.to_string()));
+                }
+                Err(e) => last_err = Some(AkshareError::Http(e)),
+            }
+            if attempt + 1 < self.max_retries {
+                let jitter: f64 =
+                    rand::random_range(self.random_delay_range.0..self.random_delay_range.1);
+                let delay = self.base_delay_secs * (2u32.pow(attempt)) as f64 + jitter;
+                std::thread::sleep(Duration::from_secs_f64(delay));
+            }
+        }
+        Err(last_err.unwrap_or_else(|| {
+            AkshareError::Blocked("GET(allow_status) 请求重试耗尽，未知错误".into())
+        }))
+    }
+
     /// 带重试的 GET（自定义请求头 + referer），返回解析后的 JSON。
     ///
     /// 乐咕等源需要 `X-CSRF-Token` 等自定义头配合会话 cookie。
@@ -333,7 +376,8 @@ impl HttpClient {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| AkshareError::Blocked("POST(表单) 请求重试耗尽，未知错误".into())))
+        Err(last_err
+            .unwrap_or_else(|| AkshareError::Blocked("POST(表单) 请求重试耗尽，未知错误".into())))
     }
 
     /// 核心重试循环：对应 akshare `request_with_retry`。

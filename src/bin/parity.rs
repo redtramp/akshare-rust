@@ -72,24 +72,26 @@ use akshare_rust::stock_feature::{
     stock_gpzy_profile_em, stock_hk_ggt_components_em, stock_hk_main_board_spot_em,
     stock_hsgt_board_rank_em, stock_hsgt_hist_em, stock_hsgt_hold_stock_em,
     stock_hsgt_individual_detail_em, stock_hsgt_individual_em,
-    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_jgdy_detail_em,
-    stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em, stock_lhb_hyyyb_em,
-    stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em, stock_lhb_stock_detail_date_em,
-    stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em, stock_lhb_traderstatistic_em,
-    stock_lhb_yyb_detail_em, stock_lhb_yybph_em, stock_lrb_em, stock_margin_account_info,
-    stock_new_a_spot_em, stock_pg_em, stock_qbzf_em, stock_qsjy_em, stock_sy_hy_em, stock_sy_jz_em,
+    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_ipo_hk_ths,
+    stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
+    stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
+    stock_lhb_stock_detail_date_em, stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em,
+    stock_lhb_traderstatistic_em, stock_lhb_yyb_detail_em, stock_lhb_yybph_em, stock_lrb_em,
+    stock_margin_account_info, stock_new_a_spot_em, stock_pg_em, stock_qbzf_em, stock_qsjy_em,
+    stock_rank_cxd_ths, stock_rank_cxfl_ths, stock_rank_cxg_ths, stock_rank_cxsl_ths,
+    stock_rank_ljqd_ths, stock_rank_ljqs_ths, stock_rank_lxsz_ths, stock_rank_lxxd_ths,
+    stock_rank_xstp_ths, stock_rank_xxtp_ths, stock_rank_xzjp_ths, stock_sy_hy_em, stock_sy_jz_em,
     stock_sy_profile_em, stock_sy_yq_em, stock_tfp_em, stock_value_em, stock_xgsglb_em,
     stock_xjll_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em, stock_zcfz_bj_em,
     stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em, stock_zh_b_spot_em,
-    stock_board_concept_info_ths, stock_board_concept_name_ths, stock_board_industry_info_ths,
-    stock_board_industry_name_ths, stock_fhps_detail_ths, stock_ipo_hk_ths, stock_ipo_ths,
 };
 use akshare_rust::stock_fundamental::{
-    stock_financial_abstract_new_ths, stock_financial_abstract_ths,
-    stock_financial_benefit_new_ths, stock_financial_benefit_ths,
-    stock_financial_cash_new_ths, stock_financial_cash_ths,
-    stock_financial_debt_new_ths, stock_financial_debt_ths,
-    stock_management_change_ths, stock_profit_forecast_ths,
+    stock_a_gxl_lg, stock_dzjy_hygtj, stock_dzjy_hyyybtj, stock_dzjy_mrmx, stock_dzjy_mrtj,
+    stock_dzjy_sctj, stock_dzjy_yybph, stock_financial_abstract_new_ths,
+    stock_financial_abstract_ths, stock_financial_benefit_new_ths, stock_financial_benefit_ths,
+    stock_financial_cash_new_ths, stock_financial_cash_ths, stock_financial_debt_new_ths,
+    stock_financial_debt_ths, stock_individual_basic_info_hk_xq, stock_individual_basic_info_us_xq,
+    stock_individual_basic_info_xq, stock_management_change_ths, stock_profit_forecast_ths,
     stock_restricted_release_detail_em, stock_restricted_release_queue_em,
     stock_restricted_release_stockholder_em, stock_restricted_release_summary_em,
     stock_shareholder_change_ths,
@@ -697,6 +699,43 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         // === BATCH2 OPTION (sina/exchange/em) ===
         // === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
+        "stock_a_gxl_lg" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_a_gxl_lg(s)?)
+        }
+        "stock_dzjy_hygtj" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_dzjy_hygtj(s)?)
+        }
+        "stock_dzjy_hyyybtj" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_dzjy_hyyybtj(s)?)
+        }
+        "stock_dzjy_mrmx" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_dzjy_mrmx(s, d0, d1)?)
+        }
+        "stock_dzjy_mrtj" => {
+            let [d0, d1] = take2(func, args)?;
+            Ok(stock_dzjy_mrtj(d0, d1)?)
+        }
+        "stock_dzjy_sctj" => Ok(stock_dzjy_sctj()?),
+        "stock_dzjy_yybph" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_dzjy_yybph(s)?)
+        }
+        "stock_individual_basic_info_xq" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_individual_basic_info_xq(s)?)
+        }
+        "stock_individual_basic_info_hk_xq" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_individual_basic_info_hk_xq(s)?)
+        }
+        "stock_individual_basic_info_us_xq" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_individual_basic_info_us_xq(s)?)
+        }
         // === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),

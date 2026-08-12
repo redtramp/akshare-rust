@@ -1019,6 +1019,623 @@ pub fn stock_shareholder_change_ths(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
+//
+// 本区域实现 akshare `stock_fundamental` 分类下、除已落地 15 个函数外的 10 个公开函数：
+// - 乐咕股息率：`stock_a_gxl_lg`（复用 `src/legu/mod.rs` 两步流）
+// - 东财 datacenter 大宗交易系列（6 个）：`stock_dzjy_hygtj` / `stock_dzjy_hyyybtj` /
+//   `stock_dzjy_mrmx` / `stock_dzjy_mrtj` / `stock_dzjy_sctj` / `stock_dzjy_yybph`
+//   复用 `stock_feature` 的 `datacenter` / `report_extra` / `fmt_ymd` 与
+//   `sources::eastmoney::finalize_report`（键→中文按位置重命名，序号 1-based 前置，
+//   日期列截断 `YYYY-MM-DD`；列名/列序与 akshare `reset_index + columns=[...]` 逐字一致）
+// - 雪球个股公司简介（3 个）：`stock_individual_basic_info_xq` / `_hk_xq` / `_us_xq`
+//   个股接口需登录态（`xq_a_token`），按 PLAN §D2 返回 `AuthRequired`（不伪造数据）
+
+// ============ 7. 乐咕-股息率-A 股（复用 legu 两步流） ============
+
+/// 乐咕乐股-股息率-A 股股息率（对应 akshare [`akshare.stock_a_gxl_lg`]）。
+///
+/// 复用 [`crate::legu::stock_a_gxl_lg`] 的两步流（`get_token_lg` md5 日期 token +
+/// 页面 `_csrf` → 会话 cookie + `X-CSRF-Token` 头请求 API）。
+///
+/// `symbol`：`上证A股` / `深证A股` / `创业板` / `科创板`（默认 `上证A股`）。
+///
+/// # 返回列
+/// `日期, 股息率`
+pub fn stock_a_gxl_lg(symbol: &str) -> Result<Df> {
+    crate::legu::stock_a_gxl_lg(symbol)
+}
+
+// ============ 8. 东财 datacenter 大宗交易系列（6 个） ============
+
+const HYGTJ_RENAME: [(&str, &str); 15] = [
+    ("SECURITY_CODE", "证券代码"),
+    ("SECURITY_NAME_ABBR", "证券简称"),
+    ("CLOSE_PRICE", "最新价"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("TRADE_DATE", "最近上榜日"),
+    ("DEAL_AMT", "总成交额"),
+    ("PREMIUM_RATIO", "折溢率"),
+    ("SUM_TURNOVERRATE", "成交总额/流通市值"),
+    ("DEAL_NUM", "上榜次数-总计"),
+    ("PREMIUM_TIMES", "上榜次数-溢价"),
+    ("DISCOUNT_TIMES", "上榜次数-折价"),
+    ("D1_AVG_ADJCHRATE", "上榜日后平均涨跌幅-1日"),
+    ("D5_AVG_ADJCHRATE", "上榜日后平均涨跌幅-5日"),
+    ("D10_AVG_ADJCHRATE", "上榜日后平均涨跌幅-10日"),
+    ("D20_AVG_ADJCHRATE", "上榜日后平均涨跌幅-20日"),
+];
+const HYGTJ_SELECT: [&str; 15] = [
+    "证券代码",
+    "证券简称",
+    "最新价",
+    "涨跌幅",
+    "最近上榜日",
+    "上榜次数-总计",
+    "上榜次数-溢价",
+    "上榜次数-折价",
+    "总成交额",
+    "折溢率",
+    "成交总额/流通市值",
+    "上榜日后平均涨跌幅-1日",
+    "上榜日后平均涨跌幅-5日",
+    "上榜日后平均涨跌幅-10日",
+    "上榜日后平均涨跌幅-20日",
+];
+const HYGTJ_NUMERIC: [&str; 12] = [
+    "最新价",
+    "涨跌幅",
+    "上榜次数-总计",
+    "上榜次数-溢价",
+    "上榜次数-折价",
+    "总成交额",
+    "折溢率",
+    "成交总额/流通市值",
+    "上榜日后平均涨跌幅-1日",
+    "上榜日后平均涨跌幅-5日",
+    "上榜日后平均涨跌幅-10日",
+    "上榜日后平均涨跌幅-20日",
+];
+const HYGTJ_DATE: [&str; 1] = ["最近上榜日"];
+
+/// 东方财富-数据中心-大宗交易-活跃A股统计（对应 akshare [`akshare.stock_dzjy_hygtj`]）。
+///
+/// `symbol`：时间区间 `近一月` / `近三月` / `近六月` / `近一年`（默认 `近三月`）。
+/// 报表 `RPT_BLOCKTRADE_ACSTA`，按 `DATE_TYPE_CODE` 过滤。
+///
+/// # 返回列
+/// `序号, 证券代码, 证券简称, 最新价, 涨跌幅, 最近上榜日, 上榜次数-总计, 上榜次数-溢价,
+/// 上榜次数-折价, 总成交额, 折溢率, 成交总额/流通市值, 上榜日后平均涨跌幅-1日/5日/10日/20日`
+pub fn stock_dzjy_hygtj(symbol: &str) -> Result<Df> {
+    let period = match symbol {
+        "近一月" => "1",
+        "近三月" => "3",
+        "近六月" => "6",
+        "近一年" => "12",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 近一月/近三月/近六月/近一年）"
+            )))
+        }
+    };
+    let filter = format!("(DATE_TYPE_CODE={period})");
+    let extra = report_extra(
+        "DEAL_NUM,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter(
+        "RPT_BLOCKTRADE_ACSTA",
+        "SECURITY_CODE,SECUCODE,SECURITY_NAME_ABBR,CLOSE_PRICE,CHANGE_RATE,TRADE_DATE,DEAL_AMT,PREMIUM_RATIO,SUM_TURNOVERRATE,DEAL_NUM,PREMIUM_TIMES,DISCOUNT_TIMES,D1_AVG_ADJCHRATE,D5_AVG_ADJCHRATE,D10_AVG_ADJCHRATE,D20_AVG_ADJCHRATE,DATE_TYPE_CODE",
+        &extra,
+        "5000",
+    )?;
+    let mut df = finalize_report(
+        &rows,
+        &HYGTJ_RENAME,
+        &HYGTJ_SELECT,
+        &HYGTJ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&HYGTJ_DATE)?;
+    Ok(df)
+}
+
+const HYYYBTJ_RENAME: [(&str, &str); 8] = [
+    ("OPERATEDEPT_NAME", "营业部名称"),
+    ("ONLIST_DATE", "最近上榜日"),
+    ("STOCK_DETAILS", "买入的股票"),
+    ("BUYER_NUM", "次数总计-买入"),
+    ("SELLER_NUM", "次数总计-卖出"),
+    ("TOTAL_BUYAMT", "成交金额统计-买入"),
+    ("TOTAL_SELLAMT", "成交金额统计-卖出"),
+    ("TOTAL_NETAMT", "成交金额统计-净买入额"),
+];
+const HYYYBTJ_SELECT: [&str; 8] = [
+    "最近上榜日",
+    "营业部名称",
+    "次数总计-买入",
+    "次数总计-卖出",
+    "成交金额统计-买入",
+    "成交金额统计-卖出",
+    "成交金额统计-净买入额",
+    "买入的股票",
+];
+const HYYYBTJ_NUMERIC: [&str; 5] = [
+    "次数总计-买入",
+    "次数总计-卖出",
+    "成交金额统计-买入",
+    "成交金额统计-卖出",
+    "成交金额统计-净买入额",
+];
+const HYYYBTJ_DATE: [&str; 1] = ["最近上榜日"];
+
+/// 东方财富-数据中心-大宗交易-活跃营业部统计（对应 akshare [`akshare.stock_dzjy_hyyybtj`]）。
+///
+/// `symbol`：`当前交易日` / `近3日` / `近5日` / `近10日` / `近30日`（默认 `近3日`）。
+/// 报表 `RPT_BLOCKTRADE_OPERATEDEPTSTATISTICS`，按 `N_DATE` 过滤。
+///
+/// # 返回列
+/// `序号, 最近上榜日, 营业部名称, 次数总计-买入, 次数总计-卖出, 成交金额统计-买入,
+/// 成交金额统计-卖出, 成交金额统计-净买入额, 买入的股票`
+pub fn stock_dzjy_hyyybtj(symbol: &str) -> Result<Df> {
+    let n = match symbol {
+        "当前交易日" => "1",
+        "近3日" => "3",
+        "近5日" => "5",
+        "近10日" => "10",
+        "近30日" => "30",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 当前交易日/近3日/近5日/近10日/近30日）"
+            )))
+        }
+    };
+    let filter = format!("(N_DATE=-{n})");
+    let extra = report_extra(
+        "BUYER_NUM,TOTAL_BUYAMT",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter(
+        "RPT_BLOCKTRADE_OPERATEDEPTSTATISTICS",
+        "OPERATEDEPT_CODE,OPERATEDEPT_NAME,ONLIST_DATE,STOCK_DETAILS,BUYER_NUM,SELLER_NUM,TOTAL_BUYAMT,TOTAL_SELLAMT,TOTAL_NETAMT,N_DATE",
+        &extra,
+        "5000",
+    )?;
+    let mut df = finalize_report(
+        &rows,
+        &HYYYBTJ_RENAME,
+        &HYYYBTJ_SELECT,
+        &HYYYBTJ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&HYYYBTJ_DATE)?;
+    Ok(df)
+}
+
+const MRMX_A_RENAME: [(&str, &str); 12] = [
+    ("TRADE_DATE", "交易日期"),
+    ("SECURITY_CODE", "证券代码"),
+    ("SECURITY_NAME_ABBR", "证券简称"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("CLOSE_PRICE", "收盘价"),
+    ("DEAL_PRICE", "成交价"),
+    ("PREMIUM_RATIO", "折溢率"),
+    ("DEAL_VOLUME", "成交量"),
+    ("DEAL_AMT", "成交额"),
+    ("TURNOVER_RATE", "成交额/流通市值"),
+    ("BUYER_NAME", "买方营业部"),
+    ("SELLER_NAME", "卖方营业部"),
+];
+const MRMX_A_SELECT: [&str; 12] = [
+    "交易日期",
+    "证券代码",
+    "证券简称",
+    "涨跌幅",
+    "收盘价",
+    "成交价",
+    "折溢率",
+    "成交量",
+    "成交额",
+    "成交额/流通市值",
+    "买方营业部",
+    "卖方营业部",
+];
+const MRMX_A_NUMERIC: [&str; 7] = [
+    "涨跌幅",
+    "收盘价",
+    "成交价",
+    "折溢率",
+    "成交量",
+    "成交额",
+    "成交额/流通市值",
+];
+const MRMX_A_DATE: [&str; 1] = ["交易日期"];
+
+const MRMX_B_RENAME: [(&str, &str); 8] = [
+    ("TRADE_DATE", "交易日期"),
+    ("SECURITY_CODE", "证券代码"),
+    ("SECURITY_NAME_ABBR", "证券简称"),
+    ("DEAL_PRICE", "成交价"),
+    ("DEAL_VOLUME", "成交量"),
+    ("DEAL_AMT", "成交额"),
+    ("BUYER_NAME", "买方营业部"),
+    ("SELLER_NAME", "卖方营业部"),
+];
+const MRMX_B_SELECT: [&str; 8] = [
+    "交易日期",
+    "证券代码",
+    "证券简称",
+    "成交价",
+    "成交量",
+    "成交额",
+    "买方营业部",
+    "卖方营业部",
+];
+const MRMX_B_NUMERIC: [&str; 3] = ["成交价", "成交量", "成交额"];
+const MRMX_B_DATE: [&str; 1] = ["交易日期"];
+
+/// 东方财富-数据中心-大宗交易-每日明细（对应 akshare [`akshare.stock_dzjy_mrmx`]）。
+///
+/// `symbol`：`A股` / `B股` / `基金` / `债券`（默认 `基金`）；`start_date` / `end_date`：
+/// 区间 `YYYYMMDD`。报表 `RPT_DATA_BLOCKTRADE`，按 `SECURITY_TYPE_WEB` + 交易日区间过滤。
+///
+/// A 股输出 13 列（含 `涨跌幅/收盘价`，`SECUCODE` 弃用）；B股/基金/债券输出 9 列
+/// （仅 `成交价/成交量/成交额/买方营业部/卖方营业部`）。
+///
+/// # 返回列（A股）
+/// `序号, 交易日期, 证券代码, 证券简称, 涨跌幅, 收盘价, 成交价, 折溢率, 成交量,
+/// 成交额, 成交额/流通市值, 买方营业部, 卖方营业部`
+pub fn stock_dzjy_mrmx(symbol: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    let st = match symbol {
+        "A股" => "1",
+        "B股" => "2",
+        "基金" => "3",
+        "债券" => "4",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 A股/B股/基金/债券）"
+            )))
+        }
+    };
+    let sd = fmt_ymd(start_date)?;
+    let ed = fmt_ymd(end_date)?;
+    let filter = format!("(SECURITY_TYPE_WEB={st})(TRADE_DATE>='{sd}')(TRADE_DATE<='{ed}')");
+    let extra = report_extra("SECURITY_CODE", "1", Some(&filter), None, None, None);
+    let rows = datacenter(
+        "RPT_DATA_BLOCKTRADE",
+        "TRADE_DATE,SECURITY_CODE,SECUCODE,SECURITY_NAME_ABBR,CHANGE_RATE,CLOSE_PRICE,DEAL_PRICE,PREMIUM_RATIO,DEAL_VOLUME,DEAL_AMT,TURNOVER_RATE,BUYER_NAME,SELLER_NAME,CHANGE_RATE_1DAYS,CHANGE_RATE_5DAYS,CHANGE_RATE_10DAYS,CHANGE_RATE_20DAYS,BUYER_CODE,SELLER_CODE",
+        &extra,
+        "5000",
+    )?;
+    if symbol == "A股" {
+        let mut df = finalize_report(
+            &rows,
+            &MRMX_A_RENAME,
+            &MRMX_A_SELECT,
+            &MRMX_A_NUMERIC,
+            Some("序号"),
+        )?;
+        df.cast_date(&MRMX_A_DATE)?;
+        Ok(df)
+    } else {
+        let mut df = finalize_report(
+            &rows,
+            &MRMX_B_RENAME,
+            &MRMX_B_SELECT,
+            &MRMX_B_NUMERIC,
+            Some("序号"),
+        )?;
+        df.cast_date(&MRMX_B_DATE)?;
+        Ok(df)
+    }
+}
+
+const MRTJ_RENAME: [(&str, &str); 11] = [
+    ("TRADE_DATE", "交易日期"),
+    ("SECURITY_CODE", "证券代码"),
+    ("SECURITY_NAME_ABBR", "证券简称"),
+    ("CHANGE_RATE", "涨跌幅"),
+    ("CLOSE_PRICE", "收盘价"),
+    ("AVERAGE_PRICE", "成交价"),
+    ("PREMIUM_RATIO", "折溢率"),
+    ("DEAL_NUM", "成交笔数"),
+    ("VOLUME", "成交总量"),
+    ("DEAL_AMT", "成交总额"),
+    ("TURNOVERRATE", "成交总额/流通市值"),
+];
+const MRTJ_SELECT: [&str; 11] = [
+    "交易日期",
+    "证券代码",
+    "证券简称",
+    "涨跌幅",
+    "收盘价",
+    "成交价",
+    "折溢率",
+    "成交笔数",
+    "成交总量",
+    "成交总额",
+    "成交总额/流通市值",
+];
+const MRTJ_NUMERIC: [&str; 8] = [
+    "涨跌幅",
+    "收盘价",
+    "成交价",
+    "折溢率",
+    "成交笔数",
+    "成交总量",
+    "成交总额",
+    "成交总额/流通市值",
+];
+const MRTJ_DATE: [&str; 1] = ["交易日期"];
+
+/// 东方财富-数据中心-大宗交易-每日统计（对应 akshare [`akshare.stock_dzjy_mrtj`]）。
+///
+/// `start_date` / `end_date`：区间 `YYYYMMDD`（默认 `20220105` / `20220105`）。
+/// 报表 `RPT_BLOCKTRADE_STA`，按交易日区间过滤。
+///
+/// # 返回列
+/// `序号, 交易日期, 证券代码, 证券简称, 涨跌幅, 收盘价, 成交价, 折溢率, 成交笔数,
+/// 成交总量, 成交总额, 成交总额/流通市值`
+pub fn stock_dzjy_mrtj(start_date: &str, end_date: &str) -> Result<Df> {
+    let sd = fmt_ymd(start_date)?;
+    let ed = fmt_ymd(end_date)?;
+    let filter = format!("(TRADE_DATE>='{sd}')(TRADE_DATE<='{ed}')");
+    let extra = report_extra("TURNOVERRATE", "-1", Some(&filter), None, None, None);
+    let rows = datacenter(
+        "RPT_BLOCKTRADE_STA",
+        "TRADE_DATE,SECURITY_CODE,SECUCODE,SECURITY_NAME_ABBR,CHANGE_RATE,CLOSE_PRICE,AVERAGE_PRICE,PREMIUM_RATIO,DEAL_NUM,VOLUME,DEAL_AMT,TURNOVERRATE,D1_CLOSE_ADJCHRATE,D5_CLOSE_ADJCHRATE,D10_CLOSE_ADJCHRATE,D20_CLOSE_ADJCHRATE",
+        &extra,
+        "5000",
+    )?;
+    let mut df = finalize_report(
+        &rows,
+        &MRTJ_RENAME,
+        &MRTJ_SELECT,
+        &MRTJ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&MRTJ_DATE)?;
+    Ok(df)
+}
+
+const SCTJ_RENAME: [(&str, &str); 8] = [
+    ("TRADE_DATE", "交易日期"),
+    ("SZ_INDEX", "上证指数"),
+    ("SZ_CHANGE_RATE", "上证指数涨跌幅"),
+    ("BLOCKTRADE_DEAL_AMT", "大宗交易成交总额"),
+    ("PREMIUM_DEAL_AMT", "溢价成交总额"),
+    ("PREMIUM_RATIO", "溢价成交总额占比"),
+    ("DISCOUNT_DEAL_AMT", "折价成交总额"),
+    ("DISCOUNT_RATIO", "折价成交总额占比"),
+];
+const SCTJ_SELECT: [&str; 8] = [
+    "交易日期",
+    "上证指数",
+    "上证指数涨跌幅",
+    "大宗交易成交总额",
+    "溢价成交总额",
+    "溢价成交总额占比",
+    "折价成交总额",
+    "折价成交总额占比",
+];
+const SCTJ_NUMERIC: [&str; 7] = [
+    "上证指数",
+    "上证指数涨跌幅",
+    "大宗交易成交总额",
+    "溢价成交总额",
+    "溢价成交总额占比",
+    "折价成交总额",
+    "折价成交总额占比",
+];
+const SCTJ_DATE: [&str; 1] = ["交易日期"];
+
+/// 东方财富-数据中心-大宗交易-市场统计（对应 akshare [`akshare.stock_dzjy_sctj`]）。
+///
+/// 无参数。报表 `PRT_BLOCKTRADE_MARKET_STA`，按 `TRADE_DATE` 降序。
+///
+/// # 返回列
+/// `序号, 交易日期, 上证指数, 上证指数涨跌幅, 大宗交易成交总额, 溢价成交总额,
+/// 溢价成交总额占比, 折价成交总额, 折价成交总额占比`
+pub fn stock_dzjy_sctj() -> Result<Df> {
+    let extra = report_extra("TRADE_DATE", "-1", None, None, None, None);
+    let rows = datacenter(
+        "PRT_BLOCKTRADE_MARKET_STA",
+        "TRADE_DATE,SZ_INDEX,SZ_CHANGE_RATE,BLOCKTRADE_DEAL_AMT,PREMIUM_DEAL_AMT,PREMIUM_RATIO,DISCOUNT_DEAL_AMT,DISCOUNT_RATIO",
+        &extra,
+        "500",
+    )?;
+    let mut df = finalize_report(
+        &rows,
+        &SCTJ_RENAME,
+        &SCTJ_SELECT,
+        &SCTJ_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&SCTJ_DATE)?;
+    Ok(df)
+}
+
+const YYBPH_RENAME: [(&str, &str); 13] = [
+    ("OPERATEDEPT_NAME", "营业部名称"),
+    ("D1_BUYER_NUM", "上榜后1天-买入次数"),
+    ("D1_AVERAGE_INCREASE", "上榜后1天-平均涨幅"),
+    ("D1_RISE_PROBABILITY", "上榜后1天-上涨概率"),
+    ("D5_BUYER_NUM", "上榜后5天-买入次数"),
+    ("D5_AVERAGE_INCREASE", "上榜后5天-平均涨幅"),
+    ("D5_RISE_PROBABILITY", "上榜后5天-上涨概率"),
+    ("D10_BUYER_NUM", "上榜后10天-买入次数"),
+    ("D10_AVERAGE_INCREASE", "上榜后10天-平均涨幅"),
+    ("D10_RISE_PROBABILITY", "上榜后10天-上涨概率"),
+    ("D20_BUYER_NUM", "上榜后20天-买入次数"),
+    ("D20_AVERAGE_INCREASE", "上榜后20天-平均涨幅"),
+    ("D20_RISE_PROBABILITY", "上榜后20天-上涨概率"),
+];
+const YYBPH_SELECT: [&str; 13] = [
+    "营业部名称",
+    "上榜后1天-买入次数",
+    "上榜后1天-平均涨幅",
+    "上榜后1天-上涨概率",
+    "上榜后5天-买入次数",
+    "上榜后5天-平均涨幅",
+    "上榜后5天-上涨概率",
+    "上榜后10天-买入次数",
+    "上榜后10天-平均涨幅",
+    "上榜后10天-上涨概率",
+    "上榜后20天-买入次数",
+    "上榜后20天-平均涨幅",
+    "上榜后20天-上涨概率",
+];
+const YYBPH_NUMERIC: [&str; 12] = [
+    "上榜后1天-买入次数",
+    "上榜后1天-平均涨幅",
+    "上榜后1天-上涨概率",
+    "上榜后5天-买入次数",
+    "上榜后5天-平均涨幅",
+    "上榜后5天-上涨概率",
+    "上榜后10天-买入次数",
+    "上榜后10天-平均涨幅",
+    "上榜后10天-上涨概率",
+    "上榜后20天-买入次数",
+    "上榜后20天-平均涨幅",
+    "上榜后20天-上涨概率",
+];
+
+/// 东方财富-数据中心-大宗交易-营业部排行（对应 akshare [`akshare.stock_dzjy_yybph`]）。
+///
+/// `symbol`：`近一月` / `近三月` / `近六月` / `近一年`（默认 `近三月`）。
+/// 报表 `RPT_BLOCKTRADE_OPERATEDEPT_RANK`，按 `N_DATE` 过滤。
+///
+/// # 返回列
+/// `序号, 营业部名称, 上榜后1天-买入次数, 上榜后1天-平均涨幅, 上榜后1天-上涨概率,
+/// 上榜后5天/10天/20天-买入次数/平均涨幅/上涨概率`
+pub fn stock_dzjy_yybph(symbol: &str) -> Result<Df> {
+    let n = match symbol {
+        "近一月" => "30",
+        "近三月" => "90",
+        "近六月" => "180",
+        "近一年" => "360",
+        _ => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 近一月/近三月/近六月/近一年）"
+            )))
+        }
+    };
+    let filter = format!("(N_DATE=-{n})");
+    let extra = report_extra(
+        "D5_BUYER_NUM,D1_AVERAGE_INCREASE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter(
+        "RPT_BLOCKTRADE_OPERATEDEPT_RANK",
+        "OPERATEDEPT_CODE,OPERATEDEPT_NAME,D1_BUYER_NUM,D1_AVERAGE_INCREASE,D1_RISE_PROBABILITY,D5_BUYER_NUM,D5_AVERAGE_INCREASE,D5_RISE_PROBABILITY,D10_BUYER_NUM,D10_AVERAGE_INCREASE,D10_RISE_PROBABILITY,D20_BUYER_NUM,D20_AVERAGE_INCREASE,D20_RISE_PROBABILITY,N_DATE,RELATED_ORG_CODE",
+        &extra,
+        "5000",
+    )?;
+    let df = finalize_report(
+        &rows,
+        &YYBPH_RENAME,
+        &YYBPH_SELECT,
+        &YYBPH_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
+// ============ 9. 雪球-个股公司简介（3 个，需登录态） ============
+
+/// 雪球-个股-公司概况-公司简介（A 股，对应 akshare [`akshare.stock_individual_basic_info_xq`]）。
+///
+/// `symbol`：A 股代码（如 `SH601127`）。雪球个股接口需有效登录态（`xq_a_token`）；
+/// 无登录态时上游返回 `error_code: 400016`，按 PLAN §D2 返回
+/// [`AkshareError::AuthRequired`]（带诊断），不伪造数据。
+///
+/// # 返回列（登录态可用时）
+/// `item, value`
+pub fn stock_individual_basic_info_xq(symbol: &str) -> Result<Df> {
+    xq_company(
+        "https://stock.xueqiu.com/v5/stock/f10/cn/company.json",
+        symbol,
+    )
+}
+
+/// 雪球-个股-公司概况-公司简介（港股，对应 akshare [`akshare.stock_individual_basic_info_hk_xq`]）。
+///
+/// `symbol`：港股代码（如 `02097`）。其余同上（需登录态，无则 `AuthRequired`）。
+///
+/// # 返回列（登录态可用时）
+/// `item, value`
+pub fn stock_individual_basic_info_hk_xq(symbol: &str) -> Result<Df> {
+    xq_company(
+        "https://stock.xueqiu.com/v5/stock/f10/hk/company.json",
+        symbol,
+    )
+}
+
+/// 雪球-个股-公司概况-公司简介（美股，对应 akshare [`akshare.stock_individual_basic_info_us_xq`]）。
+///
+/// `symbol`：美股代码（如 `NVDA`）。其余同上（需登录态，无则 `AuthRequired`）。
+///
+/// # 返回列（登录态可用时）
+/// `item, value`
+pub fn stock_individual_basic_info_us_xq(symbol: &str) -> Result<Df> {
+    xq_company(
+        "https://stock.xueqiu.com/v5/stock/f10/us/company.json",
+        symbol,
+    )
+}
+
+/// 雪球公司简介公共抓取（无登录态 → `AuthRequired`，见 PLAN §D2）。
+///
+/// 先访问 `xueqiu.com/` 建立会话 cookie（响应可能为 WAF 页，仅需写 cookie），
+/// 再请求 `company.json`。`get_json_allow_status` 即使 HTTP 非 2xx 也返回响应体，
+/// 其内 `detect_block_or_auth` 命中 `400016` 即返回 `AuthRequired`；若响应含 `data`
+/// （登录态有效），则按 akshare `pd.DataFrame(data).reset_index()` → `item/value`
+/// 两列构建（每对 `key=value` 一行）。
+fn xq_company(url: &str, symbol: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    // 1) 建立会话 cookie（首页可能为 WAF 页，仅写 cookie，跳过内容检测）
+    let _ = http.get_text_allow_blocked("https://xueqiu.com/", &Map::new(), None);
+    let mut params = Map::new();
+    params.insert("symbol".into(), Value::String(symbol.into()));
+    // 2) 个股接口：allow_status 以便读取 400016 业务错误
+    let json = http.get_json_allow_status(url, &params, Some("https://xueqiu.com/"))?;
+    let Some(data) = json.get("data") else {
+        let code = json.get("error_code").and_then(Value::as_u64).unwrap_or(0);
+        let desc = json
+            .get("error_description")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        return Err(AkshareError::AuthRequired(format!(
+            "雪球个股接口需登录态(xq_a_token)；上游返回 {code}: {desc} (url: {url}, symbol: {symbol})"
+        )));
+    };
+    build_xq_df(data)
+}
+
+/// 由雪球公司简介 `data` 对象构建 `item, value` 两列表（离线可测，对应 akshare
+/// `pd.DataFrame(data).reset_index()` + 重命名 `item/value`）。
+fn build_xq_df(data: &Value) -> Result<Df> {
+    let obj = data
+        .as_object()
+        .ok_or_else(|| AkshareError::Empty("雪球公司数据非对象".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(obj.len());
+    for (k, v) in obj {
+        rows.push(vec![Some(k.clone()), cell(v)]);
+    }
+    Df::from_string_rows(&["item", "value"], &rows)
+}
 
 #[cfg(test)]
 mod tests {
@@ -1277,10 +1894,7 @@ mod tests {
         assert_eq!(market_code("920001").unwrap(), 151);
         assert_eq!(market_code("123456").unwrap(), 0);
         // 代码不足 6 位报 Param（对应 akshare raise "请输入正确的股票代码"）
-        assert!(matches!(
-            market_code("123"),
-            Err(AkshareError::Param(_))
-        ));
+        assert!(matches!(market_code("123"), Err(AkshareError::Param(_))));
     }
 
     #[test]
@@ -1296,7 +1910,10 @@ mod tests {
             "year": [["2025-12-31"], ["56.18亿"], [false]]
         });
         let df = parse_old_finance(&json, "按报告期", true).unwrap();
-        assert_eq!(df.column_names(), vec!["报告期", "净利润", "净利润同比增长率"]);
+        assert_eq!(
+            df.column_names(),
+            vec!["报告期", "净利润", "净利润同比增长率"]
+        );
         // do_sort=true：报告期升序（ISO 字符串序 = 时间序）
         let d = df.inner().column("报告期").unwrap().str().unwrap();
         assert_eq!(d.get(0), Some("2025-09-30"));
@@ -1306,7 +1923,12 @@ mod tests {
         assert_eq!(profit.get(0), Some("53.22亿"));
         assert_eq!(profit.get(2), Some("13.10亿"));
         // 布尔 → 大写（对应 pandas str(True/False)）
-        let yoy = df.inner().column("净利润同比增长率").unwrap().str().unwrap();
+        let yoy = df
+            .inner()
+            .column("净利润同比增长率")
+            .unwrap()
+            .str()
+            .unwrap();
         assert_eq!(yoy.get(0), Some("True"));
         assert_eq!(yoy.get(2), Some("False"));
         // 含单位/布尔列保持 str
@@ -1474,5 +2096,177 @@ mod tests {
             .get(0)
             .unwrap();
         assert!(approx(lock, 12.0));
+    }
+
+    #[test]
+    fn dzjy_hygtj_offline_contract() {
+        let rows = vec![json!({
+            "SECURITY_CODE": "600000", "SECUCODE": "600000.SH", "SECURITY_NAME_ABBR": "浦发银行",
+            "CLOSE_PRICE": 7.5, "CHANGE_RATE": 1.2, "TRADE_DATE": "2026-01-15 00:00:00",
+            "DEAL_AMT": 123456789, "PREMIUM_RATIO": -2.3, "SUM_TURNOVERRATE": 5.5,
+            "DEAL_NUM": 10, "PREMIUM_TIMES": 3, "DISCOUNT_TIMES": 7,
+            "D1_AVG_ADJCHRATE": 0.5, "D5_AVG_ADJCHRATE": 1.1, "D10_AVG_ADJCHRATE": 2.2,
+            "D20_AVG_ADJCHRATE": 3.3, "DATE_TYPE_CODE": 3,
+        })];
+        let mut df = finalize_report(
+            &rows,
+            &HYGTJ_RENAME,
+            &HYGTJ_SELECT,
+            &HYGTJ_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&HYGTJ_DATE).unwrap();
+        // 16 列契约（含 序号 前置，SECUCODE/DATE_TYPE_CODE 弃用列已丢弃）
+        assert_eq!(df.column_names().len(), 16);
+        assert!(df.column_names().iter().any(|c| c == "证券代码"));
+        assert!(!df.column_names().iter().any(|c| c == "SECUCODE"));
+        // 序号 1 起始
+        assert_eq!(
+            df.inner().column("序号").unwrap().f64().unwrap().get(0),
+            Some(1.0)
+        );
+        // 日期截断为 YYYY-MM-DD
+        assert_eq!(
+            df.inner()
+                .column("最近上榜日")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
+            Some("2026-01-15")
+        );
+    }
+
+    #[test]
+    fn dzjy_mrmx_offline_contract() {
+        let rows = vec![json!({
+            "TRADE_DATE": "2024-01-02 00:00:00", "SECURITY_CODE": "600519", "SECUCODE": "600519.SH",
+            "SECURITY_NAME_ABBR": "贵州茅台", "CHANGE_RATE": -0.5, "CLOSE_PRICE": 1685.0,
+            "DEAL_PRICE": 1670.0, "PREMIUM_RATIO": -0.9, "DEAL_VOLUME": 12000,
+            "DEAL_AMT": 20040000, "TURNOVER_RATE": 0.01, "BUYER_NAME": "营业部A", "SELLER_NAME": "营业部B",
+        })];
+        // A 股分支：13 列
+        let mut df_a = finalize_report(
+            &rows,
+            &MRMX_A_RENAME,
+            &MRMX_A_SELECT,
+            &MRMX_A_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df_a.cast_date(&MRMX_A_DATE).unwrap();
+        assert_eq!(df_a.column_names().len(), 13);
+        assert!(df_a.column_names().iter().any(|c| c == "收盘价"));
+        assert!(!df_a.column_names().iter().any(|c| c == "SECUCODE"));
+        assert_eq!(
+            df_a.inner()
+                .column("交易日期")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
+            Some("2024-01-02")
+        );
+        // 数值列已数值化
+        assert_eq!(
+            df_a.inner().column("成交价").unwrap().f64().unwrap().get(0),
+            Some(1670.0)
+        );
+        // B股/基金/债券分支：9 列（无 涨跌幅/收盘价）
+        let mut df_b = finalize_report(
+            &rows,
+            &MRMX_B_RENAME,
+            &MRMX_B_SELECT,
+            &MRMX_B_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df_b.cast_date(&MRMX_B_DATE).unwrap();
+        assert_eq!(df_b.column_names().len(), 9);
+        assert!(!df_b.column_names().iter().any(|c| c == "收盘价"));
+        assert!(df_b.column_names().iter().any(|c| c == "成交价"));
+    }
+
+    #[test]
+    fn dzjy_sctj_offline_contract() {
+        let rows = vec![json!({
+            "TRADE_DATE": "2026-03-10 00:00:00", "SZ_INDEX": 3300.5, "SZ_CHANGE_RATE": 0.8,
+            "BLOCKTRADE_DEAL_AMT": 123456789, "PREMIUM_DEAL_AMT": 50000000,
+            "PREMIUM_RATIO": 40.5, "DISCOUNT_DEAL_AMT": 70000000, "DISCOUNT_RATIO": 56.7,
+        })];
+        let mut df = finalize_report(
+            &rows,
+            &SCTJ_RENAME,
+            &SCTJ_SELECT,
+            &SCTJ_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        df.cast_date(&SCTJ_DATE).unwrap();
+        assert_eq!(df.column_names().len(), 9);
+        // 第一数据列是 交易日期（序号前置），第二是 上证指数
+        assert_eq!(
+            df.inner().column("上证指数").unwrap().f64().unwrap().get(0),
+            Some(3300.5)
+        );
+        assert_eq!(
+            df.inner().column("交易日期").unwrap().str().unwrap().get(0),
+            Some("2026-03-10")
+        );
+    }
+
+    #[test]
+    fn dzjy_yybph_offline_contract() {
+        let rows = vec![json!({
+            "OPERATEDEPT_CODE": "10188715", "OPERATEDEPT_NAME": "华泰证券营业部",
+            "D1_BUYER_NUM": 5, "D1_AVERAGE_INCREASE": 1.2, "D1_RISE_PROBABILITY": 60.0,
+            "D5_BUYER_NUM": 12, "D5_AVERAGE_INCREASE": 2.3, "D5_RISE_PROBABILITY": 55.0,
+            "D10_BUYER_NUM": 20, "D10_AVERAGE_INCREASE": 3.1, "D10_RISE_PROBABILITY": 50.0,
+            "D20_BUYER_NUM": 30, "D20_AVERAGE_INCREASE": 4.0, "D20_RISE_PROBABILITY": 48.0,
+            "N_DATE": -90, "RELATED_ORG_CODE": "X",
+        })];
+        let df = finalize_report(
+            &rows,
+            &YYBPH_RENAME,
+            &YYBPH_SELECT,
+            &YYBPH_NUMERIC,
+            Some("序号"),
+        )
+        .unwrap();
+        // 14 列契约（OPERATEDEPT_CODE/N_DATE/RELATED_ORG_CODE 弃用列已丢弃）
+        assert_eq!(df.column_names().len(), 14);
+        assert!(df.column_names().iter().any(|c| c == "营业部名称"));
+        assert!(!df.column_names().iter().any(|c| c == "OPERATEDEPT_CODE"));
+        assert_eq!(
+            df.inner()
+                .column("上榜后1天-买入次数")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
+            Some(5.0)
+        );
+    }
+
+    #[test]
+    fn xq_company_build_offline() {
+        // 登录态有效时 data 为对象 → item/value 两列，每对 key=value 一行
+        let data = json!({
+            "公司名称": "赛力斯", "英文名称": "SERES", "成立日期": "2007-05-11",
+        });
+        let df = build_xq_df(&data).unwrap();
+        assert_eq!(df.column_names(), vec!["item", "value"]);
+        assert_eq!(df.height(), 3);
+        assert_eq!(
+            df.inner().column("item").unwrap().str().unwrap().get(0),
+            Some("公司名称")
+        );
+        assert_eq!(
+            df.inner().column("value").unwrap().str().unwrap().get(0),
+            Some("赛力斯")
+        );
+        // 非对象 → Empty 错误
+        assert!(build_xq_df(&json!([1, 2, 3])).is_err());
     }
 }

@@ -267,6 +267,20 @@ CASES: list[tuple[str, list[str], str, str]] = [
     # === BATCH2 OPTION (sina/exchange/em) ===
     # === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
     # === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
+    # 乐咕股息率（复用 legu 两步流，历史序列长，loose 比列契约）
+    ("stock_a_gxl_lg", ["上证A股"], "loose", "乐咕A股股息率"),
+    # 东财 datacenter 大宗交易系列（6 个，列契约由 finalize_report 键→中文映射锁定，loose）
+    ("stock_dzjy_hygtj", ["近三月"], "loose", "大宗交易-活跃A股统计"),
+    ("stock_dzjy_hyyybtj", ["近3日"], "loose", "大宗交易-活跃营业部统计"),
+    ("stock_dzjy_mrmx", ["A股", "20240102", "20240103"], "loose", "大宗交易-每日明细(A股)"),
+    ("stock_dzjy_mrtj", ["20240102", "20240103"], "loose", "大宗交易-每日统计"),
+    ("stock_dzjy_sctj", [], "loose", "大宗交易-市场统计"),
+    ("stock_dzjy_yybph", ["近三月"], "loose", "大宗交易-营业部排行"),
+    # 雪球个股公司简介（需登录态 xq_a_token，无则返回 AuthRequired；无法生成 golden，
+    # --check 阶段无 golden 自动跳过，计入登录态豁免，见报告说明）
+    ("stock_individual_basic_info_xq", ["SH601127"], "loose", "雪球个股公司简介(A股)"),
+    ("stock_individual_basic_info_hk_xq", ["02097"], "loose", "雪球个股公司简介(港股)"),
+    ("stock_individual_basic_info_us_xq", ["NVDA"], "loose", "雪球个股公司简介(美股)"),
     # === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
     # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
