@@ -118,7 +118,9 @@ pub fn sina_js_decode(encoded: &str) -> Result<String> {
     let mut engine = JsEngine::new()?;
     let arg = serde_json::to_string(encoded)
         .map_err(|e| AkshareError::json("sina.js 参数序列化失败", e.to_string()))?;
-    engine.load_and_call("sina.js", js, &format!("d({arg})"))
+    // `d()` 返回 JS 数组，`load_and_call` 会套 `String(...)` 得到 `[object Object]` 拼接串，
+    // 故此处显式 `JSON.stringify` 得到合法 JSON 文本（与 py_mini_racer 返回的 list 等价）。
+    engine.load_and_call("sina.js", js, &format!("JSON.stringify(d({arg}))"))
 }
 
 /// 同花顺 token（对应 akshare `v()`）。
@@ -174,7 +176,8 @@ mod tests {
         let files = available_js_files();
         assert!(files.contains(&"cninfo.js"));
         assert!(files.contains(&"ths.js"));
-        assert_eq!(files.len(), 5);
+        assert!(files.contains(&"sina.js"));
+        assert_eq!(files.len(), 6);
     }
 
     #[test]

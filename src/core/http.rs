@@ -86,6 +86,12 @@ impl HttpClient {
         serde_json::from_str(&text).map_err(|e| AkshareError::json(url, e.to_string()))
     }
 
+    /// 随机延迟（对应 akshare `time.sleep(random.uniform(...))`），用于分页抓取时降低封禁风险。
+    pub fn random_delay(&self) {
+        let jitter = rand::random_range(self.random_delay_range.0..self.random_delay_range.1);
+        std::thread::sleep(std::time::Duration::from_secs_f64(jitter));
+    }
+
     /// 带重试的 GET（自定义请求头 + referer），返回解析后的 JSON。
     ///
     /// 乐咕等源需要 `X-CSRF-Token` 等自定义头配合会话 cookie。

@@ -275,6 +275,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("bond_china_close_return", ["国债", "1", "20260811", "20260811"], "loose", "收盘收益率曲线历史"),
     ("bond_info_cm", ["24国债01", "", "", "", "", "", "", ""], "loose", "债券信息查询"),
     ("bond_info_detail_cm", ["24国债01"], "loose", "债券详情"),
+    ("bond_info_cm_query", ["债券类型"], "loose", "债券筛选条件查询"),
     # 阶段2: 集思录 jisilu
     ("bond_cb_jsl", [""], "loose", "集思录可转债列表"),
     ("bond_cb_redeem_jsl", [], "loose", "集思录可转债强赎"),
@@ -295,6 +296,12 @@ CASES: list[tuple[str, list[str], str, str]] = [
     # 阶段5: 新浪 sina 债券
     ("bond_gb_zh_sina", ["中国10年期国债"], "loose", "中国国债收益率"),
     ("bond_gb_us_sina", ["美国10年期国债"], "loose", "美国国债收益率"),
+    ("bond_zh_hs_daily", ["sh010107"], "loose", "沪深债券历史日K"),
+    ("bond_zh_hs_cov_daily", ["sh010107"], "loose", "沪深可转债历史日K"),
+    ("bond_zh_hs_spot", ["1", "10"], "loose", "沪深债券实时行情"),
+    ("bond_zh_hs_cov_spot", [], "loose", "沪深可转债实时行情"),
+    ("bond_cb_profile_sina", ["sz128039"], "loose", "可转债详情资料"),
+    ("bond_cb_summary_sina", ["sh155255"], "loose", "可转债债券概况"),
     # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约

@@ -3,6 +3,7 @@
 pub mod config;
 pub mod df;
 pub mod error;
+pub mod html;
 pub mod http;
 pub mod js_engine;
 

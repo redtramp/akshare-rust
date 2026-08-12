@@ -97,12 +97,12 @@ use akshare_rust::stock_fundamental::{
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use akshare_rust::bond::{
     bond_buy_back_hist_em, bond_cb_adj_logs_jsl, bond_cb_index_jsl, bond_cb_jsl,
-    bond_cb_redeem_jsl, bond_china_close_return, bond_china_close_return_map,
-    bond_cov_comparison, bond_gb_us_sina, bond_gb_zh_sina, bond_info_cm,
-    bond_info_detail_cm, bond_sh_buy_back_em,
-    bond_spot_deal, bond_spot_quote, bond_sz_buy_back_em, bond_zh_cov,
-    bond_zh_cov_info, bond_zh_cov_value_analysis, bond_zh_hs_cov_min,
-    bond_zh_hs_cov_pre_min, bond_zh_us_rate,
+    bond_cb_profile_sina, bond_cb_redeem_jsl, bond_cb_summary_sina, bond_china_close_return,
+    bond_china_close_return_map, bond_cov_comparison, bond_gb_us_sina, bond_gb_zh_sina,
+    bond_info_cm, bond_info_cm_query, bond_info_detail_cm, bond_sh_buy_back_em,
+    bond_spot_deal, bond_spot_quote, bond_sz_buy_back_em, bond_zh_cov, bond_zh_cov_info,
+    bond_zh_cov_value_analysis, bond_zh_hs_cov_daily, bond_zh_hs_cov_min, bond_zh_hs_cov_spot,
+    bond_zh_hs_cov_pre_min, bond_zh_hs_daily, bond_zh_hs_spot, bond_zh_us_rate,
 };
 use serde_json::json;
 
@@ -722,6 +722,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [a, b, c, d, e, f, g, h] = take8(func, args)?;
             Ok(bond_info_cm(a, b, c, d, e, f, g, h)?)
         }
+        "bond_info_cm_query" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_info_cm_query(s)?)
+        }
         "bond_cb_jsl" => {
             let [c] = take1(func, args)?;
             Ok(bond_cb_jsl(c)?)
@@ -769,6 +773,28 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "bond_gb_us_sina" => {
             let [s] = take1(func, args)?;
             Ok(bond_gb_us_sina(s)?)
+        }
+        // 阶段5: 新浪 sina 债券（补充：日 K / 实时 / 可转债详情）
+        "bond_zh_hs_daily" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_zh_hs_daily(s)?)
+        }
+        "bond_zh_hs_cov_daily" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_zh_hs_cov_daily(s)?)
+        }
+        "bond_zh_hs_spot" => {
+            let [a, b] = take2(func, args)?;
+            Ok(bond_zh_hs_spot(a, b)?)
+        }
+        "bond_zh_hs_cov_spot" => Ok(bond_zh_hs_cov_spot()?),
+        "bond_cb_profile_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_cb_profile_sina(s)?)
+        }
+        "bond_cb_summary_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_cb_summary_sina(s)?)
         }
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),

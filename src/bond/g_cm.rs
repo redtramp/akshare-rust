@@ -295,3 +295,45 @@ pub fn bond_info_detail_cm(symbol: &str) -> Result<Df> {
     }
     Df::from_string_rows(&["name", "value"], &rows)
 }
+
+/// 债券信息查询-筛选条件查询（对应 akshare `bond_info_cm_query(symbol)`）。
+///
+/// `symbol` ∈ {"主承销商", "债券类型", "息票类型", "发行年份", "评级等级"}。
+/// 返回该筛选维度的「名称→代码」映射表，列名 `name, code`（均为字符串）。
+///
+/// 接口返回的是**数组的数组**，逐元素宽度不定（主承销商为 `[code, name]`；
+/// 其余维度多为 `[name, code]`，个别为单元素 `[name]`）。按宽度归一化：
+/// 宽度 ≥ 2 取 `[name, code] = [cells[0], cells[1]]`；宽度 == 1 取 `code = name = cells[0]`。
+/// 主承销商分支额外交换首尾（接口为 `[code, name]`）。
+pub fn bond_info_cm_query(symbol: &str) -> Result<Df> {
+    let records = cm::info_cm_query(symbol)?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(records.len());
+    for v in &records {
+        let cells = arr_cells(v);
+        let pair = if symbol == "主承销商" {
+            // [code, name] → 交换为 [name, code]
+            match cells.len() {
+                0 => continue,
+                1 => vec![cells[0].clone(), cells[0].clone()],
+                _ => vec![cells[1].clone(), cells[0].clone()],
+            }
+        } else {
+            match cells.len() {
+                0 => continue,
+                1 => vec![cells[0].clone(), cells[0].clone()],
+                _ => vec![cells[0].clone(), cells[1].clone()],
+            }
+        };
+        rows.push(pair);
+    }
+    Df::from_string_rows(&["name", "code"], &rows)
+}
+
+/// 把「数组的数组」中的单行（或单元素）转成字符串单元向量。
+fn arr_cells(v: &Value) -> Vec<Option<String>> {
+    match v {
+        Value::Array(arr) => arr.iter().map(cell_string).collect(),
+        Value::String(s) => vec![Some(s.clone())],
+        other => vec![cell_string(other)],
+    }
+}
