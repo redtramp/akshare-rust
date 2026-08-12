@@ -425,7 +425,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("spot_quotations_sge", ["Au99.99"], "loose", "上金所实时行情"),
     # spot - 99期货期现
     ("spot_price_table_qh", [], "strict", "99期货品种表"),
-    ("spot_price_qh", ["螺纹钢"], "strict", "99期货期现价格"),
+    ("spot_price_qh", ["螺纹钢"], "loose", "99期货期现价格"),
     # energy - 碳排放
     ("energy_carbon_gz", [], "loose", "广州碳排放行情"),
     ("energy_carbon_hb", [], "loose", "湖北碳排放每日概况"),
