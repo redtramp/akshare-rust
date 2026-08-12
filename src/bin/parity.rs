@@ -97,8 +97,9 @@ use akshare_rust::stock_fundamental::{
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use akshare_rust::bond::{
     bond_cb_adj_logs_jsl, bond_cb_index_jsl, bond_cb_jsl, bond_cb_redeem_jsl,
-    bond_china_close_return, bond_china_close_return_map, bond_info_cm, bond_info_detail_cm,
-    bond_spot_deal, bond_spot_quote,
+    bond_china_close_return, bond_china_close_return_map, bond_corporate_issue_cninfo,
+    bond_cov_issue_cninfo, bond_cov_stock_issue_cninfo, bond_info_cm, bond_info_detail_cm,
+    bond_local_government_issue_cninfo, bond_spot_deal, bond_spot_quote, bond_treasure_issue_cninfo,
 };
 use serde_json::json;
 
@@ -727,6 +728,24 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "bond_cb_adj_logs_jsl" => {
             let [s] = take1(func, args)?;
             Ok(bond_cb_adj_logs_jsl(s)?)
+        }
+        // 阶段3: 巨潮 cninfo 债券发行
+        "bond_corporate_issue_cninfo" => {
+            let [s, e] = take2(func, args)?;
+            Ok(bond_corporate_issue_cninfo(s, e)?)
+        }
+        "bond_cov_issue_cninfo" => {
+            let [s, e] = take2(func, args)?;
+            Ok(bond_cov_issue_cninfo(s, e)?)
+        }
+        "bond_cov_stock_issue_cninfo" => Ok(bond_cov_stock_issue_cninfo()?),
+        "bond_local_government_issue_cninfo" => {
+            let [s, e] = take2(func, args)?;
+            Ok(bond_local_government_issue_cninfo(s, e)?)
+        }
+        "bond_treasure_issue_cninfo" => {
+            let [s, e] = take2(func, args)?;
+            Ok(bond_treasure_issue_cninfo(s, e)?)
         }
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),

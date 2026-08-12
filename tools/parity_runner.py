@@ -280,6 +280,12 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("bond_cb_redeem_jsl", [], "loose", "集思录可转债强赎"),
     ("bond_cb_index_jsl", [], "loose", "集思录可转债等权指数"),
     ("bond_cb_adj_logs_jsl", ["128013"], "loose", "集思录转股价调整记录"),
+    # 阶段3: 巨潮 cninfo 债券发行
+    ("bond_corporate_issue_cninfo", ["20210911", "20211110"], "loose", "企业债发行"),
+    ("bond_cov_issue_cninfo", ["20210913", "20211112"], "loose", "可转债发行"),
+    ("bond_cov_stock_issue_cninfo", [], "loose", "可转债转股"),
+    ("bond_local_government_issue_cninfo", ["20210911", "20211110"], "loose", "地方债发行"),
+    ("bond_treasure_issue_cninfo", ["20210910", "20211109"], "loose", "国债发行"),
     # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
