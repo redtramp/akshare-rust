@@ -95,6 +95,20 @@ use akshare_rust::stock_fundamental::{
     stock_shareholder_change_ths,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
+use akshare_rust::currency::{currency_boc_safe, currency_boc_sina};
+use akshare_rust::energy::{energy_carbon_gz, energy_carbon_hb, energy_oil_detail, energy_oil_hist};
+use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_spot_quote, fx_swap_quote};
+use akshare_rust::news::{
+    news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
+    news_trade_notify_suspend_baidu,
+};
+use akshare_rust::spot::{
+    spot_corn_price_soozhu, spot_golden_benchmark_sge, spot_goods, spot_hist_sge,
+    spot_hog_crossbred_soozhu, spot_hog_lean_price_soozhu, spot_hog_soozhu,
+    spot_hog_three_way_soozhu, spot_hog_year_trend_soozhu, spot_mixed_feed_soozhu,
+    spot_quotations_sge, spot_silver_benchmark_sge, spot_soybean_price_soozhu,
+    spot_symbol_table_sge, spot_price_qh, spot_price_table_qh,
+};
 use serde_json::json;
 
 type BoxErr = Box<dyn std::error::Error>;
@@ -699,6 +713,75 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
         // === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
+        // ---- spot (搜猪网 / 上海黄金交易所 / 99期货 / 新浪) ----
+        "spot_hog_soozhu" => Ok(spot_hog_soozhu()?),
+        "spot_hog_year_trend_soozhu" => Ok(spot_hog_year_trend_soozhu()?),
+        "spot_hog_lean_price_soozhu" => Ok(spot_hog_lean_price_soozhu()?),
+        "spot_hog_three_way_soozhu" => Ok(spot_hog_three_way_soozhu()?),
+        "spot_hog_crossbred_soozhu" => Ok(spot_hog_crossbred_soozhu()?),
+        "spot_corn_price_soozhu" => Ok(spot_corn_price_soozhu()?),
+        "spot_soybean_price_soozhu" => Ok(spot_soybean_price_soozhu()?),
+        "spot_mixed_feed_soozhu" => Ok(spot_mixed_feed_soozhu()?),
+        "spot_goods" => {
+            let [s] = take1(func, args)?;
+            Ok(spot_goods(s)?)
+        }
+        "spot_symbol_table_sge" => Ok(spot_symbol_table_sge()?),
+        "spot_golden_benchmark_sge" => Ok(spot_golden_benchmark_sge()?),
+        "spot_silver_benchmark_sge" => Ok(spot_silver_benchmark_sge()?),
+        "spot_hist_sge" => {
+            let [s] = take1(func, args)?;
+            Ok(spot_hist_sge(s)?)
+        }
+        "spot_quotations_sge" => {
+            let [s] = take1(func, args)?;
+            Ok(spot_quotations_sge(s)?)
+        }
+        "spot_price_table_qh" => Ok(spot_price_table_qh()?),
+        "spot_price_qh" => {
+            let [s] = take1(func, args)?;
+            Ok(spot_price_qh(s)?)
+        }
+        // ---- energy (碳排放 / 油价) ----
+        "energy_carbon_gz" => Ok(energy_carbon_gz()?),
+        "energy_carbon_hb" => Ok(energy_carbon_hb()?),
+        "energy_oil_hist" => Ok(energy_oil_hist()?),
+        "energy_oil_detail" => {
+            let [s] = take1(func, args)?;
+            Ok(energy_oil_detail(s)?)
+        }
+        // ---- currency (新浪中行 / 外汇局) ----
+        "currency_boc_sina" => {
+            let [s, a, b] = take3(func, args)?;
+            Ok(currency_boc_sina(s, a, b)?)
+        }
+        "currency_boc_safe" => Ok(currency_boc_safe()?),
+        // ---- news (百度股市通 / 央视) ----
+        "news_cctv" => {
+            let [s] = take1(func, args)?;
+            Ok(news_cctv(s)?)
+        }
+        "news_economic_baidu" => {
+            let [s] = take1(func, args)?;
+            Ok(news_economic_baidu(s)?)
+        }
+        "news_trade_notify_suspend_baidu" => {
+            let [s] = take1(func, args)?;
+            Ok(news_trade_notify_suspend_baidu(s)?)
+        }
+        "news_trade_notify_dividend_baidu" => {
+            let [s] = take1(func, args)?;
+            Ok(news_trade_notify_dividend_baidu(s)?)
+        }
+        "news_report_time_baidu" => {
+            let [s] = take1(func, args)?;
+            Ok(news_report_time_baidu(s)?)
+        }
+        // ---- fx (中国外汇交易中心 chinamoney) ----
+        "fx_c_swap_cm" => Ok(fx_c_swap_cm()?),
+        "fx_pair_quote" => Ok(fx_pair_quote()?),
+        "fx_spot_quote" => Ok(fx_spot_quote()?),
+        "fx_swap_quote" => Ok(fx_swap_quote()?),
         _ => Err(format!("未知函数: {func}").into()),
     }
 }
