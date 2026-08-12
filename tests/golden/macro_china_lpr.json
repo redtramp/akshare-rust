@@ -1,0 +1,63 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "TRADE_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "LPR1Y",
+      "dtype": "float64"
+    },
+    {
+      "name": "LPR5Y",
+      "dtype": "float64"
+    },
+    {
+      "name": "RATE_1",
+      "dtype": "float64"
+    },
+    {
+      "name": "RATE_2",
+      "dtype": "float64"
+    }
+  ],
+  "height": 1574,
+  "head": [
+    [
+      "1991-04-21",
+      null,
+      null,
+      "8.64",
+      "9.72"
+    ],
+    [
+      "1993-05-15",
+      null,
+      null,
+      "9.36",
+      "12.24"
+    ],
+    [
+      "1993-07-11",
+      null,
+      null,
+      "10.98",
+      "14.04"
+    ],
+    [
+      "1995-01-01",
+      null,
+      null,
+      "10.98",
+      "14.76"
+    ],
+    [
+      "1995-07-01",
+      null,
+      null,
+      "12.06",
+      "15.3"
+    ]
+  ]
+}
