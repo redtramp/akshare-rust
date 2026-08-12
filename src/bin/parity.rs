@@ -98,7 +98,8 @@ use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use akshare_rust::bond::{
     bond_buy_back_hist_em, bond_cb_adj_logs_jsl, bond_cb_index_jsl, bond_cb_jsl,
     bond_cb_redeem_jsl, bond_china_close_return, bond_china_close_return_map,
-    bond_cov_comparison, bond_info_cm, bond_info_detail_cm, bond_sh_buy_back_em,
+    bond_cov_comparison, bond_gb_us_sina, bond_gb_zh_sina, bond_info_cm,
+    bond_info_detail_cm, bond_sh_buy_back_em,
     bond_spot_deal, bond_spot_quote, bond_sz_buy_back_em, bond_zh_cov,
     bond_zh_cov_info, bond_zh_cov_value_analysis, bond_zh_hs_cov_min,
     bond_zh_hs_cov_pre_min, bond_zh_us_rate,
@@ -759,6 +760,15 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "bond_zh_us_rate" => {
             let [s] = take1(func, args)?;
             Ok(bond_zh_us_rate(s)?)
+        }
+        // 阶段5: 新浪 sina 债券
+        "bond_gb_zh_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_gb_zh_sina(s)?)
+        }
+        "bond_gb_us_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_gb_us_sina(s)?)
         }
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),

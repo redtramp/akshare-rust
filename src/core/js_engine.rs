@@ -20,6 +20,7 @@ const SHIMS: &[(&str, &str)] = &[
     ("outcrypto.js", ""),
     ("jm.js", ""),
     ("crypto.js", ""),
+    ("sina.js", ""),
 ];
 
 /// 简易 JS 执行环境（每个实例一个独立 QuickJS 上下文）。
@@ -106,6 +107,18 @@ pub fn cninfo_get_res_code() -> Result<String> {
     let js = include_str!("../../assets/js/cninfo.js");
     let mut engine = JsEngine::new()?;
     engine.load_and_call("cninfo.js", js, "getResCode1()")
+}
+
+/// 新浪行情 JS 解密（对应 akshare `hk_js_decode` 的 `d()`）。
+///
+/// 入参为接口下发的编码字符串（如 `var KLC_KL_xxx="..."` 中引号内的内容），
+/// 返回解密后的 JSON 文本（dict list 的序列化字符串），与 py_mini_racer 输出一致。
+pub fn sina_js_decode(encoded: &str) -> Result<String> {
+    let js = include_str!("../../assets/js/sina.js");
+    let mut engine = JsEngine::new()?;
+    let arg = serde_json::to_string(encoded)
+        .map_err(|e| AkshareError::json("sina.js 参数序列化失败", e.to_string()))?;
+    engine.load_and_call("sina.js", js, &format!("d({arg})"))
 }
 
 /// 同花顺 token（对应 akshare `v()`）。

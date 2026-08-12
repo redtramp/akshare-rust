@@ -292,6 +292,9 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("bond_zh_cov_value_analysis", ["113527"], "loose", "可转债价值分析"),
     ("bond_cov_comparison", [], "loose", "可转债比价表"),
     ("bond_zh_us_rate", ["19901219"], "loose", "中美国债收益率"),
+    # 阶段5: 新浪 sina 债券
+    ("bond_gb_zh_sina", ["中国10年期国债"], "loose", "中国国债收益率"),
+    ("bond_gb_us_sina", ["美国10年期国债"], "loose", "美国国债收益率"),
     # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
