@@ -268,6 +268,13 @@ CASES: list[tuple[str, list[str], str, str]] = [
     # === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
     # === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
     # === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
+    # 阶段1: 外汇交易中心 chinamoney
+    ("bond_spot_deal", [], "loose", "现券成交行情"),
+    ("bond_spot_quote", [], "loose", "现券做市报价"),
+    ("bond_china_close_return_map", [], "loose", "收盘收益率曲线映射表"),
+    ("bond_china_close_return", ["国债", "1", "20260811", "20260811"], "loose", "收盘收益率曲线历史"),
+    ("bond_info_cm", ["24国债01", "", "", "", "", "", "", ""], "loose", "债券信息查询"),
+    ("bond_info_detail_cm", ["24国债01"], "loose", "债券详情"),
     # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约

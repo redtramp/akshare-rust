@@ -95,6 +95,10 @@ use akshare_rust::stock_fundamental::{
     stock_shareholder_change_ths,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
+use akshare_rust::bond::{
+    bond_china_close_return, bond_china_close_return_map, bond_info_cm, bond_info_detail_cm,
+    bond_spot_deal, bond_spot_quote,
+};
 use serde_json::json;
 
 type BoxErr = Box<dyn std::error::Error>;
@@ -698,6 +702,21 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         // === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
         // === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
+        "bond_spot_deal" => Ok(bond_spot_deal()?),
+        "bond_spot_quote" => Ok(bond_spot_quote()?),
+        "bond_china_close_return_map" => Ok(bond_china_close_return_map()?),
+        "bond_china_close_return" => {
+            let [s, p, d0, d1] = take4(func, args)?;
+            Ok(bond_china_close_return(s, p, d0, d1)?)
+        }
+        "bond_info_detail_cm" => {
+            let [s] = take1(func, args)?;
+            Ok(bond_info_detail_cm(s)?)
+        }
+        "bond_info_cm" => {
+            let [a, b, c, d, e, f, g, h] = take8(func, args)?;
+            Ok(bond_info_cm(a, b, c, d, e, f, g, h)?)
+        }
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),
     }
@@ -746,5 +765,53 @@ fn take5<'a>(func: &str, args: &'a [String]) -> Result<[&'a str; 5], BoxErr> {
         args[2].as_str(),
         args[3].as_str(),
         args[4].as_str(),
+    ])
+}
+
+// take6/take7 为批次4 后续 6/7 参数函数预留的分派辅助（当前阶段尚未用到）。
+#[allow(dead_code)]
+fn take6<'a>(func: &str, args: &'a [String]) -> Result<[&'a str; 6], BoxErr> {
+    if args.len() != 6 {
+        return Err(format!("{func} 需要 6 个参数, 实际 {}", args.len()).into());
+    }
+    Ok([
+        args[0].as_str(),
+        args[1].as_str(),
+        args[2].as_str(),
+        args[3].as_str(),
+        args[4].as_str(),
+        args[5].as_str(),
+    ])
+}
+
+#[allow(dead_code)]
+fn take7<'a>(func: &str, args: &'a [String]) -> Result<[&'a str; 7], BoxErr> {
+    if args.len() != 7 {
+        return Err(format!("{func} 需要 7 个参数, 实际 {}", args.len()).into());
+    }
+    Ok([
+        args[0].as_str(),
+        args[1].as_str(),
+        args[2].as_str(),
+        args[3].as_str(),
+        args[4].as_str(),
+        args[5].as_str(),
+        args[6].as_str(),
+    ])
+}
+
+fn take8<'a>(func: &str, args: &'a [String]) -> Result<[&'a str; 8], BoxErr> {
+    if args.len() != 8 {
+        return Err(format!("{func} 需要 8 个参数, 实际 {}", args.len()).into());
+    }
+    Ok([
+        args[0].as_str(),
+        args[1].as_str(),
+        args[2].as_str(),
+        args[3].as_str(),
+        args[4].as_str(),
+        args[5].as_str(),
+        args[6].as_str(),
+        args[7].as_str(),
     ])
 }
