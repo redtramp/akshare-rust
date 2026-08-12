@@ -1,0 +1,252 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "日期",
+      "dtype": "str"
+    },
+    {
+      "name": "美元",
+      "dtype": "float64"
+    },
+    {
+      "name": "欧元",
+      "dtype": "float64"
+    },
+    {
+      "name": "日元",
+      "dtype": "float64"
+    },
+    {
+      "name": "港元",
+      "dtype": "float64"
+    },
+    {
+      "name": "英镑",
+      "dtype": "float64"
+    },
+    {
+      "name": "澳元",
+      "dtype": "float64"
+    },
+    {
+      "name": "新西兰元",
+      "dtype": "float64"
+    },
+    {
+      "name": "新加坡元",
+      "dtype": "float64"
+    },
+    {
+      "name": "瑞士法郎",
+      "dtype": "float64"
+    },
+    {
+      "name": "加元",
+      "dtype": "float64"
+    },
+    {
+      "name": "澳门元",
+      "dtype": "float64"
+    },
+    {
+      "name": "林吉特",
+      "dtype": "float64"
+    },
+    {
+      "name": "卢布",
+      "dtype": "float64"
+    },
+    {
+      "name": "兰特",
+      "dtype": "float64"
+    },
+    {
+      "name": "韩元",
+      "dtype": "float64"
+    },
+    {
+      "name": "迪拉姆",
+      "dtype": "float64"
+    },
+    {
+      "name": "里亚尔",
+      "dtype": "float64"
+    },
+    {
+      "name": "福林",
+      "dtype": "float64"
+    },
+    {
+      "name": "兹罗提",
+      "dtype": "float64"
+    },
+    {
+      "name": "丹麦克朗",
+      "dtype": "float64"
+    },
+    {
+      "name": "瑞典克朗",
+      "dtype": "float64"
+    },
+    {
+      "name": "挪威克朗",
+      "dtype": "float64"
+    },
+    {
+      "name": "里拉",
+      "dtype": "float64"
+    },
+    {
+      "name": "比索",
+      "dtype": "float64"
+    },
+    {
+      "name": "泰铢",
+      "dtype": "float64"
+    }
+  ],
+  "height": 8025,
+  "head": [
+    [
+      "1994-01-01",
+      "870.0",
+      null,
+      "7.78",
+      "112.66",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "1994-01-03",
+      "870.0",
+      null,
+      "7.78",
+      "112.66",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "1994-01-04",
+      "870.0",
+      null,
+      "7.7196",
+      "112.66",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "1994-01-05",
+      "870.0",
+      null,
+      "7.7196",
+      "112.66",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "1994-01-06",
+      "870.0",
+      null,
+      "7.7196",
+      "112.66",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ]
+}

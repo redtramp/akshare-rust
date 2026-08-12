@@ -397,7 +397,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("bond_zh_cov_info", ["123121", "基本信息"], "loose", "可转债详情"),
     ("bond_zh_cov_value_analysis", ["113527"], "loose", "可转债价值分析"),
     ("bond_cov_comparison", [], "loose", "可转债比价表"),
-    ("bond_zh_us_rate", ["19901219"], "loose", "中美国债收益率"),
+    ("bond_zh_us_rate", ["19901219"], "loose", "中美国国债收益率"),
     # 阶段5: 新浪 sina 债券
     ("bond_gb_zh_sina", ["中国10年期国债"], "loose", "中国国债收益率"),
     ("bond_gb_us_sina", ["美国10年期国债"], "loose", "美国国债收益率"),
@@ -406,6 +406,44 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("fx_swap_quote", [], "loose", "外汇远掉报价"),
     ("fx_pair_quote", [], "loose", "外币对即期报价"),
     ("fx_c_swap_cm", [], "loose", "外汇掉期C-Swap定盘曲线"),
+    # spot - 搜猪网
+    ("spot_hog_soozhu", [], "loose", "搜猪网生猪价格"),
+    ("spot_hog_year_trend_soozhu", [], "loose", "搜猪网生猪年度走势"),
+    ("spot_hog_lean_price_soozhu", [], "loose", "搜猪网瘦肉型猪价格"),
+    ("spot_hog_three_way_soozhu", [], "loose", "搜猪网三元猪价格"),
+    ("spot_hog_crossbred_soozhu", [], "loose", "搜猪网土杂猪价格"),
+    ("spot_corn_price_soozhu", [], "loose", "搜猪网玉米价格"),
+    ("spot_soybean_price_soozhu", [], "loose", "搜猪网大豆价格"),
+    ("spot_mixed_feed_soozhu", [], "loose", "搜猪网混合饲料价格"),
+    # spot - 新浪商品现货指数
+    ("spot_goods", ["波罗的海干散货指数"], "strict", "新浪商品现货指数"),
+    # spot - 上海黄金交易所
+    ("spot_symbol_table_sge", [], "strict", "上金所品种表"),
+    ("spot_golden_benchmark_sge", [], "loose", "上金所黄金基准价"),
+    ("spot_silver_benchmark_sge", [], "loose", "上金所白银基准价"),
+    ("spot_hist_sge", ["Au99.99"], "strict", "上金所历史行情"),
+    ("spot_quotations_sge", ["Au99.99"], "loose", "上金所实时行情"),
+    # spot - 99期货期现
+    ("spot_price_table_qh", [], "strict", "99期货品种表"),
+    ("spot_price_qh", ["螺纹钢"], "strict", "99期货期现价格"),
+    # energy - 碳排放
+    ("energy_carbon_gz", [], "loose", "广州碳排放行情"),
+    ("energy_carbon_hb", [], "loose", "湖北碳排放每日概况"),
+    # energy - 油价
+    ("energy_oil_hist", [], "strict", "汽柴油历史调价"),
+    ("energy_oil_detail", ["20240118"], "strict", "各地区汽柴油价格"),
+    # currency - 新浪中行 / 外汇局
+    ("currency_boc_sina", ["美元", "20230304", "20231110"], "strict", "新浪中行牌价历史"),
+    ("currency_boc_safe", [], "loose", "外汇局人民币中间价(近期)"),
+    # news - 百度股市通
+    ("news_economic_baidu", ["20251126"], "strict", "百度经济数据日历"),
+    ("news_trade_notify_suspend_baidu", ["20251126"], "strict", "百度停复牌提醒"),
+    ("news_trade_notify_dividend_baidu", ["20251126"], "strict", "百度分红派息提醒"),
+    ("news_report_time_baidu", ["20251126"], "strict", "百度财报披露时间"),
+    # news - 央视
+    ("news_cctv", ["20240424"], "loose", "新闻联播文字稿"),
+    # fortune - 胡润研究院
+    ("hurun_rank", ["胡润百富榜", "2023"], "loose", "胡润百富榜"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
 ]

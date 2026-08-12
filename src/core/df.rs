@@ -391,6 +391,30 @@ impl Df {
         Ok(self)
     }
 
+    /// 指定列按小数位四舍五入（对应 akshare `round(col, n)`，作用于已数值化的列）。
+    ///
+    /// 列先转 f64，逐元素四舍五入后写回；列不存在或非数值时忽略。
+    pub fn round_column(&mut self, col: &str, decimals: u32) -> Result<&mut Self> {
+        let series = match self.inner.column(col) {
+            Ok(s) => s.clone(),
+            Err(_) => return Ok(self),
+        };
+        let f64s = match series.cast(&DataType::Float64) {
+            Ok(c) => c,
+            Err(_) => return Ok(self),
+        };
+        let factor = 10f64.powi(decimals as i32);
+        let rounded: Column = match f64s.f64() {
+            Ok(ca) => ca
+                .apply_values(|v| (v * factor).round() / factor)
+                .into_series()
+                .into(),
+            Err(_) => f64s.into_column(),
+        };
+        let _ = self.inner.replace(col, rounded);
+        Ok(self)
+    }
+
     /// 指定列转 f64（对应 akshare `pd.to_numeric(errors="coerce")`）。
     pub fn cast_numeric(&mut self, cols: &[&str]) -> Result<&mut Self> {
         for c in cols {
