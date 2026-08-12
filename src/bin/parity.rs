@@ -16,9 +16,11 @@
 //! ```
 
 use akshare_rust::cninfo::{
-    stock_dividend_cninfo, stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo,
-    stock_profile_cninfo,
+    bond_corporate_issue_cninfo, bond_cov_issue_cninfo, bond_cov_stock_issue_cninfo,
+    bond_local_government_issue_cninfo, bond_treasure_issue_cninfo, stock_dividend_cninfo,
+    stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo, stock_profile_cninfo,
 };
+use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_spot_quote, fx_swap_quote};
 use akshare_rust::economic::{
     macro_china_cpi_monthly, macro_china_cpi_yearly, macro_china_cx_pmi_yearly,
     macro_china_cx_services_pmi_yearly, macro_china_exports_yoy, macro_china_fdi,
@@ -226,6 +228,23 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         "stock_new_ipo_cninfo" => Ok(stock_new_ipo_cninfo()?),
         "stock_new_gh_cninfo" => Ok(stock_new_gh_cninfo()?),
+        "bond_treasure_issue_cninfo" => {
+            let [s, e] = take2(func, args)?;
+            Ok(bond_treasure_issue_cninfo(s, e)?)
+        }
+        "bond_local_government_issue_cninfo" => {
+            let [s, e] = take2(func, args)?;
+            Ok(bond_local_government_issue_cninfo(s, e)?)
+        }
+        "bond_corporate_issue_cninfo" => {
+            let [s, e] = take2(func, args)?;
+            Ok(bond_corporate_issue_cninfo(s, e)?)
+        }
+        "bond_cov_issue_cninfo" => {
+            let [s, e] = take2(func, args)?;
+            Ok(bond_cov_issue_cninfo(s, e)?)
+        }
+        "bond_cov_stock_issue_cninfo" => Ok(bond_cov_stock_issue_cninfo()?),
         "fund_etf_category_ths" => {
             let [s, d] = take2(func, args)?;
             Ok(fund_etf_category_ths(s, d)?)
@@ -698,6 +717,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         // === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
         // === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
+        "fx_spot_quote" => Ok(fx_spot_quote()?),
+        "fx_swap_quote" => Ok(fx_swap_quote()?),
+        "fx_pair_quote" => Ok(fx_pair_quote()?),
+        "fx_c_swap_cm" => Ok(fx_c_swap_cm()?),
         // === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
         _ => Err(format!("未知函数: {func}").into()),
     }

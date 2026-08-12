@@ -341,6 +341,286 @@ pub fn stock_new_gh_cninfo() -> Result<Df> {
     Ok(df)
 }
 
+/// 从 cninfo 记录中按 `(原始键, 输出列名)` 对直接抽取目标列（顺序=输出列序）。
+///
+/// 对应 akshare `pd.DataFrame(records).rename(columns=...)[cols]`：
+/// 只选取重命名映射里的键，忽略响应中可能存在的其余字段，并直接以中文名输出，
+/// 从而避免 `rename_columns` 对列数严格相等的要求（响应键集不固定）。
+fn extract_df(records: &[Value], picks: &[(&str, &str)]) -> Result<Df> {
+    let col_names: Vec<&str> = picks.iter().map(|(_, cn)| *cn).collect();
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(records.len());
+    for r in records {
+        let obj = r
+            .as_object()
+            .ok_or_else(|| AkshareError::Empty("records 元素不是 JSON 对象".into()))?;
+        let row: Vec<Option<String>> = picks
+            .iter()
+            .map(|(k, _)| match obj.get(*k) {
+                Some(Value::Null) => None,
+                Some(Value::String(s)) => Some(s.clone()),
+                Some(other) => Some(other.to_string()),
+                None => None,
+            })
+            .collect();
+        rows.push(row);
+    }
+    Df::from_string_rows(&col_names, &rows)
+}
+
+/// 将 `YYYYMMDD` 转为 `YYYY-MM-DD`（cninfo 日期范围参数格式）。
+fn fmt_cninfo_date(d: &str) -> String {
+    if d.len() == 8 {
+        format!("{}-{}-{}", &d[0..4], &d[4..6], &d[6..8])
+    } else {
+        d.to_string()
+    }
+}
+
+/// 债券发行类函数公共流程：POST sysapi + 抽取列 + 日期/数值化。
+fn bond_issue_cninfo(
+    endpoint: &str,
+    start_date: Option<&str>,
+    end_date: Option<&str>,
+    picks: &[(&str, &str)],
+    date_cols: &[&str],
+    num_cols: &[&str],
+) -> Result<Df> {
+    let mut map = Map::new();
+    if let (Some(s), Some(e)) = (start_date, end_date) {
+        map.insert("sdate".into(), Value::String(fmt_cninfo_date(s)));
+        map.insert("edate".into(), Value::String(fmt_cninfo_date(e)));
+    }
+    let records = post_sysapi(endpoint, &map)?;
+    let mut df = extract_df(&records, picks)?;
+    df.cast_date(date_cols)?;
+    df.cast_numeric(num_cols)?;
+    Ok(df)
+}
+
+/// 巨潮资讯-债券报表-国债发行（对应 akshare [`akshare.bond_treasure_issue_cninfo`]）。
+///
+/// # 返回列
+/// `债券代码, 债券简称, 发行起始日, 发行终止日, 计划发行总量, 实际发行总量,
+/// 发行价格, 单位面值, 缴款日, 增发次数, 交易市场, 发行方式, 发行对象,
+/// 公告日期, 债券名称`
+pub fn bond_treasure_issue_cninfo(start_date: &str, end_date: &str) -> Result<Df> {
+    const PICKS: [(&str, &str); 15] = [
+        ("SECCODE", "债券代码"),
+        ("SECNAME", "债券简称"),
+        ("F004D", "发行起始日"),
+        ("F003D", "发行终止日"),
+        ("F006N", "计划发行总量"),
+        ("F005N", "实际发行总量"),
+        ("F007N", "发行价格"),
+        ("F008N", "单位面值"),
+        ("F009D", "缴款日"),
+        ("F028N", "增发次数"),
+        ("F002V", "交易市场"),
+        ("F013V", "发行方式"),
+        ("F014V", "发行对象"),
+        ("DECLAREDATE", "公告日期"),
+        ("BONDNAME", "债券名称"),
+    ];
+    bond_issue_cninfo(
+        "p_sysapi1120",
+        Some(start_date),
+        Some(end_date),
+        &PICKS,
+        &["发行起始日", "发行终止日", "缴款日", "公告日期"],
+        &[
+            "计划发行总量",
+            "实际发行总量",
+            "发行价格",
+            "单位面值",
+            "增发次数",
+        ],
+    )
+}
+
+/// 巨潮资讯-债券报表-地方债发行（对应 akshare [`akshare.bond_local_government_issue_cninfo`]）。
+///
+/// 列契约与国债发行一致（`p_sysapi1121`）。
+pub fn bond_local_government_issue_cninfo(start_date: &str, end_date: &str) -> Result<Df> {
+    const PICKS: [(&str, &str); 15] = [
+        ("SECCODE", "债券代码"),
+        ("SECNAME", "债券简称"),
+        ("F004D", "发行起始日"),
+        ("F003D", "发行终止日"),
+        ("F006N", "计划发行总量"),
+        ("F005N", "实际发行总量"),
+        ("F007N", "发行价格"),
+        ("F008N", "单位面值"),
+        ("F009D", "缴款日"),
+        ("F028N", "增发次数"),
+        ("F002V", "交易市场"),
+        ("F013V", "发行方式"),
+        ("F014V", "发行对象"),
+        ("DECLAREDATE", "公告日期"),
+        ("BONDNAME", "债券名称"),
+    ];
+    bond_issue_cninfo(
+        "p_sysapi1121",
+        Some(start_date),
+        Some(end_date),
+        &PICKS,
+        &["发行起始日", "发行终止日", "缴款日", "公告日期"],
+        &[
+            "计划发行总量",
+            "实际发行总量",
+            "发行价格",
+            "单位面值",
+            "增发次数",
+        ],
+    )
+}
+
+/// 巨潮资讯-债券报表-企业债发行（对应 akshare [`akshare.bond_corporate_issue_cninfo`]）。
+///
+/// # 返回列
+/// `债券代码, 债券简称, 公告日期, 交易所网上发行起始日, 交易所网上发行终止日,
+/// 计划发行总量, 实际发行总量, 发行面值, 发行价格, 发行方式, 发行对象, 发行范围,
+/// 承销方式, 最小认购单位, 募资用途说明, 最低认购额, 债券名称`
+pub fn bond_corporate_issue_cninfo(start_date: &str, end_date: &str) -> Result<Df> {
+    const PICKS: [(&str, &str); 17] = [
+        ("SECCODE", "债券代码"),
+        ("SECNAME", "债券简称"),
+        ("DECLAREDATE", "公告日期"),
+        ("F003D", "交易所网上发行起始日"),
+        ("F004D", "交易所网上发行终止日"),
+        ("F005N", "计划发行总量"),
+        ("F006N", "实际发行总量"),
+        ("F008N", "发行面值"),
+        ("F007N", "发行价格"),
+        ("F013V", "发行方式"),
+        ("F014V", "发行对象"),
+        ("F015V", "发行范围"),
+        ("F017V", "承销方式"),
+        ("F022N", "最小认购单位"),
+        ("F023V", "募资用途说明"),
+        ("F052N", "最低认购额"),
+        ("BONDNAME", "债券名称"),
+    ];
+    bond_issue_cninfo(
+        "p_sysapi1122",
+        Some(start_date),
+        Some(end_date),
+        &PICKS,
+        &["公告日期", "交易所网上发行起始日", "交易所网上发行终止日"],
+        &[
+            "计划发行总量",
+            "实际发行总量",
+            "发行面值",
+            "发行价格",
+            "最小认购单位",
+            "最低认购额",
+        ],
+    )
+}
+
+/// 巨潮资讯-债券报表-可转债发行（对应 akshare [`akshare.bond_cov_issue_cninfo`]）。
+///
+/// # 返回列（31 列）
+/// `债券代码, 债券简称, 公告日期, 发行起始日, 发行终止日, 计划发行总量,
+/// 实际发行总量, 发行面值, 发行价格, 发行方式, 发行对象, 发行范围, 承销方式,
+/// 募资用途说明, 初始转股价格, 转股开始日期, 转股终止日期, 网上申购日期,
+/// 网上申购代码, 网上申购简称, 网上申购数量上限, 网上申购数量下限, 网上申购单位,
+/// 网上申购中签结果公告日及退款日, 优先申购日, 配售价格, 债权登记日,
+/// 优先申购缴款日, 转股代码, 交易市场, 债券名称`
+pub fn bond_cov_issue_cninfo(start_date: &str, end_date: &str) -> Result<Df> {
+    const PICKS: [(&str, &str); 31] = [
+        ("SECCODE", "债券代码"),
+        ("SECNAME", "债券简称"),
+        ("DECLAREDATE", "公告日期"),
+        ("F029D", "发行起始日"),
+        ("F003D", "发行终止日"),
+        ("F005N", "计划发行总量"),
+        ("F006N", "实际发行总量"),
+        ("F007N", "发行面值"),
+        ("F052N", "发行价格"),
+        ("F013V", "发行方式"),
+        ("F014V", "发行对象"),
+        ("F015V", "发行范围"),
+        ("F017V", "承销方式"),
+        ("F021V", "募资用途说明"),
+        ("F026N", "初始转股价格"),
+        ("F027D", "转股开始日期"),
+        ("F053D", "转股终止日期"),
+        ("F051D", "网上申购日期"),
+        ("F031V", "网上申购代码"),
+        ("F032V", "网上申购简称"),
+        ("F008N", "网上申购数量上限"),
+        ("F066N", "网上申购数量下限"),
+        ("F067N", "网上申购单位"),
+        ("F068D", "网上申购中签结果公告日及退款日"),
+        ("F004D", "优先申购日"),
+        ("F065N", "配售价格"),
+        ("F028D", "债权登记日"),
+        ("F054D", "优先申购缴款日"),
+        ("F086V", "转股代码"),
+        ("F002V", "交易市场"),
+        ("BONDNAME", "债券名称"),
+    ];
+    bond_issue_cninfo(
+        "p_sysapi1123",
+        Some(start_date),
+        Some(end_date),
+        &PICKS,
+        &[
+            "公告日期",
+            "发行起始日",
+            "发行终止日",
+            "转股开始日期",
+            "转股终止日期",
+            "网上申购日期",
+            "网上申购中签结果公告日及退款日",
+            "债权登记日",
+            "优先申购日",
+            "优先申购缴款日",
+        ],
+        &[
+            "计划发行总量",
+            "实际发行总量",
+            "发行面值",
+            "发行价格",
+            "初始转股价格",
+            "网上申购数量上限",
+            "网上申购数量下限",
+            "网上申购单位",
+            "配售价格",
+        ],
+    )
+}
+
+/// 巨潮资讯-债券报表-可转债转股（对应 akshare [`akshare.bond_cov_stock_issue_cninfo`]）。
+///
+/// 无日期范围参数（`p_sysapi1124`）。
+///
+/// # 返回列
+/// `债券代码, 债券简称, 公告日期, 转股代码, 转股简称, 转股价格,
+/// 自愿转换期起始日, 自愿转换期终止日, 标的股票, 债券名称`
+pub fn bond_cov_stock_issue_cninfo() -> Result<Df> {
+    const PICKS: [(&str, &str); 10] = [
+        ("SECCODE", "债券代码"),
+        ("SECNAME", "债券简称"),
+        ("DECLAREDATE", "公告日期"),
+        ("F001V", "转股代码"),
+        ("F002V", "转股简称"),
+        ("F003N", "转股价格"),
+        ("F004D", "自愿转换期起始日"),
+        ("F005D", "自愿转换期终止日"),
+        ("F017V", "标的股票"),
+        ("BONDNAME", "债券名称"),
+    ];
+    bond_issue_cninfo(
+        "p_sysapi1124",
+        None,
+        None,
+        &PICKS,
+        &["公告日期", "自愿转换期起始日", "自愿转换期终止日"],
+        &["转股价格"],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
