@@ -272,6 +272,40 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("option_cffex_hs300_daily_sina", ["io2202P4350"], "loose", "中金所-沪深300-日线"),
     ("option_cffex_zz1000_spot_sina", ["mo2209"], "loose", "中金所-中证1000-实时行情"),
     ("option_cffex_zz1000_daily_sina", ["mo2208P6200"], "loose", "中金所-中证1000-日线"),
+    # 阶段2 新浪上交所(SSE)：spot/greeks 实时字段值(2列)、minute 实时、daily 历史、金融分钟
+    ("option_sse_spot_price_sina", ["10003045"], "loose", "上交所-期权实时量价"),
+    ("option_sse_underlying_spot_price_sina", ["sh510300"], "loose", "上交所-标的物实时"),
+    ("option_sse_greeks_sina", ["10003045"], "loose", "上交所-期权希腊字母"),
+    ("option_sse_minute_sina", ["10003720"], "loose", "上交所-期权当日分钟"),
+    ("option_sse_daily_sina", ["10003889"], "strict", "上交所-期权日线历史"),
+    ("option_finance_minute_sina", ["10002530"], "loose", "金融期权-五分钟线"),
+    ("option_sse_codes_sina", ["看涨期权", "202609", "510300"], "loose", "上交所-期权代码列表"),
+    # 阶段3 新浪商品期权：历史日线
+    ("option_commodity_hist_sina", ["au2012C392"], "strict", "商品期权-历史日线"),
+    # 阶段4 交易所(上交所/深交所)：当日合约、每日统计、风险指标
+    ("option_current_day_sse", [], "loose", "上交所-当日所有合约"),
+    ("option_daily_stats_sse", ["20240626"], "strict", "上交所-每日统计"),
+    ("option_daily_stats_szse", ["20240626"], "strict", "深交所-每日统计"),
+    ("option_risk_indicator_sse", ["20240626"], "strict", "上交所-风险指标"),
+    # 阶段5 东财期权：龙虎榜（其余东财实时/分析函数因本环境东财源不可达，见报告跳过）
+    ("option_lhb_em", ["510050", "期权交易情况-认沽交易量", "20240626"], "strict", "东财-期权龙虎榜"),
+    # 东财-期权实时/分钟/分析类（依赖东财接口，网络恢复后补充 golden）
+    ("option_current_em", [], "loose", "东财-期权实时行情"),
+    ("option_minute_em", ["510050"], "loose", "东财-期权分钟"),
+    ("option_premium_analysis_em", [], "loose", "东财-溢价分析"),
+    ("option_risk_analysis_em", [], "loose", "东财-风险分析"),
+    ("option_value_analysis_em", [], "loose", "东财-价值分析"),
+    # 阶段6 其他源：郑商所/大商所/广期所/上期所/中金所/openctp/上交所标的
+    ("option_hist_czce", ["白糖期权", "20191017"], "strict", "郑商所-期权历史"),
+    ("option_hist_yearly_czce", ["SR", "2021"], "loose", "郑商所-年度期权历史"),
+    ("option_hist_dce", ["聚丙烯期权", "20220816"], "strict", "大商所-期权历史"),
+    ("option_hist_gfex", ["工业硅", "20230724"], "strict", "广期所-期权历史"),
+    ("option_hist_shfe", ["铝期权", "20250418"], "strict", "上期所-期权历史"),
+    ("option_vol_shfe", ["铝期权", "20250418"], "strict", "上期所-隐含波动率"),
+    ("option_vol_gfex", ["碳酸锂", "20230724"], "strict", "广期所-隐含波动率"),
+    ("option_contract_info_ctp", [], "loose", "openctp-合约信息"),
+    ("option_finance_board", ["嘉实沪深300ETF期权", "2306"], "loose", "金融期权-板块龙虎"),
+    ("option_finance_sse_underlying", ["sh510300"], "loose", "上交所-标的实时行情"),
     # === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
     # === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
     # === BATCH4 BOND (chinamoney/jisilu/cninfo) ===

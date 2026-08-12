@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "字段",
+      "dtype": "str"
+    },
+    {
+      "name": "值",
+      "dtype": "str"
+    }
+  ],
+  "height": 1,
+  "head": [
+    [
+      "买量",
+      ""
+    ]
+  ]
+}

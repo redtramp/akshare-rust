@@ -19,18 +19,17 @@ use akshare_rust::cninfo::{
     stock_dividend_cninfo, stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo,
     stock_profile_cninfo,
 };
+use akshare_rust::core::df::Df;
 use akshare_rust::economic::{
     macro_china_cpi_monthly, macro_china_cpi_yearly, macro_china_cx_pmi_yearly,
     macro_china_cx_services_pmi_yearly, macro_china_exports_yoy, macro_china_fdi,
     macro_china_fx_reserves_yearly, macro_china_gdp_yearly, macro_china_hk_building_amount,
     macro_china_hk_building_volume, macro_china_hk_cpi, macro_china_hk_cpi_ratio,
     macro_china_hk_gbp, macro_china_hk_gbp_ratio, macro_china_hk_ppi,
-    macro_china_hk_rate_of_unemployment, macro_china_hk_trade_diff_ratio,
-    macro_china_imports_yoy, macro_china_industrial_production_yoy, macro_china_m2_yearly,
-    macro_china_non_man_pmi, macro_china_pmi_yearly, macro_china_ppi_yearly,
-    macro_china_qyspjg, macro_china_trade_balance,
+    macro_china_hk_rate_of_unemployment, macro_china_hk_trade_diff_ratio, macro_china_imports_yoy,
+    macro_china_industrial_production_yoy, macro_china_m2_yearly, macro_china_non_man_pmi,
+    macro_china_pmi_yearly, macro_china_ppi_yearly, macro_china_qyspjg, macro_china_trade_balance,
 };
-use akshare_rust::core::df::Df;
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
 use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
@@ -45,6 +44,18 @@ use akshare_rust::legu::{
     stock_a_congestion_lg, stock_buffett_index_lg, stock_ebs_lg, stock_index_pb_lg,
     stock_index_pe_lg, stock_market_pb_lg, stock_market_pe_lg,
 };
+use akshare_rust::option::{
+    option_cffex_hs300_daily_sina, option_cffex_hs300_spot_sina, option_cffex_sz50_daily_sina,
+    option_cffex_sz50_spot_sina, option_cffex_zz1000_daily_sina, option_cffex_zz1000_spot_sina,
+    option_commodity_hist_sina, option_contract_info_ctp, option_current_day_sse,
+    option_current_em, option_daily_stats_sse, option_daily_stats_szse, option_finance_board,
+    option_finance_minute_sina, option_finance_sse_underlying, option_hist_czce, option_hist_dce,
+    option_hist_gfex, option_hist_shfe, option_hist_yearly_czce, option_lhb_em, option_minute_em,
+    option_premium_analysis_em, option_risk_analysis_em, option_risk_indicator_sse,
+    option_sse_codes_sina, option_sse_daily_sina, option_sse_greeks_sina, option_sse_minute_sina,
+    option_sse_spot_price_sina, option_sse_underlying_spot_price_sina, option_value_analysis_em,
+    option_vol_gfex, option_vol_shfe,
+};
 use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
 use akshare_rust::stock::{
     fund_etf_hist_em, stock_bid_ask_em, stock_board_concept_cons_em, stock_board_concept_hist_em,
@@ -56,12 +67,11 @@ use akshare_rust::stock::{
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
     stock_account_statistics_em, stock_analyst_detail_em, stock_analyst_rank_em,
-    stock_rank_cxfl_ths, stock_rank_cxg_ths, stock_rank_cxd_ths, stock_rank_cxsl_ths,
-    stock_rank_ljqd_ths, stock_rank_ljqs_ths, stock_rank_lxxd_ths, stock_rank_lxsz_ths,
-    stock_rank_xstp_ths, stock_rank_xxtp_ths, stock_rank_xzjp_ths,
-    stock_comment_detail_scrd_desire_em, stock_comment_detail_scrd_focus_em,
-    stock_comment_detail_zhpj_lspf_em, stock_comment_detail_zlkp_jgcyd_em, stock_comment_em,
-    stock_cy_a_spot_em, stock_dxsyl_em, stock_fhps_detail_em, stock_fhps_em, stock_gddh_em,
+    stock_board_concept_info_ths, stock_board_concept_name_ths, stock_board_industry_info_ths,
+    stock_board_industry_name_ths, stock_comment_detail_scrd_desire_em,
+    stock_comment_detail_scrd_focus_em, stock_comment_detail_zhpj_lspf_em,
+    stock_comment_detail_zlkp_jgcyd_em, stock_comment_em, stock_cy_a_spot_em, stock_dxsyl_em,
+    stock_fhps_detail_em, stock_fhps_detail_ths, stock_fhps_em, stock_gddh_em,
     stock_gdfx_free_holding_analyse_em, stock_gdfx_free_holding_change_em,
     stock_gdfx_free_holding_detail_em, stock_gdfx_free_holding_statistics_em,
     stock_gdfx_free_holding_teamwork_em, stock_gdfx_holding_analyse_em,
@@ -72,33 +82,28 @@ use akshare_rust::stock_feature::{
     stock_gpzy_profile_em, stock_hk_ggt_components_em, stock_hk_main_board_spot_em,
     stock_hsgt_board_rank_em, stock_hsgt_hist_em, stock_hsgt_hold_stock_em,
     stock_hsgt_individual_detail_em, stock_hsgt_individual_em,
-    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_jgdy_detail_em,
-    stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em, stock_lhb_hyyyb_em,
-    stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em, stock_lhb_stock_detail_date_em,
-    stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em, stock_lhb_traderstatistic_em,
-    stock_lhb_yyb_detail_em, stock_lhb_yybph_em, stock_lrb_em, stock_margin_account_info,
-    stock_new_a_spot_em, stock_pg_em, stock_qbzf_em, stock_qsjy_em, stock_sy_hy_em, stock_sy_jz_em,
+    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_ipo_hk_ths,
+    stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
+    stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
+    stock_lhb_stock_detail_date_em, stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em,
+    stock_lhb_traderstatistic_em, stock_lhb_yyb_detail_em, stock_lhb_yybph_em, stock_lrb_em,
+    stock_margin_account_info, stock_new_a_spot_em, stock_pg_em, stock_qbzf_em, stock_qsjy_em,
+    stock_rank_cxd_ths, stock_rank_cxfl_ths, stock_rank_cxg_ths, stock_rank_cxsl_ths,
+    stock_rank_ljqd_ths, stock_rank_ljqs_ths, stock_rank_lxsz_ths, stock_rank_lxxd_ths,
+    stock_rank_xstp_ths, stock_rank_xxtp_ths, stock_rank_xzjp_ths, stock_sy_hy_em, stock_sy_jz_em,
     stock_sy_profile_em, stock_sy_yq_em, stock_tfp_em, stock_value_em, stock_xgsglb_em,
     stock_xjll_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em, stock_zcfz_bj_em,
     stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em, stock_zh_b_spot_em,
-    stock_board_concept_info_ths, stock_board_concept_name_ths, stock_board_industry_info_ths,
-    stock_board_industry_name_ths, stock_fhps_detail_ths, stock_ipo_hk_ths, stock_ipo_ths,
 };
 use akshare_rust::stock_fundamental::{
     stock_financial_abstract_new_ths, stock_financial_abstract_ths,
-    stock_financial_benefit_new_ths, stock_financial_benefit_ths,
-    stock_financial_cash_new_ths, stock_financial_cash_ths,
-    stock_financial_debt_new_ths, stock_financial_debt_ths,
-    stock_management_change_ths, stock_profit_forecast_ths,
-    stock_restricted_release_detail_em, stock_restricted_release_queue_em,
-    stock_restricted_release_stockholder_em, stock_restricted_release_summary_em,
-    stock_shareholder_change_ths,
+    stock_financial_benefit_new_ths, stock_financial_benefit_ths, stock_financial_cash_new_ths,
+    stock_financial_cash_ths, stock_financial_debt_new_ths, stock_financial_debt_ths,
+    stock_management_change_ths, stock_profit_forecast_ths, stock_restricted_release_detail_em,
+    stock_restricted_release_queue_em, stock_restricted_release_stockholder_em,
+    stock_restricted_release_summary_em, stock_shareholder_change_ths,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
-use akshare_rust::option::{
-    option_cffex_hs300_daily_sina, option_cffex_hs300_spot_sina, option_cffex_sz50_daily_sina,
-    option_cffex_sz50_spot_sina, option_cffex_zz1000_daily_sina, option_cffex_zz1000_spot_sina,
-};
 use serde_json::json;
 
 type BoxErr = Box<dyn std::error::Error>;
@@ -723,6 +728,101 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(option_cffex_zz1000_daily_sina(s)?)
         }
+        // === BATCH2 OPTION 续：新浪 SSE / 商品 / 交易所 / 东财 / 其他 ===
+        "option_sse_spot_price_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_spot_price_sina(s)?)
+        }
+        "option_sse_underlying_spot_price_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_underlying_spot_price_sina(s)?)
+        }
+        "option_sse_greeks_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_greeks_sina(s)?)
+        }
+        "option_sse_minute_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_minute_sina(s)?)
+        }
+        "option_sse_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_sse_daily_sina(s)?)
+        }
+        "option_finance_minute_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_finance_minute_sina(s)?)
+        }
+        "option_commodity_hist_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_commodity_hist_sina(s)?)
+        }
+        "option_daily_stats_sse" => {
+            let [s] = take1(func, args)?;
+            Ok(option_daily_stats_sse(s)?)
+        }
+        "option_daily_stats_szse" => {
+            let [s] = take1(func, args)?;
+            Ok(option_daily_stats_szse(s)?)
+        }
+        "option_risk_indicator_sse" => {
+            let [s] = take1(func, args)?;
+            Ok(option_risk_indicator_sse(s)?)
+        }
+        "option_minute_em" => {
+            let [s] = take1(func, args)?;
+            Ok(option_minute_em(s)?)
+        }
+        "option_finance_sse_underlying" => {
+            let [s] = take1(func, args)?;
+            Ok(option_finance_sse_underlying(s)?)
+        }
+        "option_sse_codes_sina" => {
+            let [s, d, u] = take3(func, args)?;
+            Ok(option_sse_codes_sina(s, d, u)?)
+        }
+        "option_lhb_em" => {
+            let [s, ind, d] = take3(func, args)?;
+            Ok(option_lhb_em(s, ind, d)?)
+        }
+        "option_hist_czce" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_hist_czce(s, d)?)
+        }
+        "option_hist_yearly_czce" => {
+            let [s, y] = take2(func, args)?;
+            Ok(option_hist_yearly_czce(s, y)?)
+        }
+        "option_hist_dce" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_hist_dce(s, d)?)
+        }
+        "option_hist_gfex" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_hist_gfex(s, d)?)
+        }
+        "option_hist_shfe" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_hist_shfe(s, d)?)
+        }
+        "option_vol_shfe" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_vol_shfe(s, d)?)
+        }
+        "option_vol_gfex" => {
+            let [s, d] = take2(func, args)?;
+            Ok(option_vol_gfex(s, d)?)
+        }
+        "option_finance_board" => {
+            let [s, m] = take2(func, args)?;
+            Ok(option_finance_board(s, m)?)
+        }
+        "option_current_day_sse" => Ok(option_current_day_sse()?),
+        "option_current_em" => Ok(option_current_em()?),
+        "option_premium_analysis_em" => Ok(option_premium_analysis_em()?),
+        "option_risk_analysis_em" => Ok(option_risk_analysis_em()?),
+        "option_value_analysis_em" => Ok(option_value_analysis_em()?),
+        "option_contract_info_ctp" => Ok(option_contract_info_ctp()?),
         // === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
         // === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
