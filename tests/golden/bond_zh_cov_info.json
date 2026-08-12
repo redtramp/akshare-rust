@@ -1,0 +1,370 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "SECURITY_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "SECUCODE",
+      "dtype": "str"
+    },
+    {
+      "name": "TRADE_MARKET",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_NAME_ABBR",
+      "dtype": "str"
+    },
+    {
+      "name": "DELIST_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "LISTING_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "CONVERT_STOCK_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "BOND_EXPIRE",
+      "dtype": "str"
+    },
+    {
+      "name": "RATING",
+      "dtype": "str"
+    },
+    {
+      "name": "VALUE_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "ISSUE_YEAR",
+      "dtype": "str"
+    },
+    {
+      "name": "CEASE_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "EXPIRE_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "PAY_INTEREST_DAY",
+      "dtype": "str"
+    },
+    {
+      "name": "INTEREST_RATE_EXPLAIN",
+      "dtype": "str"
+    },
+    {
+      "name": "BOND_COMBINE_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "ACTUAL_ISSUE_SCALE",
+      "dtype": "float64"
+    },
+    {
+      "name": "ISSUE_PRICE",
+      "dtype": "int64"
+    },
+    {
+      "name": "REMARK",
+      "dtype": "str"
+    },
+    {
+      "name": "PAR_VALUE",
+      "dtype": "int64"
+    },
+    {
+      "name": "ISSUE_OBJECT",
+      "dtype": "str"
+    },
+    {
+      "name": "REDEEM_TYPE",
+      "dtype": "str"
+    },
+    {
+      "name": "EXECUTE_REASON_HS",
+      "dtype": "str"
+    },
+    {
+      "name": "NOTICE_DATE_HS",
+      "dtype": "str"
+    },
+    {
+      "name": "NOTICE_DATE_SH",
+      "dtype": "str"
+    },
+    {
+      "name": "EXECUTE_PRICE_HS",
+      "dtype": "float64"
+    },
+    {
+      "name": "EXECUTE_PRICE_SH",
+      "dtype": "float64"
+    },
+    {
+      "name": "RECORD_DATE_SH",
+      "dtype": "str"
+    },
+    {
+      "name": "EXECUTE_START_DATESH",
+      "dtype": "str"
+    },
+    {
+      "name": "EXECUTE_START_DATEHS",
+      "dtype": "str"
+    },
+    {
+      "name": "EXECUTE_END_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "CORRECODE",
+      "dtype": "str"
+    },
+    {
+      "name": "CORRECODE_NAME_ABBR",
+      "dtype": "str"
+    },
+    {
+      "name": "PUBLIC_START_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "CORRECODEO",
+      "dtype": "str"
+    },
+    {
+      "name": "CORRECODE_NAME_ABBRO",
+      "dtype": "str"
+    },
+    {
+      "name": "BOND_START_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_START_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_SHORT_NAME",
+      "dtype": "str"
+    },
+    {
+      "name": "FIRST_PER_PREPLACING",
+      "dtype": "float64"
+    },
+    {
+      "name": "ONLINE_GENERAL_AAU",
+      "dtype": "int64"
+    },
+    {
+      "name": "ONLINE_GENERAL_LWR",
+      "dtype": "float64"
+    },
+    {
+      "name": "INITIAL_TRANSFER_PRICE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TRANSFER_END_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "TRANSFER_START_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "RESALE_CLAUSE",
+      "dtype": "str"
+    },
+    {
+      "name": "REDEEM_CLAUSE",
+      "dtype": "str"
+    },
+    {
+      "name": "PARTY_NAME",
+      "dtype": "str"
+    },
+    {
+      "name": "CONVERT_STOCK_PRICE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TRANSFER_PRICE",
+      "dtype": "str"
+    },
+    {
+      "name": "TRANSFER_VALUE",
+      "dtype": "str"
+    },
+    {
+      "name": "CURRENT_BOND_PRICE",
+      "dtype": "str"
+    },
+    {
+      "name": "TRANSFER_PREMIUM_RATIO",
+      "dtype": "str"
+    },
+    {
+      "name": "CONVERT_STOCK_PRICEHQ",
+      "dtype": "str"
+    },
+    {
+      "name": "MARKET",
+      "dtype": "str"
+    },
+    {
+      "name": "RESALE_TRIG_PRICE",
+      "dtype": "str"
+    },
+    {
+      "name": "REDEEM_TRIG_PRICE",
+      "dtype": "str"
+    },
+    {
+      "name": "PBV_RATIO",
+      "dtype": "float64"
+    },
+    {
+      "name": "IB_START_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "IB_END_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "CASHFLOW_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "COUPON_IR",
+      "dtype": "int64"
+    },
+    {
+      "name": "PARAM_NAME",
+      "dtype": "str"
+    },
+    {
+      "name": "ISSUE_TYPE",
+      "dtype": "str"
+    },
+    {
+      "name": "EXECUTE_REASON_SH",
+      "dtype": "str"
+    },
+    {
+      "name": "PAYDAYNEW",
+      "dtype": "str"
+    },
+    {
+      "name": "CURRENT_BOND_PRICENEW",
+      "dtype": "str"
+    },
+    {
+      "name": "IS_CONVERT_STOCK",
+      "dtype": "str"
+    },
+    {
+      "name": "IS_REDEEM",
+      "dtype": "str"
+    },
+    {
+      "name": "IS_SELLBACK",
+      "dtype": "str"
+    },
+    {
+      "name": "FIRST_PROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "PUBLIC_START_DATE_HOURS",
+      "dtype": "str"
+    }
+  ],
+  "height": 1,
+  "head": [
+    [
+      "123121",
+      "123121.SZ",
+      "CNSESZ",
+      "帝尔转债",
+      "2026-06-11 00:00:00",
+      "2021-08-27 00:00:00",
+      "300776",
+      "4.8301",
+      "AA-",
+      "2021-08-05 00:00:00",
+      "2021",
+      "2026-06-02 00:00:00",
+      "2026-06-03 00:00:00",
+      "08-05",
+      "第一年为0.4%,第二年为0.6%,第三年为1.0%,第四年为1.5%,第五年为2.5%,第六年为3.0%。",
+      "21270600001JAA",
+      "8.4",
+      "100",
+      "本次发行的可转债(以下简称“帝尔转债”)向股权登记日收市后登记在册的发行人原股东优先配售,原股东优先配售后余额部分(含原股东放弃优先配售部分)采用网上向社会公众投资者通过深交所交易系统发售的方式进行,认购金额不足84,000.00万元的部分由保荐机构(主承销商)包销。",
+      "100",
+      "1、向原股东优先配售:本发行公告公布的股权登记日(即2021年8月4日,T-1日)收市后中国结算深圳分公司登记在册的发行人原A股股东。2、中华人民共和国境内持有深交所证券账户的自然人、法人、证券投资基金、符合法律规定的其他投资者等(国家法律、法规禁止者除外)。3、本次发行的承销商成员的自营账户不得参与网上申购。",
+      "2",
+      "3",
+      "2026-01-12 00:00:00",
+      "2026-05-13 00:00:00",
+      "101.103",
+      "102.068",
+      "2026-06-02 00:00:00",
+      "2026-06-03 00:00:00",
+      "2026-01-13 00:00:00",
+      "2026-01-19 00:00:00",
+      "370776",
+      "帝尔发债",
+      "2021-08-05 00:00:00",
+      "380776",
+      "帝尔配债",
+      "2021-08-09 00:00:00",
+      "2021-08-04 00:00:00",
+      "帝尔激光",
+      "7.9394",
+      "1000",
+      "0.0012905978",
+      "192.7",
+      "2026-06-02 00:00:00",
+      "2022-02-11 00:00:00",
+      "1、有条件回售条款在本次发行的可转换公司债券最后两个计息年度,如果公司股票在任何连续三十个交易日的收盘价低于当期转股价的70%时,可转换公司债券持有人有权将其持有的全部或部分可转换公司债券按面值加上当期应计利息的价格回售给公司。若在上述交易日内发生过转股价格因发生配股、增发、送股、派息、分立及其他原因引起公司股份变动的情况(不包括因本次发行的可转债转股而增加的股本)而调整的情形,则在调整前的交易日按调整前的转股价格和收盘价格计算,在调整后的交易日按调整后的转股价格和收盘价格计算。如果出现转股价格向下修正的情况,则上述“连续三十个交易日”须从转股价格调整之后的第一个交易日起重新计算。最后两个计息年度,可转换公司债券持有人在每年回售条件首次满足后可按上述约定条件行使回售权一次,若在首次满足回售条件而可转换公司债券持有人未在公司届时公告的回售申报期内申报并实施回售的,该计息年度不能再行使回售权,可转换公司债券持有人不能多次行使部分回售权。2、附加回售条款若公司本次发行的可转换公司债券募集资金投资项目的实施情况与公司在募集说明书中的承诺情况相比出现重大变化,且该变化被中国证监会或深圳证券交易所认定为改变募集资金用途的,可转换公司债券持有人享有一次回售的权利。可转换公司债券持有人有权将其持有的可转换公司债券全部或部分按债券面值加上当期应计利息价格回售给公司。持有人在附加回售条件满足后,可以在公司公告后的附加回售申报期内进行回售,该次附加回售申报期内不实施回售的,不应再行使附加回售权。",
+      "1、到期赎回条款在本次发行的可转换公司债券期满后五个交易日内,公司将以本次可转债票面面值的115%(含最后一期利息)的价格向投资者赎回全部未转股的可转换公司债券。2、有条件赎回条款转股期内,当下述两种情形的任意一种出现时,公司有权决定按照债券面值加当期应计利息的价格赎回全部或部分未转股的可转换公司债券:(1)在转股期内,如果公司股票在连续三十个交易日中至少十五个交易日的收盘价格不低于当期转股价格的130%(含130%);(2)当本次发行的可转换公司债券未转股余额不足3,000万元时。当期应计利息的计算公式为:IA=B×i×t/365IA:指当期应计利息;B:指本次发行的可转换公司债券持有人持有的可转换公司债券票面总金额;i:指可转换公司债券当年票面利率;t:指计息天数,即从上一个付息日起至本计息年度赎回日止的实际日历天数(算头不算尾)。若在前述三十个交易日内发生过转股价格调整的情形,则在调整前的交易日按调整前的转股价格和收盘价计算,调整后的交易日按调整后的转股价格和收盘价计算。",
+      "中证鹏元资信评估股份有限公司",
+      "119.51",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "7.33",
+      "2026-08-05 00:00:00",
+      "2027-08-04 00:00:00",
+      "2027-08-05 00:00:00",
+      "3",
+      "交易所系统网上向社会公众投资者发行,交易所系统网上向原A股无限售股东优先配售",
+      "1,4",
+      "4",
+      "-05",
+      null,
+      "否",
+      "是",
+      "是",
+      "382.475440405414",
+      "2021-08-05 15:00:00"
+    ]
+  ]
+}

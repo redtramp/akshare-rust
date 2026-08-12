@@ -1,0 +1,135 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "日期",
+      "dtype": "str"
+    },
+    {
+      "name": "中国国债收益率2年",
+      "dtype": "float64"
+    },
+    {
+      "name": "中国国债收益率5年",
+      "dtype": "float64"
+    },
+    {
+      "name": "中国国债收益率10年",
+      "dtype": "float64"
+    },
+    {
+      "name": "中国国债收益率30年",
+      "dtype": "float64"
+    },
+    {
+      "name": "中国国债收益率10年-2年",
+      "dtype": "float64"
+    },
+    {
+      "name": "中国GDP年增率",
+      "dtype": "float64"
+    },
+    {
+      "name": "美国国债收益率2年",
+      "dtype": "float64"
+    },
+    {
+      "name": "美国国债收益率5年",
+      "dtype": "float64"
+    },
+    {
+      "name": "美国国债收益率10年",
+      "dtype": "float64"
+    },
+    {
+      "name": "美国国债收益率30年",
+      "dtype": "float64"
+    },
+    {
+      "name": "美国国债收益率10年-2年",
+      "dtype": "float64"
+    },
+    {
+      "name": "美国GDP年增率",
+      "dtype": "float64"
+    }
+  ],
+  "height": 9318,
+  "head": [
+    [
+      "1990-12-19",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "7.21",
+      "7.64",
+      "8.0",
+      "8.19",
+      "0.79",
+      null
+    ],
+    [
+      "1990-12-20",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "7.25",
+      "7.67",
+      "8.05",
+      "8.22",
+      "0.8",
+      null
+    ],
+    [
+      "1990-12-21",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "7.3",
+      "7.75",
+      "8.11",
+      "8.28",
+      "0.81",
+      null
+    ],
+    [
+      "1990-12-24",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "7.35",
+      "7.84",
+      "8.2",
+      "8.36",
+      "0.85",
+      null
+    ],
+    [
+      "1990-12-26",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "7.27",
+      "7.78",
+      "8.15",
+      "8.3",
+      "0.88",
+      null
+    ]
+  ]
+}

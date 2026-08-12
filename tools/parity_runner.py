@@ -287,6 +287,33 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("bond_corporate_issue_cninfo", ["20210911", "20211110"], "strict", "巨潮-企业债发行"),
     ("bond_cov_issue_cninfo", ["20210913", "20211112"], "strict", "巨潮-可转债发行"),
     ("bond_cov_stock_issue_cninfo", [], "strict", "巨潮-可转债转股"),
+    # 阶段1: 外汇交易中心 chinamoney
+    ("bond_spot_deal", [], "loose", "现券成交行情"),
+    ("bond_spot_quote", [], "loose", "现券做市报价"),
+    ("bond_china_close_return_map", [], "loose", "收盘收益率曲线映射表"),
+    ("bond_china_close_return", ["国债", "1", "20260811", "20260811"], "loose", "收盘收益率曲线历史"),
+    ("bond_info_cm", ["24国债01", "", "", "", "", "", "", ""], "loose", "债券信息查询"),
+    ("bond_info_detail_cm", ["24国债01"], "loose", "债券详情"),
+    # 阶段2: 集思录 jisilu
+    ("bond_cb_jsl", [""], "loose", "集思录可转债列表"),
+    ("bond_cb_redeem_jsl", [], "loose", "集思录可转债强赎"),
+    ("bond_cb_index_jsl", [], "loose", "集思录可转债等权指数"),
+    ("bond_cb_adj_logs_jsl", ["128013"], "loose", "集思录转股价调整记录"),
+    # 阶段3: 巨潮 cninfo 债券发行（已由 main a8c1ae6 在 src/cninfo/mod.rs 实现，本分支跳过）
+    # 阶段4: 东方财富 eastmoney 债券
+    ("bond_buy_back_hist_em", ["204001"], "loose", "质押式回购历史"),
+    ("bond_sh_buy_back_em", [], "loose", "上证质押式回购"),
+    ("bond_sz_buy_back_em", [], "loose", "深证质押式回购"),
+    ("bond_zh_hs_cov_min", ["sz128039", "15", "", "1979-09-01 09:32:00", "2222-01-01 09:32:00"], "loose", "可转债分钟行情"),
+    ("bond_zh_hs_cov_pre_min", ["sh113570"], "loose", "可转债盘前分时"),
+    ("bond_zh_cov", [], "loose", "可转债数据"),
+    ("bond_zh_cov_info", ["123121", "基本信息"], "loose", "可转债详情"),
+    ("bond_zh_cov_value_analysis", ["113527"], "loose", "可转债价值分析"),
+    ("bond_cov_comparison", [], "loose", "可转债比价表"),
+    ("bond_zh_us_rate", ["19901219"], "loose", "中美国债收益率"),
+    # 阶段5: 新浪 sina 债券
+    ("bond_gb_zh_sina", ["中国10年期国债"], "loose", "中国国债收益率"),
+    ("bond_gb_us_sina", ["美国10年期国债"], "loose", "美国国债收益率"),
     # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     ("fx_spot_quote", [], "loose", "外汇即期报价"),
     ("fx_swap_quote", [], "loose", "外汇远掉报价"),

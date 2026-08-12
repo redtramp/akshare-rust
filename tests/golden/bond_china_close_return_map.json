@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "value",
+      "dtype": "str"
+    },
+    {
+      "name": "cnLabel",
+      "dtype": "str"
+    },
+    {
+      "name": "enLabel",
+      "dtype": "str"
+    }
+  ],
+  "height": 75,
+  "head": [
+    [
+      "CYCC000",
+      "国债",
+      "Treasury Bond"
+    ],
+    [
+      "CYCC010",
+      "央行票据",
+      "Central Bank Bill"
+    ],
+    [
+      "CYCC021",
+      "政策性金融债(国开)",
+      "Policy bank Bond(CDB)"
+    ],
+    [
+      "CYCC024",
+      "政策性金融债(进出口行)",
+      "Policy Financial Bond(EIBC)"
+    ],
+    [
+      "CYCC023",
+      "政策性金融债(农发行)",
+      "Policy Financial Bond(ADBC)"
+    ]
+  ]
+}
