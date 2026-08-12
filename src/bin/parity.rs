@@ -95,6 +95,10 @@ use akshare_rust::stock_fundamental::{
     stock_shareholder_change_ths,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
+use akshare_rust::option::{
+    option_cffex_hs300_daily_sina, option_cffex_hs300_spot_sina, option_cffex_sz50_daily_sina,
+    option_cffex_sz50_spot_sina, option_cffex_zz1000_daily_sina, option_cffex_zz1000_spot_sina,
+};
 use serde_json::json;
 
 type BoxErr = Box<dyn std::error::Error>;
@@ -695,6 +699,30 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "fund_balance_position_lg" => Ok(fund_balance_position_lg()?),
         "fund_linghuo_position_lg" => Ok(fund_linghuo_position_lg()?),
         // === BATCH2 OPTION (sina/exchange/em) ===
+        "option_cffex_sz50_spot_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_sz50_spot_sina(s)?)
+        }
+        "option_cffex_sz50_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_sz50_daily_sina(s)?)
+        }
+        "option_cffex_hs300_spot_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_hs300_spot_sina(s)?)
+        }
+        "option_cffex_hs300_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_hs300_daily_sina(s)?)
+        }
+        "option_cffex_zz1000_spot_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_zz1000_spot_sina(s)?)
+        }
+        "option_cffex_zz1000_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(option_cffex_zz1000_daily_sina(s)?)
+        }
         // === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
         // === BATCH4 BOND (chinamoney/jisilu/cninfo) ===

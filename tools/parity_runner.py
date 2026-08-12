@@ -265,6 +265,13 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("macro_china_qyspjg", [], "loose", "企业商品价格指数"),
     ("macro_china_fdi", [], "loose", "外商直接投资数据"),
     # === BATCH2 OPTION (sina/exchange/em) ===
+    # 阶段1 新浪中金所(CFFEX)：spot 实时行情(17列)、daily 日线(6列)，loose(实时/交易日变化)
+    ("option_cffex_sz50_spot_sina", ["ho2303"], "loose", "中金所-上证50-实时行情"),
+    ("option_cffex_sz50_daily_sina", ["ho2303P2350"], "loose", "中金所-上证50-日线"),
+    ("option_cffex_hs300_spot_sina", ["io2209"], "loose", "中金所-沪深300-实时行情"),
+    ("option_cffex_hs300_daily_sina", ["io2202P4350"], "loose", "中金所-沪深300-日线"),
+    ("option_cffex_zz1000_spot_sina", ["mo2209"], "loose", "中金所-中证1000-实时行情"),
+    ("option_cffex_zz1000_daily_sina", ["mo2208P6200"], "loose", "中金所-中证1000-日线"),
     # === BATCH3 ECONOMIC REMAINING (jin10/em datacenter) ===
     # === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
     # === BATCH4 BOND (chinamoney/jisilu/cninfo) ===
