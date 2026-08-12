@@ -157,6 +157,49 @@ impl HttpClient {
         Ok(text)
     }
 
+    /// 取响应中指定头的值（对应需要从响应头提取 token 的源，如 99qh 的 `_pcc`）。
+    ///
+    /// 仅做一次请求（不重试）：token 类接口对失败不敏感，调用方据此决定是否继续。
+    pub fn get_response_header(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        header: &str,
+    ) -> Result<Option<String>> {
+        let req = self.inner.get(url).query(params);
+        let resp = req.send().map_err(AkshareError::Http)?;
+        let value = resp
+            .headers()
+            .get(header)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        Ok(value)
+    }
+
+    /// 带自定义请求头取响应中指定头的值（同 [`Self::get_response_header`]，但可附带
+    /// `Origin`/`Referer` 等头——99qh 的 `_pcc` token 仅在带这些头时才返回）。
+    pub fn get_response_header_with_headers(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        header: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<Option<String>> {
+        let mut req = self.inner.get(url).query(params);
+        for (k, v) in headers {
+            if let Ok(hv) = HeaderValue::from_str(v) {
+                req = req.header(*k, hv);
+            }
+        }
+        let resp = req.send().map_err(AkshareError::Http)?;
+        let value = resp
+            .headers()
+            .get(header)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        Ok(value)
+    }
+
     /// 带重试的 GET，返回文本但**跳过反爬/登录态检测**。
     ///
     /// 用于建立会话 cookie 的首页访问（如雪球 `xueqiu.com/`）：
@@ -334,6 +377,60 @@ impl HttpClient {
         }
 
         Err(last_err.unwrap_or_else(|| AkshareError::Blocked("POST(表单) 请求重试耗尽，未知错误".into())))
+    }
+
+    /// 带重试的 POST（application/x-www-form-urlencoded 表单体），返回按字符集解码后的文本。
+    ///
+    /// 对应 akshare `requests.post(url, data=payload)` 后取 `r.text()`，用于响应为
+    /// HTML（而非 JSON）的接口，如外汇局 `RMBQuery.do`。重试策略与 `post_form` 一致。
+    pub fn post_form_text(
+        &self,
+        url: &str,
+        params: &Map<String, Value>,
+        headers: &[(&str, &str)],
+    ) -> Result<String> {
+        let mut last_err: Option<AkshareError> = None;
+
+        for attempt in 0..self.max_retries {
+            let mut req = self.inner.post(url).form(params);
+            for (k, v) in headers {
+                if let Ok(hv) = HeaderValue::from_str(v) {
+                    req = req.header(*k, hv);
+                }
+            }
+
+            match req.send() {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        let bytes = resp.bytes().map_err(AkshareError::from)?;
+                        let text = decode_body(&bytes);
+                        detect_block_or_auth(url, &text)?;
+                        return Ok(text);
+                    }
+                    let err = AkshareError::Status {
+                        status: status.as_u16(),
+                        url: url.to_string(),
+                    };
+                    if status.is_client_error() {
+                        return Err(err);
+                    }
+                    last_err = Some(err);
+                }
+                Err(e) => last_err = Some(AkshareError::Http(e)),
+            }
+
+            if attempt + 1 < self.max_retries {
+                let jitter: f64 =
+                    rand::random_range(self.random_delay_range.0..self.random_delay_range.1);
+                let delay = self.base_delay_secs * (2u32.pow(attempt)) as f64 + jitter;
+                std::thread::sleep(Duration::from_secs_f64(delay));
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| {
+            AkshareError::Blocked("POST(表单-文本) 请求重试耗尽，未知错误".into())
+        }))
     }
 
     /// 核心重试循环：对应 akshare `request_with_retry`。
