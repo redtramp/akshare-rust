@@ -184,6 +184,9 @@ use akshare_rust::stock::{
     // === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter） ===
     stock_zh_growth_comparison_em, stock_zh_dupont_comparison_em, stock_zh_scale_comparison_em,
     stock_hk_growth_comparison_em, stock_hk_scale_comparison_em,
+    // === BATCH12 港股 F10（RPT_HKF10_* / RPT_CUSTOM_HKF10_*，securities datacenter） ===
+    stock_hk_security_profile_em, stock_hk_company_profile_em, stock_hk_financial_indicator_em,
+    stock_hk_dividend_payout_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
@@ -373,6 +376,22 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_hk_scale_comparison_em" => {
             let [s] = take1(func, args)?;
             Ok(stock_hk_scale_comparison_em(s)?)
+        }
+        "stock_hk_security_profile_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_security_profile_em(s)?)
+        }
+        "stock_hk_company_profile_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_company_profile_em(s)?)
+        }
+        "stock_hk_financial_indicator_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_financial_indicator_em(s)?)
+        }
+        "stock_hk_dividend_payout_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_dividend_payout_em(s)?)
         }
         "stock_individual_fund_flow" => {
             let [s, m] = take2(func, args)?;

@@ -63,6 +63,11 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_zh_scale_comparison_em", ["SZ000895"], "loose", "A股公司规模比较"),
     ("stock_hk_growth_comparison_em", ["03900"], "loose", "港股成长性比较"),
     ("stock_hk_scale_comparison_em", ["03900"], "loose", "港股规模比较"),
+    # === BATCH12 港股 F10（RPT_HKF10_* / RPT_CUSTOM_HKF10_*，securities datacenter，loose 比列契约） ===
+    ("stock_hk_security_profile_em", ["03900"], "loose", "港股证券资料"),
+    ("stock_hk_company_profile_em", ["03900"], "loose", "港股公司资料"),
+    ("stock_hk_financial_indicator_em", ["03900"], "loose", "港股最新指标"),
+    ("stock_hk_dividend_payout_em", ["03900"], "loose", "港股分红派息"),
     ("stock_individual_fund_flow", ["000001", "sh"], "strict", "个股资金流"),
     ("stock_lhb_detail_em", ["20240101", "20240131"], "strict", "龙虎榜详情"),
     ("stock_hsgt_fund_flow_summary_em", [], "loose", "沪深港通资金流"),

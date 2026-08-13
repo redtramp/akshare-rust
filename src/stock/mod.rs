@@ -1106,6 +1106,260 @@ HKTOTAL_CAP_RANK,OPERATE_INCOME_RANK,GROSS_PROFIT_RANK",
     finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
 }
 
+/// 东方财富-港股-证券资料（对应 akshare [`akshare.stock_hk_security_profile_em`]）。
+///
+/// 报表 `RPT_HKF10_INFO_SECURITYINFO`（`datacenter.eastmoney.com/securities`，`source=F10`），
+/// 按 `SECUCODE="{symbol}.HK"` 过滤；输出 14 列（无 `序号`）。`发行价/发行量(股)/每手股数/每股面值` 数值化。
+pub fn stock_hk_security_profile_em(symbol: &str) -> Result<Df> {
+    let code = format!("{symbol}.HK");
+    let filter = format!(r#"(SECUCODE="{code}")"#);
+    let extra = report_extra("", "", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_HKF10_INFO_SECURITYINFO",
+        "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_TYPE,LISTING_DATE,ISIN_CODE,BOARD,\
+TRADE_UNIT,TRADE_MARKET,GANGGUTONGBIAODISHEN,GANGGUTONGBIAODIHU,PAR_VALUE,\
+ISSUE_PRICE,ISSUE_NUM,YEAR_SETTLE_DAY",
+        &extra,
+        "200",
+        "F10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 14] = [
+        ("SECUCODE", "证券代码"),
+        ("SECURITY_NAME_ABBR", "证券简称"),
+        ("LISTING_DATE", "上市日期"),
+        ("SECURITY_TYPE", "证券类型"),
+        ("ISSUE_PRICE", "发行价"),
+        ("ISSUE_NUM", "发行量(股)"),
+        ("TRADE_UNIT", "每手股数"),
+        ("PAR_VALUE", "每股面值"),
+        ("TRADE_MARKET", "交易所"),
+        ("BOARD", "板块"),
+        ("YEAR_SETTLE_DAY", "年结日"),
+        ("ISIN_CODE", "ISIN（国际证券识别编码）"),
+        ("GANGGUTONGBIAODISHEN", "是否深港通标的"),
+        ("GANGGUTONGBIAODIHU", "是否沪港通标的"),
+    ];
+    const SELECT: [&str; 14] = [
+        "证券代码",
+        "证券简称",
+        "上市日期",
+        "证券类型",
+        "发行价",
+        "发行量(股)",
+        "每手股数",
+        "每股面值",
+        "交易所",
+        "板块",
+        "年结日",
+        "ISIN（国际证券识别编码）",
+        "是否沪港通标的",
+        "是否深港通标的",
+    ];
+    const NUMERIC: [&str; 3] = ["发行价", "发行量(股)", "每手股数"];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
+}
+
+/// 东方财富-港股-公司资料（对应 akshare [`akshare.stock_hk_company_profile_em`]）。
+///
+/// 报表 `RPT_HKF10_INFO_ORGPROFILE`（`source=F10`），按 `SECUCODE="{symbol}.HK"` 过滤；
+/// 输出 17 列（无 `序号`）。仅 `员工人数` 数值化。
+pub fn stock_hk_company_profile_em(symbol: &str) -> Result<Df> {
+    let code = format!("{symbol}.HK");
+    let filter = format!(r#"(SECUCODE="{code}")"#);
+    let extra = report_extra("", "", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_HKF10_INFO_ORGPROFILE",
+        "SECUCODE,SECURITY_CODE,ORG_NAME,ORG_EN_ABBR,BELONG_INDUSTRY,FOUND_DATE,CHAIRMAN,\
+SECRETARY,ACCOUNT_FIRM,REG_ADDRESS,ADDRESS,YEAR_SETTLE_DAY,EMP_NUM,ORG_TEL,ORG_FAX,ORG_EMAIL,\
+ORG_WEB,ORG_PROFILE,REG_PLACE",
+        &extra,
+        "200",
+        "F10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 17] = [
+        ("ORG_NAME", "公司名称"),
+        ("ORG_EN_ABBR", "英文名称"),
+        ("REG_PLACE", "注册地"),
+        ("REG_ADDRESS", "注册地址"),
+        ("FOUND_DATE", "公司成立日期"),
+        ("BELONG_INDUSTRY", "所属行业"),
+        ("CHAIRMAN", "董事长"),
+        ("SECRETARY", "公司秘书"),
+        ("EMP_NUM", "员工人数"),
+        ("ADDRESS", "办公地址"),
+        ("ORG_WEB", "公司网址"),
+        ("ORG_EMAIL", "E-MAIL"),
+        ("YEAR_SETTLE_DAY", "年结日"),
+        ("ORG_TEL", "联系电话"),
+        ("ACCOUNT_FIRM", "核数师"),
+        ("ORG_FAX", "传真"),
+        ("ORG_PROFILE", "公司介绍"),
+    ];
+    const SELECT: [&str; 17] = [
+        "公司名称",
+        "英文名称",
+        "注册地",
+        "注册地址",
+        "公司成立日期",
+        "所属行业",
+        "董事长",
+        "公司秘书",
+        "员工人数",
+        "办公地址",
+        "公司网址",
+        "E-MAIL",
+        "年结日",
+        "联系电话",
+        "核数师",
+        "传真",
+        "公司介绍",
+    ];
+    const NUMERIC: [&str; 1] = ["员工人数"];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
+}
+
+/// 东方财富-港股-核心必读-最新指标（对应 akshare [`akshare.stock_hk_financial_indicator_em`]）。
+///
+/// 报表 `RPT_CUSTOM_HKF10_FN_MAININDICATORMAX`（`source=F10`），按 `SECUCODE="{symbol}.HK"` 过滤，
+/// 按 `REPORT_DATE` 降序；输出 21 列（`股票代码` + 20 个数值指标，无 `序号`）。
+pub fn stock_hk_financial_indicator_em(symbol: &str) -> Result<Df> {
+    let code = format!("{symbol}.HK");
+    let filter = format!(r#"(SECUCODE="{code}")"#);
+    let extra = report_extra("REPORT_DATE", "-1", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_CUSTOM_HKF10_FN_MAININDICATORMAX",
+        "ORG_CODE,SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_INNER_CODE,REPORT_DATE,BASIC_EPS,\
+PER_NETCASH_OPERATE,BPS,BPS_NEDILUTED,COMMON_ACS,PER_SHARES,ISSUED_COMMON_SHARES,HK_COMMON_SHARES,\
+TOTAL_MARKET_CAP,HKSK_MARKET_CAP,OPERATE_INCOME,OPERATE_INCOME_SQ,OPERATE_INCOME_QOQ,\
+OPERATE_INCOME_QOQ_SQ,HOLDER_PROFIT,HOLDER_PROFIT_SQ,HOLDER_PROFIT_QOQ,HOLDER_PROFIT_QOQ_SQ,PE_TTM,\
+PE_TTM_SQ,PB_TTM,PB_TTM_SQ,NET_PROFIT_RATIO,NET_PROFIT_RATIO_SQ,ROE_AVG,ROE_AVG_SQ,ROA,\
+ROA_SQ,DIVIDEND_TTM,DIVIDEND_LFY,DIVI_RATIO,DIVIDEND_RATE,IS_CNY_CODE",
+        &extra,
+        "200",
+        "F10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 21] = [
+        ("BASIC_EPS", "基本每股收益(元)"),
+        ("BPS", "每股净资产(元)"),
+        ("COMMON_ACS", "法定股本(股)"),
+        ("PER_SHARES", "每手股"),
+        ("DIVIDEND_TTM", "每股股息TTM(港元)"),
+        ("DIVI_RATIO", "派息比率(%)"),
+        ("ISSUED_COMMON_SHARES", "已发行股本(股)"),
+        ("HK_COMMON_SHARES", "已发行股本-H股(股)"),
+        ("PER_NETCASH_OPERATE", "每股经营现金流(元)"),
+        ("DIVIDEND_RATE", "股息率TTM(%)"),
+        ("TOTAL_MARKET_CAP", "总市值(港元)"),
+        ("HKSK_MARKET_CAP", "港股市值(港元)"),
+        ("OPERATE_INCOME", "营业总收入"),
+        ("OPERATE_INCOME_QOQ", "营业总收入滚动环比增长(%)"),
+        ("NET_PROFIT_RATIO", "销售净利率(%)"),
+        ("HOLDER_PROFIT", "净利润"),
+        ("HOLDER_PROFIT_QOQ", "净利润滚动环比增长(%)"),
+        ("ROE_AVG", "股东权益回报率(%)"),
+        ("PE_TTM", "市盈率"),
+        ("PB_TTM", "市净率"),
+        ("ROA", "总资产回报率(%)"),
+    ];
+    const SELECT: [&str; 21] = [
+        "基本每股收益(元)",
+        "每股净资产(元)",
+        "法定股本(股)",
+        "每手股",
+        "每股股息TTM(港元)",
+        "派息比率(%)",
+        "已发行股本(股)",
+        "已发行股本-H股(股)",
+        "每股经营现金流(元)",
+        "股息率TTM(%)",
+        "总市值(港元)",
+        "港股市值(港元)",
+        "营业总收入",
+        "营业总收入滚动环比增长(%)",
+        "销售净利率(%)",
+        "净利润",
+        "净利润滚动环比增长(%)",
+        "股东权益回报率(%)",
+        "市盈率",
+        "市净率",
+        "总资产回报率(%)",
+    ];
+    const NUMERIC: [&str; 17] = [
+        "基本每股收益(元)",
+        "每股净资产(元)",
+        "法定股本(股)",
+        "已发行股本(股)",
+        "已发行股本-H股(股)",
+        "每股经营现金流(元)",
+        "总市值(港元)",
+        "港股市值(港元)",
+        "营业总收入",
+        "营业总收入滚动环比增长(%)",
+        "销售净利率(%)",
+        "净利润",
+        "净利润滚动环比增长(%)",
+        "股东权益回报率(%)",
+        "市盈率",
+        "市净率",
+        "总资产回报率(%)",
+    ];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
+}
+
+/// 东方财富-港股-核心必读-分红派息（对应 akshare [`akshare.stock_hk_dividend_payout_em`]）。
+///
+/// 报表 `RPT_HKF10_MAIN_DIVBASIC`（`source=F10`），按 `SECURITY_CODE="{symbol}"`(无 `.HK`) 且
+/// `IS_BFP="0"` 过滤，按 `NOTICE_DATE,EX_DIVIDEND_DATE` 降序；输出 7 列（无 `序号`）。
+/// `最新公告日期/除净日/发放日` 截断为 `YYYY-MM-DD`。
+pub fn stock_hk_dividend_payout_em(symbol: &str) -> Result<Df> {
+    let filter = format!(r#"(SECURITY_CODE="{symbol}")(IS_BFP="0")"#);
+    let extra = report_extra(
+        "NOTICE_DATE,EX_DIVIDEND_DATE",
+        "-1,-1",
+        Some(&filter),
+        Some(""),
+        None,
+        None,
+    );
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_HKF10_MAIN_DIVBASIC",
+        "SECURITY_CODE,UPDATE_DATE,REPORT_TYPE,EX_DIVIDEND_DATE,DIVIDEND_DATE,\
+TRANSFER_END_DATE,YEAR,PLAN_EXPLAIN,IS_BFP",
+        &extra,
+        "200",
+        "F10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 7] = [
+        ("UPDATE_DATE", "最新公告日期"),
+        ("YEAR", "财政年度"),
+        ("PLAN_EXPLAIN", "分红方案"),
+        ("REPORT_TYPE", "分配类型"),
+        ("EX_DIVIDEND_DATE", "除净日"),
+        ("TRANSFER_END_DATE", "截至过户日"),
+        ("DIVIDEND_DATE", "发放日"),
+    ];
+    const SELECT: [&str; 7] = [
+        "最新公告日期",
+        "财政年度",
+        "分红方案",
+        "分配类型",
+        "除净日",
+        "截至过户日",
+        "发放日",
+    ];
+    let mut df = finalize_report(&rows, &RENAME, &SELECT, &[], None)?;
+    df.cast_date(&["最新公告日期", "除净日", "发放日"])?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
