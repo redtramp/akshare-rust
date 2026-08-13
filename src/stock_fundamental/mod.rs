@@ -124,6 +124,158 @@ stock_register_em_fn!(
     "东方财富-数据中心-新股数据-IPO审核信息-深圳主板（对应 akshare [`akshare.stock_register_sz`]）。\n\n# 返回列\n`序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`"
 );
 
+// ============ 9. 首发申报 / 上会 / 辅导备案（东财 datacenter-web RPT_IPO_*） ============
+
+/// `RPT_IPO_DECORGNEWEST` 显式列清单（对应 akshare `stock_ipo_declare_em` 的 `columns` 参数）。
+const DECLARE_COLUMNS: &str = "DECLARE_ORG,STATE,REG_ADDRESS,RECOMMEND_ORG,LAW_FIRM,ACCOUNT_FIRM,\
+PREDICT_LISTING_MARKET,END_DATE,INFO_CODE,SECURITY_CODE,ORG_CODE,IS_REGISTER";
+
+/// 东财 JSON 键 → 中文列名（akshare `rename` 字典；`序号` 由 `index_name` 前置，故不含）。
+const DECLARE_RENAME: [(&str, &str); 9] = [
+    ("DECLARE_ORG", "企业名称"),
+    ("STATE", "最新状态"),
+    ("REG_ADDRESS", "注册地"),
+    ("RECOMMEND_ORG", "保荐机构"),
+    ("LAW_FIRM", "律师事务所"),
+    ("ACCOUNT_FIRM", "会计师事务所"),
+    ("PREDICT_LISTING_MARKET", "拟上市地点"),
+    ("END_DATE", "更新日期"),
+    ("INFO_CODE", "招股说明书"),
+];
+/// 最终输出列序（`序号` 由 `finalize_report` 经 `index_name` 前置，故此处不含）。
+const DECLARE_SELECT: [&str; 9] = [
+    "企业名称",
+    "最新状态",
+    "注册地",
+    "保荐机构",
+    "律师事务所",
+    "会计师事务所",
+    "拟上市地点",
+    "更新日期",
+    "招股说明书",
+];
+
+/// 东方财富-数据中心-新股数据-首发申报企业信息（对应 akshare [`akshare.stock_ipo_declare_em`]）。
+///
+/// 报表 `RPT_IPO_DECORGNEWEST`，按 `END_DATE,SECURITY_CODE` 降序；输出 10 列
+/// `序号, 企业名称, 最新状态, 注册地, 保荐机构, 律师事务所, 会计师事务所, 拟上市地点, 更新日期, 招股说明书`。
+/// `序号` 前置 1-based（对应 akshare `reset_index` + `range(1,..)`）；`更新日期` 截断 `YYYY-MM-DD`；
+/// `招股说明书` 由 `INFO_CODE` 拼接为东财 PDF 链接 `https://pdf.dfcfw.com/pdf/H2_{INFO_CODE}_1.pdf`
+/// （对应 akshare `if pd.notna(item) ... else ""`，`INFO_CODE` 缺失/为空时该格为 `""`）。
+pub fn stock_ipo_declare_em() -> Result<Df> {
+    let extra = report_extra("END_DATE,SECURITY_CODE", "-1,-1", None, None, None, None);
+    let mut rows = datacenter("RPT_IPO_DECORGNEWEST", DECLARE_COLUMNS, &extra, "500")?;
+    // INFO_CODE -> 招股说明书 PDF 链接（对应 akshare `f"https://pdf.dfcfw.com/pdf/H2_{item}_1.pdf"`；
+    // 缺失/为空时置 `""`）
+    for row in &mut rows {
+        if let Some(obj) = row.as_object_mut() {
+            match obj.get("INFO_CODE").and_then(|v| v.as_str()) {
+                Some(code) if !code.is_empty() => {
+                    let url = format!("https://pdf.dfcfw.com/pdf/H2_{code}_1.pdf");
+                    obj.insert("INFO_CODE".into(), Value::String(url));
+                }
+                _ => {
+                    obj.insert("INFO_CODE".into(), Value::String(String::new()));
+                }
+            }
+        }
+    }
+    let mut df = finalize_report(&rows, &DECLARE_RENAME, &DECLARE_SELECT, &[], Some("序号"))?;
+    df.cast_date(&["更新日期"])?;
+    Ok(df)
+}
+
+/// `RPT_IPO_REVIEW` 列清单（`columns=ALL`；服务端以 JSONP 包裹，`parse_datacenter_response` 已剥壳）。
+/// 东财 JSON 键 → 中文列名（akshare `rename` 字典；`序号` 由 `index_name` 前置，故不含）。
+const REVIEW_RENAME: [(&str, &str); 12] = [
+    ("ORG_NAME", "企业名称"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("SECURITY_CODE", "股票代码"),
+    ("TRADE_MARKET", "上市板块"),
+    ("REVIEW_DATE", "上会日期"),
+    ("REVIEW_STATE", "审核状态"),
+    ("REVIEW_MEMBER", "发审委委员"),
+    ("LEAD_UNDERWRITER", "主承销商"),
+    ("ISSUE_NUM", "发行数量(股)"),
+    ("FINANCE_AMT_UPPER", "拟融资额(元)"),
+    ("NOTICE_DATE", "公告日期"),
+    ("LISTING_DATE", "上市日期"),
+];
+/// 最终输出列序（`序号` 由 `finalize_report` 经 `index_name` 前置，故此处不含）。
+const REVIEW_SELECT: [&str; 12] = [
+    "企业名称",
+    "股票简称",
+    "股票代码",
+    "上市板块",
+    "上会日期",
+    "审核状态",
+    "发审委委员",
+    "主承销商",
+    "发行数量(股)",
+    "拟融资额(元)",
+    "公告日期",
+    "上市日期",
+];
+
+/// 东方财富-数据中心-新股申购-新股上会信息（对应 akshare [`akshare.stock_ipo_review_em`]）。
+///
+/// 报表 `RPT_IPO_REVIEW`（`columns=ALL`，服务端以 JSONP 包裹，`parse_datacenter_response` 已剥壳），
+/// 按 `REVIEW_DATE,ORG_CODE` 降序；输出 13 列
+/// `序号, 企业名称, 股票简称, 股票代码, 上市板块, 上会日期, 审核状态, 发审委委员, 主承销商,
+/// 发行数量(股), 拟融资额(元), 公告日期, 上市日期`。`序号` 前置 1-based；
+/// `上会日期`/`公告日期`/`上市日期` 截断 `YYYY-MM-DD`；`发行数量(股)`/`拟融资额(元)` 转数值。
+pub fn stock_ipo_review_em() -> Result<Df> {
+    let extra = report_extra("REVIEW_DATE,ORG_CODE", "-1,-1", None, None, None, None);
+    let rows = datacenter("RPT_IPO_REVIEW", "ALL", &extra, "500")?;
+    let mut df = finalize_report(
+        &rows,
+        &REVIEW_RENAME,
+        &REVIEW_SELECT,
+        &["发行数量(股)", "拟融资额(元)"],
+        Some("序号"),
+    )?;
+    df.cast_date(&["上会日期", "公告日期", "上市日期"])?;
+    Ok(df)
+}
+
+/// `RPT_IPO_TUTRECORD` 显式列清单（对应 akshare `stock_ipo_tutor_em`；服务端以 JSONP 包裹）。
+const TUTOR_COLUMNS: &str = "TUTOR_OBJECT,ORG_CODE,TUTOR_ORG_CODE,TUTOR_ORG,TUTOR_PROCESS_STATE,\
+REPORT_TYPE,DISPATCH_ORG,REPORT_TITLE,RECORD_DATE";
+/// 东财 JSON 键 → 中文列名（akshare `rename` 字典；`序号` 由 `index_name` 前置，故不含）。
+const TUTOR_RENAME: [(&str, &str); 7] = [
+    ("TUTOR_OBJECT", "企业名称"),
+    ("TUTOR_ORG", "辅导机构"),
+    ("TUTOR_PROCESS_STATE", "辅导状态"),
+    ("REPORT_TYPE", "报告类型"),
+    ("DISPATCH_ORG", "派出机构"),
+    ("REPORT_TITLE", "报告标题"),
+    ("RECORD_DATE", "备案日期"),
+];
+/// 最终输出列序（`序号` 由 `finalize_report` 经 `index_name` 前置，故此处不含）。
+const TUTOR_SELECT: [&str; 7] = [
+    "企业名称",
+    "辅导机构",
+    "辅导状态",
+    "报告类型",
+    "派出机构",
+    "报告标题",
+    "备案日期",
+];
+
+/// 东方财富-数据中心-新股数据-IPO辅导信息（对应 akshare [`akshare.stock_ipo_tutor_em`]）。
+///
+/// 报表 `RPT_IPO_TUTRECORD`（服务端以 JSONP 包裹，`parse_datacenter_response` 已剥壳），按
+/// `RECORD_DATE,TUTOR_OBJECT` 降序；输出 8 列
+/// `序号, 企业名称, 辅导机构, 辅导状态, 报告类型, 派出机构, 报告标题, 备案日期`。
+/// `序号` 前置 1-based；`备案日期` 截断 `YYYY-MM-DD`。
+pub fn stock_ipo_tutor_em() -> Result<Df> {
+    let extra = report_extra("RECORD_DATE,TUTOR_OBJECT", "-1,-1", None, None, None, None);
+    let rows = datacenter("RPT_IPO_TUTRECORD", TUTOR_COLUMNS, &extra, "500")?;
+    let mut df = finalize_report(&rows, &TUTOR_RENAME, &TUTOR_SELECT, &[], Some("序号"))?;
+    df.cast_date(&["备案日期"])?;
+    Ok(df)
+}
+
 // ============ 1. stock_restricted_release_summary_em ============
 
 const SUMMARY_RENAME: [(&str, &str); 7] = [

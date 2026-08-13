@@ -71,8 +71,8 @@
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **421**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
-| 整体覆盖率 | **≈ 38.3%**（421 / 1099）|
+| Rust 已实现并验证函数数 | **424**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
+| 整体覆盖率 | **≈ 38.6%**（424 / 1099）|
 | 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk 大类）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -84,7 +84,7 @@
 | fund | 4 | 74 | 5.4% |
 | index | 3 | 79 | 3.8% |
 | stock_feature | 95 | 211 | 45.0% |
-| stock_fundamental | 25 | 57 | 43.9% |
+| stock_fundamental | 28 | 57 | 49.1% |
 | economic | 31 | 226 | 13.7% |
 | futures | 7 | 70 | 10.0% |
 | option | 46 | 47 | 97.9% |
@@ -145,6 +145,8 @@
 > - **批次 7a · 海外宏观 GER/JPAN/CH（`RPT_ECONOMICVALUE_*` 系列，19 个）**：✅ 已完成并验证（2026-08-13）。复用批次 6 的 `macro_em_economic_core` + `macro_em_economic_fn!` 宏，新增德国 8（`RPT_ECONOMICVALUE_GER`）、日本 5（`RPT_ECONOMICVALUE_JPAN`）、瑞士 6（`RPT_ECONOMICVALUE_CH`，CH = Confoederatio Helvetica）共 **19 个**函数；四国 akshare 均按 `发布日期` 升序 → 统一 `sort=Some(("发布日期", true))`，列契约与批次 6 完全同构（4 列 `时间, 前值, 现值, 发布日期`，`发布日期` 截断 `YYYY-MM-DD`，前值/现值数值化）。19 个函数全部生成 golden fixture（akshare 直出，4 列 × 19~225 行）并差分对账通过（loose 19/19 PASS；抽样 5 个 strict PASS 证明行数 + 首行数值逐位一致）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs` 与 `tools/parity_runner.py` 注册 19 个用例（loose 模式）。公开函数 **381 → 400**（宏观海外 germany/japan/swiss 大类从 0 起步）。注：瑞士 akshare 源码 reportName 字面为 `RPT_ECONOMICVALUE_CH`（非 CHN/CHINA），已实测确认该报表名返回瑞士指标数据，非中国宏观。
 > - **批次 7b · 海外宏观 UK（`RPT_ECONOMICVALUE_BRITAIN` 系列，15 个）**：✅ 已完成并验证（2026-08-13）。复用批次 6/7a 的 `macro_em_economic_core` + `macro_em_economic_fn!` 宏，新增英国 **15 个**函数（`RPT_ECONOMICVALUE_BRITAIN`），akshare 均按 `发布日期` 升序 → 统一 `sort=Some(("发布日期", true))`，列契约与批次 6 完全同构。注：`macro_uk_cpi_monthly` 与 `macro_uk_core_cpi_monthly` 在 akshare 中上游笔误共用同一 `INDICATOR_ID=EMG00010291`，此处保持与 akshare 一致（两函数 golden/输出完全相同，属 akshare 既有行为）。15 个函数全部生成 golden fixture（akshare 直出，4 列 × 17~224 行）并差分对账通过（loose 15/15 PASS）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs` 与 `tools/parity_runner.py` 注册 15 个用例（loose 模式）。公开函数 **400 → 415**（宏观海外 uk 大类从 0 起步）。至此东财 `RPT_ECONOMICVALUE_*` 海外宏观系共落地 **51 个**（澳洲 7 + 加拿大 10 + 德国 8 + 日本 5 + 瑞士 6 + 英国 15）；美国 41 个（jin10 源，当前 502）暂缓见 §1.2.1 第 8 条。
 > - **批次 8 · 注册制 IPO 审核信息（`stock_register_em` 系列，6 个）**：✅ 已完成并验证（2026-08-13）。在 `src/stock_fundamental/mod.rs` 新增核心 `stock_register_em_core(filter)`（复用 `stock_feature::{datacenter, report_extra}` + `eastmoney::finalize_report`），报表 `RPT_IPO_INFOALLNEW` 显式 14 列、按 `PREDICT_LISTING_MARKET` 过滤细分市场；用 `stock_register_em_fn!` 宏批量生成 **6 个**：`stock_register_all_em`（无过滤）、`stock_register_kcb`/`cyb`/`bj`/`sh`/`sz`（过滤 科创板/创业板/北交所/沪主板/深主板）。统一 12 列 `序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`：`序号` 经 `index_name=Some("序号")` 前置（akshare `reset_index`+`range(1,..)`，dtype 为 float64，与 akshare int64 在 loose 下均归 num 类）、`更新日期`/`受理日期` 截断 `YYYY-MM-DD`、`招股说明书` 由 `INFO_CODE` 在 JSON 行级拼接为东财 PDF 链接 `https://pdf.dfcfw.com/pdf/H2_{INFO_CODE}_1.pdf`（对应 akshare 的 URL 拼接，已抽样 strict 校验 0 值差异）。6 个函数全部生成 golden fixture（akshare 直出，12 列 × 522~4398 行）并差分对账通过（loose 6/6 PASS；抽样 `stock_register_kcb` strict 比对 head 值含 `招股说明书` 链接逐位一致）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs` 与 `tools/parity_runner.py` 注册 6 个用例（loose 模式）。公开函数 **415 → 421**（注册制 IPO 审核系从 0 起步）。注：`stock_register_db`（akshare 用 `RPT_KCB_IPO` 且 `columns="KCB_LB"` 但 rename 引用 `ORG_NAME`，列契约脆弱）未纳入，待单独评估。
+
+> - **批次 9 · 首发申报/上会/辅导备案（`stock_ipo_declare_em` / `stock_ipo_review_em` / `stock_ipo_tutor_em`，3 个）**：✅ 已完成并验证（2026-08-13）。在 `src/stock_fundamental/mod.rs` 复用 `stock_feature::{datacenter, report_extra}` + `eastmoney::finalize_report` 落地 3 个东财 datacenter 函数：`stock_ipo_declare_em`（报表 `RPT_IPO_DECORGNEWEST`，10 列，显式 12 列、按 `END_DATE,SECURITY_CODE` 降序；`招股说明书` 由 `INFO_CODE` 行级拼接 PDF 链接，缺失/为空置 `""`）、`stock_ipo_review_em`（报表 `RPT_IPO_REVIEW`，`columns=ALL`，服务端 JSONP 包裹由 `parse_datacenter_response` 剥壳，13 列，按 `REVIEW_DATE,ORG_CODE` 降序；`上会日期`/`公告日期`/`上市日期` 截断、`发行数量(股)`/`拟融资额(元)` 数值化）、`stock_ipo_tutor_em`（报表 `RPT_IPO_TUTRECORD`，8 列，JSONP 包裹，按 `RECORD_DATE,TUTOR_OBJECT` 降序；`备案日期` 截断）。三者 `序号` 均经 `index_name=Some("序号")` 前置。`RPT_IPO_REVIEW`/`RPT_IPO_TUTRECORD` 实测返回 JSONP，验证 `parse_datacenter_response` 剥壳路径有效。3 个函数全部生成 golden fixture（akshare 直出：declare 10×3904、review 13×5269、tutor 8×5321 行）并差分对账通过（loose 3/3 PASS）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs` 与 `tools/parity_runner.py` 注册 3 个用例（loose）。公开函数 **421 → 424**。注：`stock_profit_forecast_em`（`RPT_WEB_RESPREDICT`，动态 `YEAR1..4` 列头 + 排序后重排 `序号`）形态差异大，留作批次 10 单独处理；`stock_ipo_review_em`/`stock_ipo_tutor_em` 在 akshare 旧版（1099 口径）曾以 `stock_ipo_review_em`/`stock_ipo_tutor_em` 命名存在，本机 akshare 1.18.83 实测同名函数可用，契约一致。
 
 **关键判断：**
 

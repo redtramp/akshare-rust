@@ -248,6 +248,10 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_register_bj", [], "loose", "注册制IPO审核-北交所"),
     ("stock_register_sh", [], "loose", "注册制IPO审核-上海主板"),
     ("stock_register_sz", [], "loose", "注册制IPO审核-深圳主板"),
+    # === BATCH9 首发申报/上会/辅导备案（RPT_IPO_DECORGNEWEST / RPT_IPO_REVIEW / RPT_IPO_TUTRECORD，loose 比列契约） ===
+    ("stock_ipo_declare_em", [], "loose", "首发申报企业信息"),
+    ("stock_ipo_review_em", [], "loose", "新股上会信息"),
+    ("stock_ipo_tutor_em", [], "loose", "IPO辅导备案信息"),
     # 批次3 阶段3e 乐咕系（历史序列长且持续追加，loose 只比列契约）
     ("stock_market_pe_lg", ["上证"], "loose", "乐咕主板市盈率"),
     ("stock_index_pe_lg", ["沪深300"], "loose", "乐咕指数市盈率"),
