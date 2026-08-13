@@ -448,6 +448,8 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_hold_management_detail_em", [], "loose", "高管持股-变动明细"),
     ("stock_hold_management_person_em", ["001308", "吴远"], "loose", "高管持股-人员明细"),
     ("stock_repurchase_em", [], "loose", "股票回购数据"),
+    # 东财 datacenter 基金持仓明细（RPT_MAINDATA_MAIN_POSITIONDETAILS，位置式列映射→键 rename，loose）
+    ("stock_report_fund_hold_detail", ["008286", "20220331"], "loose", "基金持仓-明细"),
     # 雪球个股公司简介（需登录态 xq_a_token，无则返回 AuthRequired；无法生成 golden，
     # --check 阶段无 golden 自动跳过，计入登录态豁免，见报告说明）
     ("stock_individual_basic_info_xq", ["SH601127"], "loose", "雪球个股公司简介(A股)"),

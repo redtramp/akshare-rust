@@ -192,6 +192,8 @@ use akshare_rust::stock::{
     // === BATCH15 东财数据中心：股市日历/高管持股/股票回购（RPT_ORGOP_ALL / RPT_EXECUTIVE_HOLD_DETAILS / RPTA_WEB_GETHGLIST_NEW） ===
     stock_gsrl_gsdt_em, stock_hold_management_detail_em, stock_hold_management_person_em,
     stock_repurchase_em,
+    // === BATCH16 东财数据中心：基金持仓明细（RPT_MAINDATA_MAIN_POSITIONDETAILS） ===
+    stock_report_fund_hold_detail,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
@@ -417,6 +419,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(stock_hold_management_person_em(s, n)?)
         }
         "stock_repurchase_em" => Ok(stock_repurchase_em()?),
+        "stock_report_fund_hold_detail" => {
+            let [s, d] = take2(func, args)?;
+            Ok(stock_report_fund_hold_detail(s, d)?)
+        }
         "stock_individual_fund_flow" => {
             let [s, m] = take2(func, args)?;
             Ok(stock_individual_fund_flow(s, m)?)

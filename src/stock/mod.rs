@@ -1817,6 +1817,64 @@ pub fn stock_repurchase_em() -> Result<Df> {
     Ok(df)
 }
 
+// ============ 16. 东财数据中心：基金持仓明细（RPT_MAINDATA_MAIN_POSITIONDETAILS，datacenter-web） ============
+
+/// `RPT_MAINDATA_MAIN_POSITIONDETAILS` 列清单（`columns=ALL`）。akshare 用「位置式列映射」
+/// （`reset_index` 后按列序号赋中文名，序号列由 index 前置），等价于下方按 JSON 键的 rename：
+/// 位置 0=序号(index)、2=SECURITY_CODE(股票代码)、4=SECURITY_NAME_ABBR(股票简称)、
+/// 13=TOTAL_SHARES(持股数)、14=HOLD_MARKET_CAP(持股市值)、15=TOTAL_SHARES_RATIO(占总股本比例)、
+/// 16=FREE_SHARES_RATIO(占流通股本比例)，其余键未选中（akshare 置为 `_`/`-`）。
+const FUND_HOLD_DETAIL_RENAME: [(&str, &str); 6] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("TOTAL_SHARES", "持股数"),
+    ("HOLD_MARKET_CAP", "持股市值"),
+    ("TOTAL_SHARES_RATIO", "占总股本比例"),
+    ("FREE_SHARES_RATIO", "占流通股本比例"),
+];
+const FUND_HOLD_DETAIL_SELECT: [&str; 6] = [
+    "股票代码",
+    "股票简称",
+    "持股数",
+    "持股市值",
+    "占总股本比例",
+    "占流通股本比例",
+];
+const FUND_HOLD_DETAIL_NUMERIC: [&str; 4] = [
+    "持股数",
+    "持股市值",
+    "占总股本比例",
+    "占流通股本比例",
+];
+
+/// 东方财富-数据中心-主力数据-基金持仓-明细（对应 akshare [`akshare.stock_report_fund_hold_detail`]）。
+///
+/// `symbol`：基金代码；`date`：`YYYYMMDD` 财报发布日期。报表 `RPT_MAINDATA_MAIN_POSITIONDETAILS`
+/// （`columns=ALL`），按 `(HOLDER_CODE={symbol})(REPORT_DATE='YYYY-MM-DD')` 过滤。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 持股数, 持股市值, 占总股本比例, 占流通股本比例`
+pub fn stock_report_fund_hold_detail(symbol: &str, date: &str) -> Result<Df> {
+    let ymd = if date.len() == 8 && date.bytes().all(|b| b.is_ascii_digit()) {
+        format!("{}-{}-{}", &date[..4], &date[4..6], &date[6..])
+    } else {
+        return Err(AkshareError::Param(format!(
+            "无效 date: {date}（应为 YYYYMMDD）"
+        )));
+    };
+    let filter = format!(r#"(HOLDER_CODE="{symbol}")(REPORT_DATE='{ymd}')"#);
+    let extra = report_extra("SECURITY_CODE", "-1", Some(&filter), Some(""), None, None);
+    let rows = datacenter("RPT_MAINDATA_MAIN_POSITIONDETAILS", "ALL", &extra, "500")?;
+    let df = finalize_report(
+        &rows,
+        &FUND_HOLD_DETAIL_RENAME,
+        &FUND_HOLD_DETAIL_SELECT,
+        &FUND_HOLD_DETAIL_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

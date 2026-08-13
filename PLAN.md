@@ -645,14 +645,14 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 | 批次13 | `stock`（securities datacenter） | `stock_zh_valuation_comparison_em`, `stock_hk_valuation_comparison_em`（2） | `RPT_PCF10_INDUSTRY_CVALUE` / `RPT_PCF10_INDUSTRY_HKCVALUE` | 2/2 ✓ |
 | 批次14 | `stock_fundamental`（datacenter-web） | `stock_dzjy_hygtj`, `stock_dzjy_hyyybtj`, `stock_dzjy_mrmx`, `stock_dzjy_mrtj`, `stock_dzjy_sctj`, `stock_dzjy_yybph`（6） | `RPT_*_BLOCKTRADE_*` | 6/6 ✓ |
 | 批次15 | `stock`（datacenter-web） | `stock_gsrl_gsdt_em`, `stock_hold_management_detail_em`, `stock_hold_management_person_em`, `stock_repurchase_em`（4） | `RPT_ORGOP_ALL` / `RPT_EXECUTIVE_HOLD_DETAILS` / `RPTA_WEB_GETHGLIST_NEW` | 4/4 ✓ |
+| 批次16 | `stock`（datacenter-web） | `stock_report_fund_hold_detail`（1） | `RPT_MAINDATA_MAIN_POSITIONDETAILS` | 1/1 ✓ |
 
-**累计新增（批次11–15）：21 个东财 `RPT_*` 数据中心函数。**
+**累计新增（批次11–16）：22 个东财 `RPT_*` 数据中心函数。**
 
 ### 9.1 后续候选（未实现）
-- `stock_fund_hold.py`：`stock_report_fund_hold` / `stock_report_fund_hold_detail`（2）。
-  前者走 `data.eastmoney.com/dataapi/zlsj/list` 非标准 host，且用「位置式列映射 + 占位列 `_`」，
-  需按 JSON 键顺序构建 rename（或新增位置映射辅助）；后者 `RPT_MAINDATA_MAIN_POSITIONDETAILS`
-  为 datacenter-web 标准报表，可独立先做。留待后续批次。
+- `stock_fund_hold.py`：`stock_report_fund_hold`（1）。走 `data.eastmoney.com/dataapi/zlsj/list`
+  非标准 host，且用「位置式列映射 + 占位列 `_`」，需新增该 host 的 fetch 辅助并按 JSON 键顺序构建 rename。
+  留待后续批次。
 - 反爬豁免：雪球 `*_basic_info_*_xq`（需登录态 `xq_a_token`），`--check` 无 golden 自动跳过。
 
 ---
