@@ -1360,11 +1360,229 @@ TRANSFER_END_DATE,YEAR,PLAN_EXPLAIN,IS_BFP",
     Ok(df)
 }
 
+/// 复刻 akshare `stock_zh_valuation_comparison_em` 的行变换（对应其 `pd.concat([iloc[-1:], iloc[:-1]])`
+/// + 首行排名串 + 行互换三段逻辑）：
+/// 1. 将末行旋转到首行；
+/// 2. 首行 `PAIMING`(排名) 改写为 `{原末行排名}/{TOTAL_COUNT}`（`TOTAL_COUNT` 取原始首行）；
+/// 3. 交换第 1、2 行（`iloc[1]` ↔ `iloc[2]`），仅当行数 ≥ 3。
+fn reorder_valuation_rows(rows: &[Value]) -> Vec<Value> {
+    if rows.is_empty() {
+        return Vec::new();
+    }
+    let total_count = rows
+        .first()
+        .and_then(|r| r.get("TOTAL_COUNT"))
+        .and_then(json_value_to_string)
+        .unwrap_or_default();
+    let mut out: Vec<Value> = Vec::with_capacity(rows.len());
+    if let Some(last) = rows.last() {
+        out.push(last.clone());
+    }
+    out.extend(rows.iter().take(rows.len() - 1).cloned());
+    if let Some(obj) = out.get_mut(0).and_then(|v| v.as_object_mut()) {
+        let rank = obj.get("PAIMING").and_then(json_value_to_string).unwrap_or_default();
+        obj.insert("PAIMING".into(), json!(format!("{rank}/{total_count}")));
+    }
+    if out.len() >= 3 {
+        out.swap(1, 2);
+    }
+    out
+}
+
+/// 东方财富-行情中心-同行比较-估值比较（对应 akshare [`akshare.stock_zh_valuation_comparison_em`]）。
+///
+/// 报表 `RPT_PCF10_INDUSTRY_CVALUE`（`datacenter.eastmoney.com/securities`，`source=HSF10`），
+/// 按 `SECUCODE="{zh_secucode(symbol)}"` 过滤、按 `PAIMING` 升序。输出 20 列 `排名, 代码, 简称,
+/// PEG, 市盈率-TTM/25E/26E/27E, 市销率-24A/TTM/25E/26E/27E, 市净率-24A/MRQ,
+/// 市现率1-24A/TTM, 市现率2-24A/TTM, EV/EBITDA-24A`。akshare 对非首行做旋转+排名串+行互换
+/// （见 [`reorder_valuation_rows`]），本实现在原始 JSON 行级复刻该变换后再 `finalize_report`。
+pub fn stock_zh_valuation_comparison_em(symbol: &str) -> Result<Df> {
+    let code = zh_secucode(symbol);
+    let filter = format!(r#"(SECUCODE="{code}")"#);
+    let extra = report_extra("PAIMING", "1", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_PCF10_INDUSTRY_CVALUE",
+        "ALL",
+        &extra,
+        "",
+        "HSF10",
+        "PC",
+    )?;
+    let ordered = reorder_valuation_rows(&rows);
+    const RENAME: [(&str, &str); 20] = [
+        ("PAIMING", "排名"),
+        ("CORRE_SECURITY_CODE", "代码"),
+        ("CORRE_SECURITY_NAME", "简称"),
+        ("PB", "市净率-24A"),
+        ("PB_MRQ", "市净率-MRQ"),
+        ("PCE", "市现率1-24A"),
+        ("PCE_TTM", "市现率1-TTM"),
+        ("PCF", "市现率2-24A"),
+        ("PCF_TTM", "市现率2-TTM"),
+        ("PEG", "PEG"),
+        ("PE_1Y", "市盈率-25E"),
+        ("PE_2Y", "市盈率-26E"),
+        ("PE_3Y", "市盈率-27E"),
+        ("PE_TTM", "市盈率-TTM"),
+        ("PS", "市销率-24A"),
+        ("PS_1Y", "市销率-25E"),
+        ("PS_2Y", "市销率-26E"),
+        ("PS_3Y", "市销率-27E"),
+        ("PS_TTM", "市销率-TTM"),
+        ("QYBS", "EV/EBITDA-24A"),
+    ];
+    const SELECT: [&str; 20] = [
+        "排名",
+        "代码",
+        "简称",
+        "PEG",
+        "市盈率-TTM",
+        "市盈率-25E",
+        "市盈率-26E",
+        "市盈率-27E",
+        "市销率-24A",
+        "市销率-TTM",
+        "市销率-25E",
+        "市销率-26E",
+        "市销率-27E",
+        "市净率-24A",
+        "市净率-MRQ",
+        "市现率1-24A",
+        "市现率1-TTM",
+        "市现率2-24A",
+        "市现率2-TTM",
+        "EV/EBITDA-24A",
+    ];
+    const NUMERIC: [&str; 17] = [
+        "PEG",
+        "市盈率-TTM",
+        "市盈率-25E",
+        "市盈率-26E",
+        "市盈率-27E",
+        "市销率-24A",
+        "市销率-TTM",
+        "市销率-25E",
+        "市销率-26E",
+        "市销率-27E",
+        "市净率-24A",
+        "市净率-MRQ",
+        "市现率1-24A",
+        "市现率1-TTM",
+        "市现率2-24A",
+        "市现率2-TTM",
+        "EV/EBITDA-24A",
+    ];
+    finalize_report(&ordered, &RENAME, &SELECT, &NUMERIC, None)
+}
+
+/// 东方财富-港股-行业对比-估值对比（对应 akshare [`akshare.stock_hk_valuation_comparison_em`]）。
+///
+/// 报表 `RPT_PCF10_INDUSTRY_HKCVALUE`（`source=F10`），按 `SECUCODE`+`CORRE_SECUCODE`（`{symbol}.HK`）
+/// 过滤；输出 18 列 `代码, 简称, 市盈率-TTM/-LYR(及排名), 市净率-MRQ/-LYR(及排名),
+/// 市销率-TTM/-LYR(及排名), 市现率-TTM/-LYR(及排名)`（无 `序号`、无行变换）。各指标与排名数值化。
+pub fn stock_hk_valuation_comparison_em(symbol: &str) -> Result<Df> {
+    let code = format!("{symbol}.HK");
+    let filter = format!(r#"(SECUCODE="{code}")(CORRE_SECUCODE="{code}")"#);
+    let extra = report_extra("", "", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_PCF10_INDUSTRY_HKCVALUE",
+        "SECUCODE,SECURITY_CODE,ORG_CODE,REPORT_DATE,TYPE_ID,TYPE_TYPE,TYPE_NAME,\
+TYPE_NAME_EN,CORRE_SECURITY_CODE,CORRE_SECUCODE,CORRE_SECURITY_NAME,PE_TTM,PE_LYR,PB_MQR,\
+PB_LYR,PS_TTM,PS_LYR,PCE_TTM,PCE_LYR,PE_TTM_RANK,PE_LYR_RANK,PB_MQR_RANK,PB_LYR_RANK,\
+PS_TTM_RANK,PS_LYR_RANK,PCE_TTM_RANK,PCE_LYR_RANK",
+        &extra,
+        "",
+        "F10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 18] = [
+        ("CORRE_SECURITY_CODE", "代码"),
+        ("CORRE_SECURITY_NAME", "简称"),
+        ("PE_TTM", "市盈率-TTM"),
+        ("PE_TTM_RANK", "市盈率-TTM排名"),
+        ("PE_LYR", "市盈率-LYR"),
+        ("PE_LYR_RANK", "市盈率-LYR排名"),
+        ("PB_MQR", "市净率-MRQ"),
+        ("PB_MQR_RANK", "市净率-MRQ排名"),
+        ("PB_LYR", "市净率-LYR"),
+        ("PB_LYR_RANK", "市净率-LYR排名"),
+        ("PS_TTM", "市销率-TTM"),
+        ("PS_TTM_RANK", "市销率-TTM排名"),
+        ("PS_LYR", "市销率-LYR"),
+        ("PS_LYR_RANK", "市销率-LYR排名"),
+        ("PCE_TTM", "市现率-TTM"),
+        ("PCE_TTM_RANK", "市现率-TTM排名"),
+        ("PCE_LYR", "市现率-LYR"),
+        ("PCE_LYR_RANK", "市现率-LYR排名"),
+    ];
+    const SELECT: [&str; 18] = [
+        "代码",
+        "简称",
+        "市盈率-TTM",
+        "市盈率-TTM排名",
+        "市盈率-LYR",
+        "市盈率-LYR排名",
+        "市净率-MRQ",
+        "市净率-MRQ排名",
+        "市净率-LYR",
+        "市净率-LYR排名",
+        "市销率-TTM",
+        "市销率-TTM排名",
+        "市销率-LYR",
+        "市销率-LYR排名",
+        "市现率-TTM",
+        "市现率-TTM排名",
+        "市现率-LYR",
+        "市现率-LYR排名",
+    ];
+    const NUMERIC: [&str; 16] = [
+        "市盈率-TTM",
+        "市盈率-TTM排名",
+        "市盈率-LYR",
+        "市盈率-LYR排名",
+        "市净率-MRQ",
+        "市净率-MRQ排名",
+        "市净率-LYR",
+        "市净率-LYR排名",
+        "市销率-TTM",
+        "市销率-TTM排名",
+        "市销率-LYR",
+        "市销率-LYR排名",
+        "市现率-TTM",
+        "市现率-TTM排名",
+        "市现率-LYR",
+        "市现率-LYR排名",
+    ];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::sources::eastmoney::finalize_clist;
     use serde_json::json;
+
+    /// 验证估值对比的行变换：旋转末行到首 + 首行排名串 `{末行排名}/{TOTAL_COUNT}` + 交换 1/2 行。
+    #[test]
+    fn reorder_valuation_rows_offline() {
+        let rows = json!([
+            {"PAIMING": 1, "TOTAL_COUNT": 8, "CORRE_SECURITY_CODE": "A"},
+            {"PAIMING": 2, "TOTAL_COUNT": 8, "CORRE_SECURITY_CODE": "B"},
+            {"PAIMING": 3, "TOTAL_COUNT": 8, "CORRE_SECURITY_CODE": "C"},
+        ]);
+        let ordered = reorder_valuation_rows(rows.as_array().unwrap());
+        assert_eq!(ordered.len(), 3);
+        // 首行 = 原末行 C，排名改写为 "3/8"
+        assert_eq!(ordered[0]["PAIMING"], json!("3/8"));
+        assert_eq!(ordered[0]["CORRE_SECURITY_CODE"], json!("C"));
+        // 交换后第 1 行为原第 1 行 B、第 2 行为原第 0 行 A
+        assert_eq!(ordered[1]["CORRE_SECURITY_CODE"], json!("B"));
+        assert_eq!(ordered[2]["CORRE_SECURITY_CODE"], json!("A"));
+        assert_eq!(ordered[1]["PAIMING"], json!(2));
+        assert_eq!(ordered[2]["PAIMING"], json!(1));
+    }
 
     /// 离线验证 spot 全管线：原始 clist 行 → 排序/序号 → 列重命名/选择 → 数值转换。
     /// 字段集与 akshare spot_em 的 fields 参数一致。

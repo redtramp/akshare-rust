@@ -1,0 +1,100 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "代码",
+      "dtype": "str"
+    },
+    {
+      "name": "简称",
+      "dtype": "str"
+    },
+    {
+      "name": "市盈率-TTM",
+      "dtype": "float64"
+    },
+    {
+      "name": "市盈率-TTM排名",
+      "dtype": "int64"
+    },
+    {
+      "name": "市盈率-LYR",
+      "dtype": "float64"
+    },
+    {
+      "name": "市盈率-LYR排名",
+      "dtype": "int64"
+    },
+    {
+      "name": "市净率-MRQ",
+      "dtype": "float64"
+    },
+    {
+      "name": "市净率-MRQ排名",
+      "dtype": "int64"
+    },
+    {
+      "name": "市净率-LYR",
+      "dtype": "float64"
+    },
+    {
+      "name": "市净率-LYR排名",
+      "dtype": "int64"
+    },
+    {
+      "name": "市销率-TTM",
+      "dtype": "float64"
+    },
+    {
+      "name": "市销率-TTM排名",
+      "dtype": "int64"
+    },
+    {
+      "name": "市销率-LYR",
+      "dtype": "float64"
+    },
+    {
+      "name": "市销率-LYR排名",
+      "dtype": "int64"
+    },
+    {
+      "name": "市现率-TTM",
+      "dtype": "float64"
+    },
+    {
+      "name": "市现率-TTM排名",
+      "dtype": "int64"
+    },
+    {
+      "name": "市现率-LYR",
+      "dtype": "float64"
+    },
+    {
+      "name": "市现率-LYR排名",
+      "dtype": "int64"
+    }
+  ],
+  "height": 1,
+  "head": [
+    [
+      "03900",
+      "绿城中国",
+      "259.467595262898",
+      "101",
+      "259.467595262898",
+      "102",
+      "0.523512832336",
+      "168",
+      "0.523512832336",
+      "167",
+      "0.118860421524",
+      "52",
+      "0.118860421524",
+      "54",
+      "3.277783157525",
+      "83",
+      "-1.915990016954",
+      "212"
+    ]
+  ]
+}

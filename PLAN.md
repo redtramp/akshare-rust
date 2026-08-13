@@ -71,8 +71,8 @@
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **434**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
-| 整体覆盖率 | **≈ 39.5%**（434 / 1099）|
+| Rust 已实现并验证函数数 | **436**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
+| 整体覆盖率 | **≈ 39.7%**（436 / 1099）|
 | 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk 大类）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -80,7 +80,7 @@
 
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---|---|---|
-| stock | 30 | 407 | 7.4% |
+| stock | 32 | 407 | 7.9% |
 | fund | 4 | 74 | 5.4% |
 | index | 3 | 79 | 3.8% |
 | stock_feature | 95 | 211 | 45.0% |
@@ -153,6 +153,8 @@
 > - **批次 11 · 东财行业对比（A 股/HK 成长性·杜邦·规模，5 个）**：✅ 已完成并验证（2026-08-13）。在 `src/stock/mod.rs` 复用 `stock_feature::{report_extra}` + `eastmoney::{fetch_securities_pages, finalize_report}`（批次 8 新增的 `datacenter.eastmoney.com/securities` 独立 host，`source=HSF10`/`client=PC` 用于 A 股、`source=F10` 用于港股）落地 5 个行业对比函数：`stock_zh_growth_comparison_em`（A 股成长性，`RPT_PCF10_INDUSTRY_GROWTH`，21 列，按 `END_DATE,SECURITY_CODE` 降序）、`stock_zh_dupont_comparison_em`（A 股杜邦，`RPT_PCF10_INDUSTRY_DBFX`，19 列）、`stock_zh_scale_comparison_em`（A 股规模，`RPT_PCF10_INDUSTRY_MARKET`，10 列、`pageSize=5`、按 `TOTAL_CAP` 降序）、`stock_hk_growth_comparison_em`（港股成长性，`RPT_PCF10_INDUSTRY_HKGROWTH`，10 列）、`stock_hk_scale_comparison_em`（港股规模，`RPT_PCF10_INDUSTRY_SCALE`，10 列）；均按 `SECUCODE`+`CORRE_SECUCODE`（A 股 `zh_secucode(symbol)` 形如 `000895.SZ`、港股 `{symbol}.HK`）过滤、`source/client` 经 `report_extra` 透传。列契约逐个比对 akshare 实测 JSON 键序推导，各数值比率/排名列 `to_numeric`（代码/简称保持 str）。**caveat（akshare 命名 bug）**：`stock_hk_growth_comparison_em` 的 `TOTAL_ASSET_YOY` 在 akshare 1.18.83 `field_mapping` 中被硬编码为 `基本每股收总资产同比增长率益同比增长率`（基本每股收益同比增长率 + 总资产同比增长率 拼接错误），为列名逐字对齐予以保留（Rust 侧同名校验通过）。5 个函数全部生成 golden fixture（akshare 直出：growth 21×8、dupont 19×8、scale 10×1、hk_growth 10×1、hk_scale 10×1 行）并差分对账通过（loose 5/5 PASS）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs`（`take1` 派发）与 `tools/parity_runner.py` 注册 5 个用例（loose）。公开函数 **425 → 430**。`stock_zh_valuation_comparison_em`/`stock_hk_valuation_comparison_em`（估值对比）因 akshare 对非首行做 `concat([iloc[-1:], iloc[:-1]])` 重排 + `{x}/{TOTAL_COUNT}` 排名串 + 行 1/2 互换，非纯 rename+select，未纳入本批，后续单独评估。
 
 > - **批次 12 · 港股 F10 资料/指标/分红（`RPT_HKF10_*` / `RPT_CUSTOM_HKF10_*`，4 个）**：✅ 已完成并验证（2026-08-13）。在 `src/stock/mod.rs` 复用 `stock_feature::{report_extra}` + `eastmoney::{fetch_securities_pages, finalize_report}`（同一 `securities` host，`source=F10`/`client=PC`）落地 4 个港股 F10 函数：`stock_hk_security_profile_em`（`RPT_HKF10_INFO_SECURITYINFO`，14 列，按 `SECUCODE="{symbol}.HK"` 过滤）、`stock_hk_company_profile_em`（`RPT_HKF10_INFO_ORGPROFILE`，17 列）、`stock_hk_financial_indicator_em`（`RPT_CUSTOM_HKF10_FN_MAININDICATORMAX`，21 列、按 `REPORT_DATE` 降序）、`stock_hk_dividend_payout_em`（`RPT_HKF10_MAIN_DIVBASIC`，7 列、按 `NOTICE_DATE,EX_DIVIDEND_DATE` 降序、`filter=(SECURITY_CODE="{symbol}")(IS_BFP="0")`）。均纯 rename+select（无 `序号`）。**dtype 对齐要点（实测）**：akshare 对东财返回的「每股」/比率类字段按 JSON 原始类型保留为 str（不推断数值），故 `stock_hk_security_profile_em` 仅 `发行价/发行量(股)/每手股数` 数值化（`每股面值` 落 str）、`stock_hk_financial_indicator_em` 的 `每手股/每股股息TTM(港元)/派息比率(%)/股息率TTM(%)` 保持 str（其余 17 个指标数值化）；`stock_hk_dividend_payout_em` 的 `最新公告日期/除净日/发放日` 经 `Df::cast_date` 截断为 `YYYY-MM-DD`（与 akshare `to_datetime().dt.date` 等价，loose 下 datetime/str 同归 str 类）。4 个函数全部生成 golden fixture（akshare 直出：security 14×1、company 17×1、financial 21×1、dividend 7×19 行）并差分对账通过（loose 4/4 PASS）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs`（`take1` 派发）与 `tools/parity_runner.py` 注册 4 个用例（loose）。公开函数 **430 → 434**。
+
+> - **批次 13 · 估值对比（A 股/HK，`RPT_PCF10_INDUSTRY_CVALUE` / `RPT_PCF10_INDUSTRY_HKCVALUE`，2 个）**：✅ 已完成并验证（2026-08-13）。在 `src/stock/mod.rs` 复用 `stock_feature::{report_extra}` + `eastmoney::{fetch_securities_pages, finalize_report}` 落地行业估值对比 2 个：`stock_zh_valuation_comparison_em`（A 股，`RPT_PCF10_INDUSTRY_CVALUE`，`columns=ALL`，`source=HSF10`，按 `PAIMING` 升序、仅 `SECUCODE` 过滤，20 列）、`stock_hk_valuation_comparison_em`（港股，`RPT_PCF10_INDUSTRY_HKCVALUE`，`source=F10`，按 `SECUCODE`+`CORRE_SECUCODE`(`{symbol}.HK`) 过滤，18 列）。**A 股行变换（faithful 复刻）**：akshare 对非首行做 `pd.concat([iloc[-1:], iloc[:-1]])`(末行旋到首) + 首行 `排名` 改写为 `{原末行排名}/{TOTAL_COUNT}` + 交换第 1/2 行；本实现在原始 JSON 行级用私有辅助 `reorder_valuation_rows` 复刻该三段变换（读 `TOTAL_COUNT` 取原始首行），再 `finalize_report`；`排名` 列因含串保持 str（其余 17 指标数值化）。港股版无行变换、纯 rename+select（16 个指标+排名字段数值化）。**配套单测** `reorder_valuation_rows_offline` 用 3 行 fixture 验证旋转/排名串/行互换的顺序与值。2 个函数全部生成 golden fixture（akshare 直出：A 股 20×8、港股 18×1 行）并差分对账通过（loose 2/2 PASS）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 176 passed（含新增 reorder 单测）；在 `src/bin/parity.rs`（`take1` 派发）与 `tools/parity_runner.py` 注册 2 个用例（loose）。至此东财 `securities` host 的「同行/行业对比 + 港股 F10」集群共 11 个函数（A 股 5 + 港股 6）全部落地，公开函数 **434 → 436**。
 
 **关键判断：**
 

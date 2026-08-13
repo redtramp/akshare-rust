@@ -68,6 +68,8 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_hk_company_profile_em", ["03900"], "loose", "港股公司资料"),
     ("stock_hk_financial_indicator_em", ["03900"], "loose", "港股最新指标"),
     ("stock_hk_dividend_payout_em", ["03900"], "loose", "港股分红派息"),
+    ("stock_zh_valuation_comparison_em", ["SZ000895"], "loose", "A股估值比较"),
+    ("stock_hk_valuation_comparison_em", ["03900"], "loose", "港股估值比较"),
     ("stock_individual_fund_flow", ["000001", "sh"], "strict", "个股资金流"),
     ("stock_lhb_detail_em", ["20240101", "20240131"], "strict", "龙虎榜详情"),
     ("stock_hsgt_fund_flow_summary_em", [], "loose", "沪深港通资金流"),

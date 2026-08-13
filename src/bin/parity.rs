@@ -187,6 +187,8 @@ use akshare_rust::stock::{
     // === BATCH12 港股 F10（RPT_HKF10_* / RPT_CUSTOM_HKF10_*，securities datacenter） ===
     stock_hk_security_profile_em, stock_hk_company_profile_em, stock_hk_financial_indicator_em,
     stock_hk_dividend_payout_em,
+    // === BATCH13 估值对比（RPT_PCF10_INDUSTRY_CVALUE / RPT_PCF10_INDUSTRY_HKCVALUE） ===
+    stock_zh_valuation_comparison_em, stock_hk_valuation_comparison_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
@@ -392,6 +394,14 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_hk_dividend_payout_em" => {
             let [s] = take1(func, args)?;
             Ok(stock_hk_dividend_payout_em(s)?)
+        }
+        "stock_zh_valuation_comparison_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_valuation_comparison_em(s)?)
+        }
+        "stock_hk_valuation_comparison_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_valuation_comparison_em(s)?)
         }
         "stock_individual_fund_flow" => {
             let [s, m] = take2(func, args)?;
