@@ -3,7 +3,7 @@
 Rust 版 [akshare](https://github.com/akfamily/akshare)：纯 HTTP + 内置 JS 引擎的财经数据获取库。
 
 > 🤖 本项目由 **AI 开发**，每个接口均与 Python akshare 同名函数逐项差分对账验证。
-> 📘 文档：[中文](README.md) · [English](README.en.md) · [实施计划 PLAN.md](PLAN.md) · [更新日志 CHANGELOG.md](CHANGELOG.md)
+> 📘 文档：[English](README.en.md) · [更新日志 CHANGELOG.md](CHANGELOG.md)
 
 数据获取**完整参照 akshare 的技术实现方式**（v1.0 不使用浏览器）：
 
@@ -31,7 +31,7 @@ println!("{}", df);
 
 > 截至当前共 **364** 个数据接口，覆盖 **19 / 47** 个功能大类、整体覆盖率 **≈ 33.1%**
 > （对标 akshare 公开 API 共 1099 个）。全部接口与 Python akshare 同名函数对齐
-> （列名/列序/值逐项差分验证）。完整迁移路线图见 [`PLAN.md`](PLAN.md)。
+> （列名/列序/值逐项差分验证）。
 
 **按大类分布（已实现 / akshare 总数 / 覆盖率）：**
 
@@ -238,8 +238,6 @@ println!("{}", df);
 | `futures_settle` | `ak.futures_settle` | 结算参数统一入口（20 列规范化，`market` 分派） |
 | `futures_contract_detail` | `ak.futures_contract_detail` | 新浪期货合约详情（GB2312 页面） |
 
-> 完整实施计划见 [`PLAN.md`](PLAN.md)（1099 个函数 / 47 个分类的迁移路线图）。
-
 ## 架构
 
 ```
@@ -312,5 +310,3 @@ src/
   并通过 token 交叉验证，待环境恢复后做真实验证。
 - 东财 clist 系接口（st/new/hk_spot_em）在 push2 限流窗口内无法做真实验证，
   已通过键名映射（与已验证的 spot_em 同构）+ 离线单测保障正确性。
-- 部分端点（如电影票房 `movie`、空气质量 `air`、大商所期权 `option_hist_dce`、国家统计局、
-  雪球登录类、Excel 源债券）因反爬/加密/签名/缺 calamine 暂未实现，路线图见 [`PLAN.md`](PLAN.md) §1.2.1。

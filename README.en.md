@@ -3,7 +3,7 @@
 Rust port of [akshare](https://github.com/akfamily/akshare): a financial data library that fetches data via pure HTTP plus a built-in JS engine.
 
 > 🤖 This project is **AI-developed**; every interface is verified against the identically-named Python akshare functions via item-by-item differential reconciliation.
-> 📘 Docs: [中文](README.md) · [English](README.en.md) · [Implementation Plan PLAN.md](PLAN.md) · [Changelog CHANGELOG.md](CHANGELOG.md)
+> 📘 Docs: [中文](README.md) · [Changelog CHANGELOG.md](CHANGELOG.md)
 
 Data fetching **fully mirrors akshare's technical implementation** (no browser in v1.0):
 
@@ -31,7 +31,7 @@ println!("{}", df);
 
 > As of now, a total of **364** data interfaces are implemented, covering **19 / 47** functional categories, with an overall coverage of **≈ 33.1%**
 > (benchmarked against akshare's 1099 public APIs). All interfaces align with the identically-named Python akshare functions
-> (column names / column order / values verified differentially item by item). The full migration roadmap is in [`PLAN.md`](PLAN.md).
+> (column names / column order / values verified differentially item by item). 
 
 **By category (implemented / akshare total / coverage):**
 
@@ -238,8 +238,6 @@ println!("{}", df);
 | `futures_settle` | `ak.futures_settle` | Unified settlement-parameter entry (20-column normalization, `market` dispatch) |
 | `futures_contract_detail` | `ak.futures_contract_detail` | Sina futures contract details (GB2312 page) |
 
-> The full implementation plan is in [`PLAN.md`](PLAN.md) (migration roadmap of 1099 functions / 47 categories).
-
 ## Architecture
 
 ```
@@ -313,6 +311,3 @@ src/
   logic and verified via token cross-checking, pending a real-environment validation once access is restored.
 - Eastmoney clist-family interfaces (st/new/hk_spot_em) cannot be validated live within the push2 rate-limiting window;
   correctness is ensured via key-name mapping (structurally identical to the already-verified spot_em) plus offline unit tests.
-- Some endpoints (e.g. box office `movie`, air quality `air`, DCE options `option_hist_dce`, the National Bureau of Statistics,
-  Xueqiu login-type, Excel-source bonds) are not yet implemented due to anti-scraping / encryption / signing / missing calamine;
-  see [`PLAN.md`](PLAN.md) §1.2.1 for the roadmap.

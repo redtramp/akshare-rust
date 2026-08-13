@@ -1,6 +1,6 @@
 # 更新日志 (Changelog)
 
-本文件记录 akshare-rust 的主要变更。完整迁移路线图与逐接口状态见 [`PLAN.md`](PLAN.md)。
+本文件记录 akshare-rust 的主要变更。
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
@@ -32,8 +32,3 @@
 - 建立核心管线：`core/http.rs`（指数退避重试 + 多节点容灾 + 反爬特征检测）、`core/df.rs`（`Df` 封装）、`core/js_engine.rs`（rquickjs 执行 akshare 原版加密 JS）。
 - **股票/基金/指数基线**：东财行情快照、K 线、资金流、板块、股权质押、机构调研、分红送配、业绩报表等约 100 个接口。
 - 差分测试框架：`tools/parity_runner.py` + `src/bin/parity.rs`，对比 Rust 输出与 Python akshare golden fixture（strict/loose 双模式）。
-
-## 已知未完成（路线图见 PLAN.md §1.2.1）
-
-- 反爬/加密类暂未实现：`movie`（jm.js 解密）、`air`（crypto.js）、大商所期权 `option_hist_dce`（412）、国家统计局（签名）、雪球登录类（`AuthRequired`）、Excel 源债券（缺 calamine）。
-- 余下 28 个长尾大类（futures_derivative/qdii/reits/forex/crypto 等）覆盖率为 0，待批量推进。
