@@ -71,9 +71,9 @@
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **364**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
-| 整体覆盖率 | **≈ 33.1%**（364 / 1099）|
-| 已触及功能大类 | **19 / 47**（按 API 前缀分类）|
+| Rust 已实现并验证函数数 | **381**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
+| 整体覆盖率 | **≈ 34.7%**（381 / 1099）|
+| 已触及功能大类 | **20 / 47**（按 API 前缀分类；新增宏观海外 australia/canada 大类）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
 **已覆盖大类（纵深够、但窄）：**
@@ -141,6 +141,7 @@
 > - **批次 1 · 后续阶段**：stock_feature 非 datacenter-web 系——同花顺 `ths.js` 系（`stock_technology_ths`/`stock_finance_ths` 等）、乐咕/新浪系（`stock_a_indicator_lg`/`stock_buffett_index_lg`/`stock_ttm_lyr` 等）。**caveat（ths 序号 dtype）**：`stock_rank_*_ths` 的 `序号` 列 dtype 依赖实时页面内容（pandas 对纯数字页推断 int64、对含异常值的页面推断 str，Rust 侧恒为 num/float64），本会话中 `stock_rank_lxxd_ths` 的 golden 即因此漂移过一次——日后重生成 golden 若报 dtype 不一致，先重生成而非视为回归。
 > - **批次 2–5 集成合并（2026-08-12）**：✅ 已完成并验证。将 5 个 worktree 分支（`batch2-option` 46、`batch3-stockfund` 10、`batch3-economic-cn` 31 宏观、`batch4-bond` 28、`batch5-longtail` 31+fortune）经 `git merge --no-ff` 逐一合入 `main`（基线 `a8c1ae6`，安全标签 `integrate-base`），冲突文件（`parity.rs` / `parity_runner.py` / `sources/mod.rs`）手动 union 双侧增量（区域标记隔离法：各分支在同一 `// === BATCHx ===` 标记后追加，合并时保留双方）。质量门禁全绿：`cargo build` 通过、`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed（修复 `js_engine` 单测——`SHIMS` 注册表因 bond 新增 `sina.js` 变 6 项，断言同步改 6 并补 `sina.js` 断言，提交 `26fb8b9`）。全量 `parity --check` 抽样（每批次 1 函数）与定向 `--only` 复验（option/bond/economic/stock_fundamental/currency/energy/spot/fortune 共 13 个代表函数）均通过，证明合并后 dispatch 路由与列契约正确、无真实回归。新增公开函数 ≈ +161（195 → 356）。各分支已各自在阶段完成时提交（满足「每项任务完成后提交 git」）。
 > - **批次 4 债券尾巴补合（2026-08-12）**：✅ 已完成并验证。`batch4-bond` 在首次合并（`756ab71`，父 `a542e33`）之后又往前走了 1 提交 `e27266f`（新浪债券补充 6 函数 + `bond_info_cm_query`，bond 净 +7），此前漏在 worktree 未进 main。现已 `git merge --no-ff e27266f` 合入（提交 `5a08acb`）：冲突文件 `core/html.rs`（add/add，双方 API 不同——main 用 `read_html_tables` 二维字符串、bond 用 `read_html` 返回 `Vec<Df>`，已 union 保留两个 `pub fn`）、`core/http.rs`（content，保留 `get_json_allow_status` 与 bond 调用的 `random_delay` 两者）、其余 `parity.rs`/`parity_runner.py`/`js_engine.rs` 自动合并。质量门禁全绿（build / clippy -D warnings / test --lib 175 / 6 个新债券函数 `parity --only` 全部通过），公开函数 356 → **364**（bond 22 → 29）。
+> - **批次 6 · 海外宏观（`RPT_ECONOMICVALUE_*` 系列，17 个）**：✅ 已完成并验证（2026-08-13）。在 `src/economic/mod.rs` 新增通用核心 `macro_em_economic_core(report, indicator_id, sort)`（复用 `stock_feature::{datacenter, report_extra}` + `eastmoney::finalize_report`），统一的「键→中文」映射 `REPORT_DATE_CH→时间`/`PUBLISH_DATE→发布日期`/`VALUE→现值`/`PRE_VALUE→前值`、`发布日期` 截断 `YYYY-MM-DD`、输出列序 `时间, 前值, 现值, 发布日期`（与既有 `macro_china_hk_core` 同构，仅 report/indicator/sort 不同）。用 `macro_em_economic_fn!` 宏批量生成 **17 个**函数：澳大利亚 7（`RPT_ECONOMICVALUE_AUSTRALIA`，akshare 按 `发布日期` 升序 → `sort=Some(("发布日期", true))`）、加拿大 10（`RPT_ECONOMICVALUE_CA`，akshare 不二次排序 → `sort=None`）。17 个函数全部生成 golden fixture（akshare 直出，4 列 × 73~224 行）并差分对账通过（loose 17/17 PASS；抽样 6 个 strict PASS 证明首行数值逐位一致）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs` 与 `tools/parity_runner.py` 注册 17 个用例（loose 模式，历史序列持续追加只比列契约）。公开函数 **364 → 381**（宏观海外 australia/canada 大类从 0 起步）。
 
 **关键判断：**
 

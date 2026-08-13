@@ -100,6 +100,171 @@ macro_china_hk_fn!(macro_china_hk_building_amount, "EMG00158066");
 macro_china_hk_fn!(macro_china_hk_trade_diff_ratio, "EMG00157898");
 macro_china_hk_fn!(macro_china_hk_ppi, "EMG00157818");
 
+// ============ 东财 datacenter-web 海外宏观（RPT_ECONOMICVALUE_* 系列） ============
+
+/// 东财 datacenter-web 海外宏观核心（对应 akshare `macro_australia_*` / `macro_canada_*` 等
+/// `RPT_ECONOMICVALUE_*` 报表）。
+///
+/// 按 `INDICATOR_ID` 过滤；输出列序 `时间, 前值, 现值, 发布日期`
+/// （`时间` = `REPORT_DATE_CH` 中文年月，`前值`/`现值` 数值化，`发布日期` 截断为
+/// `YYYY-MM-DD`）。`sort` 为 `Some((列, 升序))` 时按该列排序；`None` 时保持服务端
+/// `REPORT_DATE` 降序返回（对应 akshare 各指标是否二次排序的差异）。
+pub(crate) fn macro_em_economic_core(
+    report: &str,
+    indicator_id: &str,
+    sort: Option<(&str, bool)>,
+) -> Result<Df> {
+    let filter = format!("(INDICATOR_ID=\"{indicator_id}\")");
+    let extra = report_extra("REPORT_DATE", "-1", Some(&filter), None, None, None);
+    let rows = datacenter(report, "ALL", &extra, "2000")?;
+    const RENAME: [(&str, &str); 4] = [
+        ("REPORT_DATE_CH", "时间"),
+        ("PRE_VALUE", "前值"),
+        ("VALUE", "现值"),
+        ("PUBLISH_DATE", "发布日期"),
+    ];
+    const SELECT: [&str; 4] = ["时间", "前值", "现值", "发布日期"];
+    const NUMERIC: [&str; 2] = ["前值", "现值"];
+    let mut df = finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)?;
+    df.cast_date(&["发布日期"])?;
+    if let Some((col, asc)) = sort {
+        df = df.sort_by(col, asc, false)?;
+    }
+    Ok(df)
+}
+
+macro_rules! macro_em_economic_fn {
+    ($name:ident, $report:literal, $indicator:literal, $sort:expr, $doc:literal) => {
+        #[doc = $doc]
+        pub fn $name() -> Result<Df> {
+            macro_em_economic_core($report, $indicator, $sort)
+        }
+    };
+}
+
+// 澳大利亚（RPT_ECONOMICVALUE_AUSTRALIA）：akshare 按 `发布日期` 升序。
+macro_em_economic_fn!(
+    macro_australia_bank_rate,
+    "RPT_ECONOMICVALUE_AUSTRALIA",
+    "EMG00342255",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-澳大利亚-基准利率（对应 akshare [`akshare.macro_australia_bank_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_australia_cpi_quarterly,
+    "RPT_ECONOMICVALUE_AUSTRALIA",
+    "EMG00101104",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-澳大利亚-CPI季率（对应 akshare [`akshare.macro_australia_cpi_quarterly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_australia_cpi_yearly,
+    "RPT_ECONOMICVALUE_AUSTRALIA",
+    "EMG00101093",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-澳大利亚-CPI年率（对应 akshare [`akshare.macro_australia_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_australia_ppi_quarterly,
+    "RPT_ECONOMICVALUE_AUSTRALIA",
+    "EMG00152722",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-澳大利亚-PPI季率（对应 akshare [`akshare.macro_australia_ppi_quarterly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_australia_retail_rate_monthly,
+    "RPT_ECONOMICVALUE_AUSTRALIA",
+    "EMG00152903",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-澳大利亚-零售销售月率（对应 akshare [`akshare.macro_australia_retail_rate_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_australia_trade,
+    "RPT_ECONOMICVALUE_AUSTRALIA",
+    "EMG00152793",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-澳大利亚-贸易帐（对应 akshare [`akshare.macro_australia_trade`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_australia_unemployment_rate,
+    "RPT_ECONOMICVALUE_AUSTRALIA",
+    "EMG00101141",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-澳大利亚-失业率（对应 akshare [`akshare.macro_australia_unemployment_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+
+// 加拿大（RPT_ECONOMICVALUE_CA）：akshare 不二次排序（保持服务端 `REPORT_DATE` 降序）。
+macro_em_economic_fn!(
+    macro_canada_bank_rate,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00342248",
+    None,
+    "东方财富-经济数据一览-加拿大-基准利率（对应 akshare [`akshare.macro_canada_bank_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_core_cpi_monthly,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00102044",
+    None,
+    "东方财富-经济数据一览-加拿大-核心CPI月率（对应 akshare [`akshare.macro_canada_core_cpi_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_core_cpi_yearly,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00102030",
+    None,
+    "东方财富-经济数据一览-加拿大-核心CPI年率（对应 akshare [`akshare.macro_canada_core_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_cpi_monthly,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00158719",
+    None,
+    "东方财富-经济数据一览-加拿大-CPI月率（对应 akshare [`akshare.macro_canada_cpi_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_cpi_yearly,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00102029",
+    None,
+    "东方财富-经济数据一览-加拿大-CPI年率（对应 akshare [`akshare.macro_canada_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_gdp_monthly,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00159259",
+    None,
+    "东方财富-经济数据一览-加拿大-GDP月率（对应 akshare [`akshare.macro_canada_gdp_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_new_house_rate,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00342247",
+    None,
+    "东方财富-经济数据一览-加拿大-新屋开工（对应 akshare [`akshare.macro_canada_new_house_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_retail_rate_monthly,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG01337094",
+    None,
+    "东方财富-经济数据一览-加拿大-零售销售月率（对应 akshare [`akshare.macro_canada_retail_rate_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_trade,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00102022",
+    None,
+    "东方财富-经济数据一览-加拿大-贸易帐（对应 akshare [`akshare.macro_canada_trade`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_canada_unemployment_rate,
+    "RPT_ECONOMICVALUE_CA",
+    "EMG00157746",
+    None,
+    "东方财富-经济数据一览-加拿大-失业率（对应 akshare [`akshare.macro_canada_unemployment_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+
 /// 东方财富-经济数据一览-中国-企业商品价格指数（对应 akshare [`akshare.macro_china_qyspjg`]）。
 ///
 /// 报表 `RPT_ECONOMY_GOODS_INDEX`，服务端按 `REPORT_DATE` 降序返回（akshare 不再排序）。

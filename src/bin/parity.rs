@@ -93,6 +93,24 @@ use akshare_rust::economic::{
     macro_china_whxd,
     macro_china_xfzxx,
     macro_china_yw_electronic_index,
+    // === BATCH6 海外宏观（RPT_ECONOMICVALUE_* 系列） ===
+    macro_australia_bank_rate,
+    macro_australia_cpi_quarterly,
+    macro_australia_cpi_yearly,
+    macro_australia_ppi_quarterly,
+    macro_australia_retail_rate_monthly,
+    macro_australia_trade,
+    macro_australia_unemployment_rate,
+    macro_canada_bank_rate,
+    macro_canada_core_cpi_monthly,
+    macro_canada_core_cpi_yearly,
+    macro_canada_cpi_monthly,
+    macro_canada_cpi_yearly,
+    macro_canada_gdp_monthly,
+    macro_canada_new_house_rate,
+    macro_canada_retail_rate_monthly,
+    macro_canada_trade,
+    macro_canada_unemployment_rate,
 };
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
 use akshare_rust::fund::{
@@ -787,6 +805,24 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "macro_china_hk_ppi" => Ok(macro_china_hk_ppi()?),
         "macro_china_qyspjg" => Ok(macro_china_qyspjg()?),
         "macro_china_fdi" => Ok(macro_china_fdi()?),
+        // === BATCH6 海外宏观（RPT_ECONOMICVALUE_* 系列） ===
+        "macro_australia_bank_rate" => Ok(macro_australia_bank_rate()?),
+        "macro_australia_cpi_quarterly" => Ok(macro_australia_cpi_quarterly()?),
+        "macro_australia_cpi_yearly" => Ok(macro_australia_cpi_yearly()?),
+        "macro_australia_ppi_quarterly" => Ok(macro_australia_ppi_quarterly()?),
+        "macro_australia_retail_rate_monthly" => Ok(macro_australia_retail_rate_monthly()?),
+        "macro_australia_trade" => Ok(macro_australia_trade()?),
+        "macro_australia_unemployment_rate" => Ok(macro_australia_unemployment_rate()?),
+        "macro_canada_bank_rate" => Ok(macro_canada_bank_rate()?),
+        "macro_canada_core_cpi_monthly" => Ok(macro_canada_core_cpi_monthly()?),
+        "macro_canada_core_cpi_yearly" => Ok(macro_canada_core_cpi_yearly()?),
+        "macro_canada_cpi_monthly" => Ok(macro_canada_cpi_monthly()?),
+        "macro_canada_cpi_yearly" => Ok(macro_canada_cpi_yearly()?),
+        "macro_canada_gdp_monthly" => Ok(macro_canada_gdp_monthly()?),
+        "macro_canada_new_house_rate" => Ok(macro_canada_new_house_rate()?),
+        "macro_canada_retail_rate_monthly" => Ok(macro_canada_retail_rate_monthly()?),
+        "macro_canada_trade" => Ok(macro_canada_trade()?),
+        "macro_canada_unemployment_rate" => Ok(macro_canada_unemployment_rate()?),
         // 批次3 阶段3e 乐咕系
         "stock_market_pe_lg" => {
             let [s] = take1(func, args)?;
