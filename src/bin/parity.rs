@@ -111,6 +111,26 @@ use akshare_rust::economic::{
     macro_canada_retail_rate_monthly,
     macro_canada_trade,
     macro_canada_unemployment_rate,
+    // === BATCH7a 海外宏观（RPT_ECONOMICVALUE_GER/JPAN/CH 系列） ===
+    macro_germany_ifo,
+    macro_germany_cpi_monthly,
+    macro_germany_cpi_yearly,
+    macro_germany_trade_adjusted,
+    macro_germany_gdp,
+    macro_germany_retail_sale_monthly,
+    macro_germany_retail_sale_yearly,
+    macro_germany_zew,
+    macro_japan_bank_rate,
+    macro_japan_cpi_yearly,
+    macro_japan_core_cpi_yearly,
+    macro_japan_unemployment_rate,
+    macro_japan_head_indicator,
+    macro_swiss_svme,
+    macro_swiss_trade,
+    macro_swiss_cpi_yearly,
+    macro_swiss_gdp_quarterly,
+    macro_swiss_gbd_yearly,
+    macro_swiss_gbd_bank_rate,
 };
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
 use akshare_rust::fund::{
@@ -823,6 +843,26 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "macro_canada_retail_rate_monthly" => Ok(macro_canada_retail_rate_monthly()?),
         "macro_canada_trade" => Ok(macro_canada_trade()?),
         "macro_canada_unemployment_rate" => Ok(macro_canada_unemployment_rate()?),
+        // === BATCH7a 海外宏观（RPT_ECONOMICVALUE_GER/JPAN/CH 系列） ===
+        "macro_germany_ifo" => Ok(macro_germany_ifo()?),
+        "macro_germany_cpi_monthly" => Ok(macro_germany_cpi_monthly()?),
+        "macro_germany_cpi_yearly" => Ok(macro_germany_cpi_yearly()?),
+        "macro_germany_trade_adjusted" => Ok(macro_germany_trade_adjusted()?),
+        "macro_germany_gdp" => Ok(macro_germany_gdp()?),
+        "macro_germany_retail_sale_monthly" => Ok(macro_germany_retail_sale_monthly()?),
+        "macro_germany_retail_sale_yearly" => Ok(macro_germany_retail_sale_yearly()?),
+        "macro_germany_zew" => Ok(macro_germany_zew()?),
+        "macro_japan_bank_rate" => Ok(macro_japan_bank_rate()?),
+        "macro_japan_cpi_yearly" => Ok(macro_japan_cpi_yearly()?),
+        "macro_japan_core_cpi_yearly" => Ok(macro_japan_core_cpi_yearly()?),
+        "macro_japan_unemployment_rate" => Ok(macro_japan_unemployment_rate()?),
+        "macro_japan_head_indicator" => Ok(macro_japan_head_indicator()?),
+        "macro_swiss_svme" => Ok(macro_swiss_svme()?),
+        "macro_swiss_trade" => Ok(macro_swiss_trade()?),
+        "macro_swiss_cpi_yearly" => Ok(macro_swiss_cpi_yearly()?),
+        "macro_swiss_gdp_quarterly" => Ok(macro_swiss_gdp_quarterly()?),
+        "macro_swiss_gbd_yearly" => Ok(macro_swiss_gbd_yearly()?),
+        "macro_swiss_gbd_bank_rate" => Ok(macro_swiss_gbd_bank_rate()?),
         // 批次3 阶段3e 乐咕系
         "stock_market_pe_lg" => {
             let [s] = take1(func, args)?;

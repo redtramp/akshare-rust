@@ -265,6 +265,145 @@ macro_em_economic_fn!(
     "东方财富-经济数据一览-加拿大-失业率（对应 akshare [`akshare.macro_canada_unemployment_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
 );
 
+// 德国（RPT_ECONOMICVALUE_GER）：akshare 按 `发布日期` 升序。
+macro_em_economic_fn!(
+    macro_germany_ifo,
+    "RPT_ECONOMICVALUE_GER",
+    "EMG00179154",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-德国-IFO商业景气指数（对应 akshare [`akshare.macro_germany_ifo`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_germany_cpi_monthly,
+    "RPT_ECONOMICVALUE_GER",
+    "EMG00009758",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-德国-消费者物价指数月率终值（对应 akshare [`akshare.macro_germany_cpi_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_germany_cpi_yearly,
+    "RPT_ECONOMICVALUE_GER",
+    "EMG00009756",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-德国-消费者物价指数年率终值（对应 akshare [`akshare.macro_germany_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_germany_trade_adjusted,
+    "RPT_ECONOMICVALUE_GER",
+    "EMG00009753",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-德国-贸易帐(季调后)（对应 akshare [`akshare.macro_germany_trade_adjusted`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_germany_gdp,
+    "RPT_ECONOMICVALUE_GER",
+    "EMG00009720",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-德国-GDP（对应 akshare [`akshare.macro_germany_gdp`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_germany_retail_sale_monthly,
+    "RPT_ECONOMICVALUE_GER",
+    "EMG01333186",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-德国-实际零售销售月率（对应 akshare [`akshare.macro_germany_retail_sale_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_germany_retail_sale_yearly,
+    "RPT_ECONOMICVALUE_GER",
+    "EMG01333192",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-德国-实际零售销售年率（对应 akshare [`akshare.macro_germany_retail_sale_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_germany_zew,
+    "RPT_ECONOMICVALUE_GER",
+    "EMG00172577",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-德国-ZEW经济景气指数（对应 akshare [`akshare.macro_germany_zew`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+
+// 日本（RPT_ECONOMICVALUE_JPAN）：akshare 按 `发布日期` 升序。
+macro_em_economic_fn!(
+    macro_japan_bank_rate,
+    "RPT_ECONOMICVALUE_JPAN",
+    "EMG00342252",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-日本-央行公布利率决议（对应 akshare [`akshare.macro_japan_bank_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_japan_cpi_yearly,
+    "RPT_ECONOMICVALUE_JPAN",
+    "EMG00005004",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-日本-全国消费者物价指数年率（对应 akshare [`akshare.macro_japan_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_japan_core_cpi_yearly,
+    "RPT_ECONOMICVALUE_JPAN",
+    "EMG00158099",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-日本-全国核心消费者物价指数年率（对应 akshare [`akshare.macro_japan_core_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_japan_unemployment_rate,
+    "RPT_ECONOMICVALUE_JPAN",
+    "EMG00005047",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-日本-失业率（对应 akshare [`akshare.macro_japan_unemployment_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_japan_head_indicator,
+    "RPT_ECONOMICVALUE_JPAN",
+    "EMG00005117",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-日本-领先指标终值（对应 akshare [`akshare.macro_japan_head_indicator`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+
+// 瑞士（RPT_ECONOMICVALUE_CH，CH = Confoederatio Helvetica）：akshare 按 `发布日期` 升序。
+macro_em_economic_fn!(
+    macro_swiss_svme,
+    "RPT_ECONOMICVALUE_CH",
+    "EMG00341602",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-瑞士-SVME采购经理人指数（对应 akshare [`akshare.macro_swiss_svme`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_swiss_trade,
+    "RPT_ECONOMICVALUE_CH",
+    "EMG00341603",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-瑞士-贸易帐（对应 akshare [`akshare.macro_swiss_trade`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_swiss_cpi_yearly,
+    "RPT_ECONOMICVALUE_CH",
+    "EMG00341604",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-瑞士-消费者物价指数年率（对应 akshare [`akshare.macro_swiss_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_swiss_gdp_quarterly,
+    "RPT_ECONOMICVALUE_CH",
+    "EMG00341600",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-瑞士-GDP季率（对应 akshare [`akshare.macro_swiss_gdp_quarterly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_swiss_gbd_yearly,
+    "RPT_ECONOMICVALUE_CH",
+    "EMG00341601",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-瑞士-GDP年率（对应 akshare [`akshare.macro_swiss_gbd_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_swiss_gbd_bank_rate,
+    "RPT_ECONOMICVALUE_CH",
+    "EMG00341606",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-瑞士-央行公布利率决议（对应 akshare [`akshare.macro_swiss_gbd_bank_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+
 /// 东方财富-经济数据一览-中国-企业商品价格指数（对应 akshare [`akshare.macro_china_qyspjg`]）。
 ///
 /// 报表 `RPT_ECONOMY_GOODS_INDEX`，服务端按 `REPORT_DATE` 降序返回（akshare 不再排序）。

@@ -71,9 +71,9 @@
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **381**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
-| 整体覆盖率 | **≈ 34.7%**（381 / 1099）|
-| 已触及功能大类 | **20 / 47**（按 API 前缀分类；新增宏观海外 australia/canada 大类）|
+| Rust 已实现并验证函数数 | **400**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
+| 整体覆盖率 | **≈ 36.4%**（400 / 1099）|
+| 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk 大类）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
 **已覆盖大类（纵深够、但窄）：**
@@ -142,6 +142,7 @@
 > - **批次 2–5 集成合并（2026-08-12）**：✅ 已完成并验证。将 5 个 worktree 分支（`batch2-option` 46、`batch3-stockfund` 10、`batch3-economic-cn` 31 宏观、`batch4-bond` 28、`batch5-longtail` 31+fortune）经 `git merge --no-ff` 逐一合入 `main`（基线 `a8c1ae6`，安全标签 `integrate-base`），冲突文件（`parity.rs` / `parity_runner.py` / `sources/mod.rs`）手动 union 双侧增量（区域标记隔离法：各分支在同一 `// === BATCHx ===` 标记后追加，合并时保留双方）。质量门禁全绿：`cargo build` 通过、`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed（修复 `js_engine` 单测——`SHIMS` 注册表因 bond 新增 `sina.js` 变 6 项，断言同步改 6 并补 `sina.js` 断言，提交 `26fb8b9`）。全量 `parity --check` 抽样（每批次 1 函数）与定向 `--only` 复验（option/bond/economic/stock_fundamental/currency/energy/spot/fortune 共 13 个代表函数）均通过，证明合并后 dispatch 路由与列契约正确、无真实回归。新增公开函数 ≈ +161（195 → 356）。各分支已各自在阶段完成时提交（满足「每项任务完成后提交 git」）。
 > - **批次 4 债券尾巴补合（2026-08-12）**：✅ 已完成并验证。`batch4-bond` 在首次合并（`756ab71`，父 `a542e33`）之后又往前走了 1 提交 `e27266f`（新浪债券补充 6 函数 + `bond_info_cm_query`，bond 净 +7），此前漏在 worktree 未进 main。现已 `git merge --no-ff e27266f` 合入（提交 `5a08acb`）：冲突文件 `core/html.rs`（add/add，双方 API 不同——main 用 `read_html_tables` 二维字符串、bond 用 `read_html` 返回 `Vec<Df>`，已 union 保留两个 `pub fn`）、`core/http.rs`（content，保留 `get_json_allow_status` 与 bond 调用的 `random_delay` 两者）、其余 `parity.rs`/`parity_runner.py`/`js_engine.rs` 自动合并。质量门禁全绿（build / clippy -D warnings / test --lib 175 / 6 个新债券函数 `parity --only` 全部通过），公开函数 356 → **364**（bond 22 → 29）。
 > - **批次 6 · 海外宏观（`RPT_ECONOMICVALUE_*` 系列，17 个）**：✅ 已完成并验证（2026-08-13）。在 `src/economic/mod.rs` 新增通用核心 `macro_em_economic_core(report, indicator_id, sort)`（复用 `stock_feature::{datacenter, report_extra}` + `eastmoney::finalize_report`），统一的「键→中文」映射 `REPORT_DATE_CH→时间`/`PUBLISH_DATE→发布日期`/`VALUE→现值`/`PRE_VALUE→前值`、`发布日期` 截断 `YYYY-MM-DD`、输出列序 `时间, 前值, 现值, 发布日期`（与既有 `macro_china_hk_core` 同构，仅 report/indicator/sort 不同）。用 `macro_em_economic_fn!` 宏批量生成 **17 个**函数：澳大利亚 7（`RPT_ECONOMICVALUE_AUSTRALIA`，akshare 按 `发布日期` 升序 → `sort=Some(("发布日期", true))`）、加拿大 10（`RPT_ECONOMICVALUE_CA`，akshare 不二次排序 → `sort=None`）。17 个函数全部生成 golden fixture（akshare 直出，4 列 × 73~224 行）并差分对账通过（loose 17/17 PASS；抽样 6 个 strict PASS 证明首行数值逐位一致）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs` 与 `tools/parity_runner.py` 注册 17 个用例（loose 模式，历史序列持续追加只比列契约）。公开函数 **364 → 381**（宏观海外 australia/canada 大类从 0 起步）。
+> - **批次 7a · 海外宏观 GER/JPAN/CH（`RPT_ECONOMICVALUE_*` 系列，19 个）**：✅ 已完成并验证（2026-08-13）。复用批次 6 的 `macro_em_economic_core` + `macro_em_economic_fn!` 宏，新增德国 8（`RPT_ECONOMICVALUE_GER`）、日本 5（`RPT_ECONOMICVALUE_JPAN`）、瑞士 6（`RPT_ECONOMICVALUE_CH`，CH = Confoederatio Helvetica）共 **19 个**函数；四国 akshare 均按 `发布日期` 升序 → 统一 `sort=Some(("发布日期", true))`，列契约与批次 6 完全同构（4 列 `时间, 前值, 现值, 发布日期`，`发布日期` 截断 `YYYY-MM-DD`，前值/现值数值化）。19 个函数全部生成 golden fixture（akshare 直出，4 列 × 19~225 行）并差分对账通过（loose 19/19 PASS；抽样 5 个 strict PASS 证明行数 + 首行数值逐位一致）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs` 与 `tools/parity_runner.py` 注册 19 个用例（loose 模式）。公开函数 **381 → 400**（宏观海外 germany/japan/swiss 大类从 0 起步）。注：瑞士 akshare 源码 reportName 字面为 `RPT_ECONOMICVALUE_CH`（非 CHN/CHINA），已实测确认该报表名返回瑞士指标数据，非中国宏观。
 
 **关键判断：**
 
@@ -175,7 +176,7 @@
 5. **雪球登录类接口**：`xueqiu` 部分端点需登录态（`AuthRequired`）——**暂缓**，先实现免登录公开端点。
 6. **currency 历史汇率（Excel 源）**：akshare 历史汇率走 Excel 下载，Rust 侧尚未引入 calamine——**未实现**。
 7. **SSE 债券（上交所 Excel）**：`bond` 部分上交所债券数据走 Excel，无 calamine 解析——**未实现**（待引入 calamine）。
-8. **海外宏观（macro_us/macro_eu 等）**：对应源未建——**待建源**。
+8. **海外宏观 USA（jin10 源）**：`macro_usa_*` 共 49 函数，其中 41 个走金十 `datacenter-api.jin10.com/reports/list_v2`（与 `sources/jin10` 同源，源已建）；但 jin10 当前返回 **502**（PLAN §1.1 已登记），golden 无法生成、parity 无法验证——**暂缓**，待 jin10 恢复后补（批次 7 已落地澳洲/加拿大/德国/日本/瑞士/英国共 36 个东财 `RPT_ECONOMICVALUE_*` 系，与 jin10 无关）。`macro_usa_*` 中另 8 个（phs/cpi_yoy/rig_count/crude_inner/cftc_*/cme_*）走东财/CFTC/CME 等不同源，单独评估。EU/other 等其余海外宏观待评估。
 9. **spot_price_qh**：期现价格为实时波动序列，strict 比对易误报——**已改为 loose**（2026-08-12 修正 `parity_runner.py`）。
 10. **EM push2 实时端点**（push2his/push2 类）：受东财瞬时限流影响——属网络环境，非代码缺陷，环境恢复后复验。
 
