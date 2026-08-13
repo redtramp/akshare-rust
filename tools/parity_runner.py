@@ -252,6 +252,8 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_ipo_declare_em", [], "loose", "首发申报企业信息"),
     ("stock_ipo_review_em", [], "loose", "新股上会信息"),
     ("stock_ipo_tutor_em", [], "loose", "IPO辅导备案信息"),
+    # === BATCH10 盈利预测（RPT_WEB_RESPREDICT，动态 YEAR 列头，loose 比列契约） ===
+    ("stock_profit_forecast_em", [""], "loose", "东财盈利预测"),
     # 批次3 阶段3e 乐咕系（历史序列长且持续追加，loose 只比列契约）
     ("stock_market_pe_lg", ["上证"], "loose", "乐咕主板市盈率"),
     ("stock_index_pe_lg", ["沪深300"], "loose", "乐咕指数市盈率"),

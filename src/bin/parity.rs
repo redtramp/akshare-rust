@@ -228,6 +228,8 @@ use akshare_rust::stock_fundamental::{
     stock_register_sh, stock_register_sz,
     // === BATCH9 首发申报/上会/辅导备案（RPT_IPO_DECORGNEWEST / RPT_IPO_REVIEW / RPT_IPO_TUTRECORD） ===
     stock_ipo_declare_em, stock_ipo_review_em, stock_ipo_tutor_em,
+    // === BATCH10 盈利预测（RPT_WEB_RESPREDICT，动态 YEAR 列头） ===
+    stock_profit_forecast_em,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use akshare_rust::bond::{
@@ -845,6 +847,11 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_ipo_declare_em" => Ok(stock_ipo_declare_em()?),
         "stock_ipo_review_em" => Ok(stock_ipo_review_em()?),
         "stock_ipo_tutor_em" => Ok(stock_ipo_tutor_em()?),
+        // === BATCH10 盈利预测（RPT_WEB_RESPREDICT，动态 YEAR 列头） ===
+        "stock_profit_forecast_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_profit_forecast_em(s)?)
+        }
         // 批次3 阶段3f 东财 datacenter-web 宏观
         "macro_china_hk_cpi" => Ok(macro_china_hk_cpi()?),
         "macro_china_hk_cpi_ratio" => Ok(macro_china_hk_cpi_ratio()?),

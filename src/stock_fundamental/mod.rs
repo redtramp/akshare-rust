@@ -276,6 +276,109 @@ pub fn stock_ipo_tutor_em() -> Result<Df> {
     Ok(df)
 }
 
+/// 取某 JSON 键的众数（字符串形态），用于 `stock_profit_forecast_em` 动态列头。
+/// 数值型值（如年份 2025）归一为字符串；空表/无值回退 `"2025"`。
+fn mode_string(rows: &[Value], key: &str) -> String {
+    use std::collections::HashMap;
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for row in rows {
+        if let Some(obj) = row.as_object() {
+            if let Some(v) = obj.get(key) {
+                let s = match v {
+                    Value::String(s) => s.clone(),
+                    Value::Number(n) => n.to_string(),
+                    _ => continue,
+                };
+                if !s.is_empty() {
+                    *counts.entry(s).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    counts
+        .into_iter()
+        .max_by_key(|(_, c)| *c)
+        .map(|(k, _)| k)
+        .unwrap_or_else(|| "2025".to_string())
+}
+
+/// 东方财富-数据中心-研究报告-盈利预测（对应 akshare [`akshare.stock_profit_forecast_em`]）。
+///
+/// 报表 `RPT_WEB_RESPREDICT`（`columns=WEB_RESPREDICT`），按 `RATING_ORG_NUM` 降序；
+/// `symbol` 非空时按 `(INDUSTRY_BOARD="{symbol}")` 过滤。原始 31 列按 akshare 位置契约
+/// 选取 13 列 `序号, 代码, 名称, 研报数, 机构投资评级(近六个月)-买入/增持/中性/减持/卖出,
+/// {YEAR1..4}预测每股收益`——其中 `{YEAR*}预测每股收益` 由各行 `YEAR1..4` 的众数动态生成
+/// （对应 akshare `big_df["YEAR*"].mode()`）。`序号` 经 `index_name` 前置；
+/// 末段按 `研报数` 降序重排（对应 akshare `sort_values(["研报数"], ascending=False)`）后
+/// 重置 `序号` 为 1..N（对应 akshare `range(1, len+1)`）。数值列（研报数/5 个评级/4 个 EPS）转数值。
+pub fn stock_profit_forecast_em(symbol: &str) -> Result<Df> {
+    let filter = if symbol.is_empty() {
+        None
+    } else {
+        Some(format!("(INDUSTRY_BOARD=\"{symbol}\")"))
+    };
+    let filter_ref = filter.as_deref();
+    let extra = report_extra("RATING_ORG_NUM", "-1", filter_ref, None, None, None);
+    let rows = datacenter("RPT_WEB_RESPREDICT", "WEB_RESPREDICT", &extra, "500")?;
+    let y1 = mode_string(&rows, "YEAR1");
+    let y2 = mode_string(&rows, "YEAR2");
+    let y3 = mode_string(&rows, "YEAR3");
+    let y4 = mode_string(&rows, "YEAR4");
+    let eps1 = format!("{y1}预测每股收益");
+    let eps2 = format!("{y2}预测每股收益");
+    let eps3 = format!("{y3}预测每股收益");
+    let eps4 = format!("{y4}预测每股收益");
+    // 原始 31 列 → 13 输出列（位置契约见 akshare `big_df.columns = [...]`）
+    let rename: Vec<(&str, &str)> = vec![
+        ("SECURITY_CODE", "代码"),
+        ("SECURITY_NAME_ABBR", "名称"),
+        ("RATING_ORG_NUM", "研报数"),
+        ("RATING_BUY_NUM", "机构投资评级(近六个月)-买入"),
+        ("RATING_ADD_NUM", "机构投资评级(近六个月)-增持"),
+        ("RATING_NEUTRAL_NUM", "机构投资评级(近六个月)-中性"),
+        ("RATING_REDUCE_NUM", "机构投资评级(近六个月)-减持"),
+        ("RATING_SALE_NUM", "机构投资评级(近六个月)-卖出"),
+        ("EPS1", &eps1),
+        ("EPS2", &eps2),
+        ("EPS3", &eps3),
+        ("EPS4", &eps4),
+    ];
+    let select: Vec<&str> = vec![
+        "代码",
+        "名称",
+        "研报数",
+        "机构投资评级(近六个月)-买入",
+        "机构投资评级(近六个月)-增持",
+        "机构投资评级(近六个月)-中性",
+        "机构投资评级(近六个月)-减持",
+        "机构投资评级(近六个月)-卖出",
+        &eps1,
+        &eps2,
+        &eps3,
+        &eps4,
+    ];
+    let numeric: Vec<&str> = vec![
+        "研报数",
+        "机构投资评级(近六个月)-买入",
+        "机构投资评级(近六个月)-增持",
+        "机构投资评级(近六个月)-中性",
+        "机构投资评级(近六个月)-减持",
+        "机构投资评级(近六个月)-卖出",
+        &eps1,
+        &eps2,
+        &eps3,
+        &eps4,
+    ];
+    let df = finalize_report(&rows, &rename, &select, &numeric, Some("序号"))?;
+    // 按研报数降序重排（对应 akshare sort_values(["研报数"], ascending=False)）
+    let mut df = df.sort_by("研报数", false, true)?;
+    // 重排后重置序号为 1..N（对应 akshare range(1, len+1)）
+    let seq: Vec<Option<String>> = (1..=df.height()).map(|i| Some(i.to_string())).collect();
+    df.with_column("序号", &seq)?;
+    df.cast_numeric(&["序号"])?;
+    Ok(df)
+}
+
 // ============ 1. stock_restricted_release_summary_em ============
 
 const SUMMARY_RENAME: [(&str, &str); 7] = [
