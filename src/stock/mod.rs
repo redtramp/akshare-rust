@@ -15,7 +15,7 @@ use crate::sources::eastmoney::{
     require_kline_data,
     BOARD_HIST_SELECT, KLINE_COLS, KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_SELECT,
 };
-use crate::stock_feature::report_extra;
+use crate::stock_feature::{datacenter, report_extra};
 use serde_json::{json, Map, Value};
 
 /// 东财 A 股历史行情。
@@ -1558,6 +1558,265 @@ PS_TTM_RANK,PS_LYR_RANK,PCE_TTM_RANK,PCE_LYR_RANK",
     finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
 }
 
+// ============ 15. 东财数据中心：股市日历 / 高管持股 / 股票回购（datacenter-web RPT_*） ============
+
+/// `RPT_ORGOP_ALL` 列清单（对应 akshare `stock_gsrl_gsdt_em` 的 `columns` 参数）。
+const GSRL_COLUMNS: &str =
+    "SECURITY_CODE,SECUCODE,SECURITY_NAME_ABBR,EVENT_TYPE,EVENT_CONTENT,TRADE_DATE";
+
+/// 东财 JSON 键 → 中文列名（akshare `rename` 字典；`SECUCODE` 被重命名为 `-` 且未选中，故省略）。
+const GSRL_RENAME: [(&str, &str); 5] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME_ABBR", "简称"),
+    ("EVENT_TYPE", "事件类型"),
+    ("EVENT_CONTENT", "具体事项"),
+    ("TRADE_DATE", "交易日"),
+];
+
+/// 选中列（`序号` 由 `index_name` 前置）。
+const GSRL_SELECT: [&str; 5] = ["代码", "简称", "事件类型", "具体事项", "交易日"];
+
+/// 日期列（akshare `pd.to_datetime` 截断为 `YYYY-MM-DD`）。
+const GSRL_DATE: [&str; 1] = ["交易日"];
+
+/// 东方财富-数据中心-股市日历-公司动态（对应 akshare [`akshare.stock_gsrl_gsdt_em`]）。
+///
+/// `date`：`YYYYMMDD` 格式交易日。报表 `RPT_ORGOP_ALL`，按 `TRADE_DATE` 过滤。
+///
+/// # 返回列
+/// `序号, 代码, 简称, 事件类型, 具体事项, 交易日`
+pub fn stock_gsrl_gsdt_em(date: &str) -> Result<Df> {
+    let ymd = if date.len() == 8 && date.bytes().all(|b| b.is_ascii_digit()) {
+        format!("{}-{}-{}", &date[..4], &date[4..6], &date[6..])
+    } else {
+        return Err(AkshareError::Param(format!(
+            "无效 date: {date}（应为 YYYYMMDD）"
+        )));
+    };
+    let filter = format!("(TRADE_DATE='{ymd}')");
+    let extra = report_extra("SECURITY_CODE", "1", Some(&filter), None, None, None);
+    let rows = datacenter("RPT_ORGOP_ALL", GSRL_COLUMNS, &extra, "5000")?;
+    let mut df = finalize_report(&rows, &GSRL_RENAME, &GSRL_SELECT, &[], Some("序号"))?;
+    df.cast_date(&GSRL_DATE)?;
+    Ok(df)
+}
+
+/// `RPT_EXECUTIVE_HOLD_DETAILS` 列清单（`columns=ALL`；`DERIVE_SECURITY_CODE`/`ORG_CODE`/`GGEID`
+/// 服务端返回但被 akshare 重命名为 `-` 且未选中，故省略）。
+const HOLD_MGMT_RENAME: [(&str, &str); 16] = [
+    ("SECURITY_CODE", "代码"),
+    ("SECURITY_NAME", "名称"),
+    ("CHANGE_DATE", "日期"),
+    ("PERSON_NAME", "变动人"),
+    ("CHANGE_SHARES", "变动股数"),
+    ("AVERAGE_PRICE", "成交均价"),
+    ("CHANGE_AMOUNT", "变动金额"),
+    ("CHANGE_REASON", "变动原因"),
+    ("CHANGE_RATIO", "变动比例"),
+    ("CHANGE_AFTER_HOLDNUM", "变动后持股数"),
+    ("HOLD_TYPE", "持股种类"),
+    ("DSE_PERSON_NAME", "董监高人员姓名"),
+    ("POSITION_NAME", "职务"),
+    ("PERSON_DSE_RELATION", "变动人与董监高的关系"),
+    ("BEGIN_HOLD_NUM", "开始时持有"),
+    ("END_HOLD_NUM", "结束后持有"),
+];
+const HOLD_MGMT_SELECT: [&str; 16] = [
+    "日期",
+    "代码",
+    "名称",
+    "变动人",
+    "变动股数",
+    "成交均价",
+    "变动金额",
+    "变动原因",
+    "变动比例",
+    "变动后持股数",
+    "持股种类",
+    "董监高人员姓名",
+    "职务",
+    "变动人与董监高的关系",
+    "开始时持有",
+    "结束后持有",
+];
+const HOLD_MGMT_NUMERIC: [&str; 7] = [
+    "变动股数",
+    "成交均价",
+    "变动金额",
+    "变动比例",
+    "变动后持股数",
+    "开始时持有",
+    "结束后持有",
+];
+const HOLD_MGMT_DATE: [&str; 1] = ["日期"];
+
+/// 东方财富-数据中心-特色数据-高管持股-董监高及相关人员持股变动明细
+/// （对应 akshare [`akshare.stock_hold_management_detail_em`]）。
+///
+/// 报表 `RPT_EXECUTIVE_HOLD_DETAILS`（`columns=ALL`），按 `CHANGE_DATE,SECURITY_CODE,PERSON_NAME`
+/// 降序全量分页。akshare 未生成 `序号` 列，故 `index_name=None`。
+///
+/// # 返回列
+/// `日期, 代码, 名称, 变动人, 变动股数, 成交均价, 变动金额, 变动原因, 变动比例, 变动后持股数,
+/// 持股种类, 董监高人员姓名, 职务, 变动人与董监高的关系, 开始时持有, 结束后持有`
+pub fn stock_hold_management_detail_em() -> Result<Df> {
+    let extra = report_extra(
+        "CHANGE_DATE,SECURITY_CODE,PERSON_NAME",
+        "-1,1,1",
+        Some(""),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_EXECUTIVE_HOLD_DETAILS", "ALL", &extra, "5000")?;
+    let mut df = finalize_report(
+        &rows,
+        &HOLD_MGMT_RENAME,
+        &HOLD_MGMT_SELECT,
+        &HOLD_MGMT_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&HOLD_MGMT_DATE)?;
+    Ok(df)
+}
+
+/// 东方财富-数据中心-特色数据-高管持股-人员增减持股变动明细
+/// （对应 akshare [`akshare.stock_hold_management_person_em`]）。
+///
+/// `symbol`：股票代码；`name`：高管名称。报表 `RPT_EXECUTIVE_HOLD_DETAILS`，按
+/// `(SECURITY_CODE={symbol})(PERSON_NAME={name})` 过滤。
+pub fn stock_hold_management_person_em(symbol: &str, name: &str) -> Result<Df> {
+    let filter = format!(r#"(SECURITY_CODE="{symbol}")(PERSON_NAME="{name}")"#);
+    let extra = report_extra(
+        "CHANGE_DATE,SECURITY_CODE,PERSON_NAME",
+        "-1,1,1",
+        Some(&filter),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_EXECUTIVE_HOLD_DETAILS", "ALL", &extra, "5000")?;
+    let mut df = finalize_report(
+        &rows,
+        &HOLD_MGMT_RENAME,
+        &HOLD_MGMT_SELECT,
+        &HOLD_MGMT_NUMERIC,
+        None,
+    )?;
+    df.cast_date(&HOLD_MGMT_DATE)?;
+    Ok(df)
+}
+
+/// 股票回购「实施进度」代码 → 中文标签（对应 akshare `process_map`，akshare 1.18.83）。
+///
+/// 服务端 `REPURPROGRESS` 可能为字符串（`"001"`）或整数（`1`），统一规整为零填充 3 位后查表。
+fn repurchase_progress_label(code: &str) -> Option<&'static str> {
+    match code {
+        "001" => Some("董事会预案"),
+        "002" => Some("股东大会通过"),
+        "003" => Some("股东大会否决"),
+        "004" => Some("实施中"),
+        "005" => Some("停止实施"),
+        "006" => Some("完成实施"),
+        _ => None,
+    }
+}
+
+/// `RPTA_WEB_GETHGLIST_NEW` 列清单（`columns=ALL`）。
+const REPURCHASE_RENAME: [(&str, &str); 17] = [
+    ("DIM_SCODE", "股票代码"),
+    ("SECURITYSHORTNAME", "股票简称"),
+    ("NEWPRICE", "最新价"),
+    ("REPURPRICECAP", "计划回购价格区间"),
+    ("REPURNUMLOWER", "计划回购数量区间-下限"),
+    ("REPURNUMCAP", "计划回购数量区间-上限"),
+    ("ZSZXX", "占公告前一日总股本比例-下限"),
+    ("ZSZSX", "占公告前一日总股本比例-上限"),
+    ("JEXX", "计划回购金额区间-下限"),
+    ("JESX", "计划回购金额区间-上限"),
+    ("DIM_TRADEDATE", "回购起始时间"),
+    ("REPURPROGRESS", "实施进度"),
+    ("REPURPRICELOWER1", "已回购股份价格区间-下限"),
+    ("REPURPRICECAP1", "已回购股份价格区间-上限"),
+    ("REPURNUM", "已回购股份数量"),
+    ("REPURAMOUNT", "已回购金额"),
+    ("UPDATEDATE", "最新公告日期"),
+];
+const REPURCHASE_SELECT: [&str; 17] = [
+    "股票代码",
+    "股票简称",
+    "最新价",
+    "计划回购价格区间",
+    "计划回购数量区间-下限",
+    "计划回购数量区间-上限",
+    "占公告前一日总股本比例-下限",
+    "占公告前一日总股本比例-上限",
+    "计划回购金额区间-下限",
+    "计划回购金额区间-上限",
+    "回购起始时间",
+    "实施进度",
+    "已回购股份价格区间-下限",
+    "已回购股份价格区间-上限",
+    "已回购股份数量",
+    "已回购金额",
+    "最新公告日期",
+];
+const REPURCHASE_NUMERIC: [&str; 12] = [
+    "最新价",
+    "计划回购价格区间",
+    "计划回购数量区间-下限",
+    "计划回购数量区间-上限",
+    "占公告前一日总股本比例-下限",
+    "占公告前一日总股本比例-上限",
+    "计划回购金额区间-下限",
+    "计划回购金额区间-上限",
+    "已回购股份价格区间-下限",
+    "已回购股份价格区间-上限",
+    "已回购股份数量",
+    "已回购金额",
+];
+const REPURCHASE_DATE: [&str; 2] = ["回购起始时间", "最新公告日期"];
+
+/// 东方财富-数据中心-股票回购-股票回购数据（对应 akshare [`akshare.stock_repurchase_em`]）。
+///
+/// 报表 `RPTA_WEB_GETHGLIST_NEW`（`columns=ALL`），按 `UPD,DIM_DATE,DIM_SCODE` 降序全量分页。
+/// `实施进度` 由服务端代码经 [`repurchase_progress_label`] 映射为中文标签（对应 akshare
+/// `process_map`）。`序号` 由 Rust 生成，`回购起始时间`/`最新公告日期` 截断为 `YYYY-MM-DD`，
+/// 其余数值列数值化。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 最新价, 计划回购价格区间, 计划回购数量区间-下限, 计划回购数量区间-上限,
+/// 占公告前一日总股本比例-下限, 占公告前一日总股本比例-上限, 计划回购金额区间-下限,
+/// 计划回购金额区间-上限, 回购起始时间, 实施进度, 已回购股份价格区间-下限, 已回购股份价格区间-上限,
+/// 已回购股份数量, 已回购金额, 最新公告日期`
+pub fn stock_repurchase_em() -> Result<Df> {
+    let extra = report_extra("UPD,DIM_DATE,DIM_SCODE", "-1,-1,-1", None, None, None, None);
+    let mut rows = datacenter("RPTA_WEB_GETHGLIST_NEW", "ALL", &extra, "5000")?;
+    for row in &mut rows {
+        if let Some(v) = row.get_mut("REPURPROGRESS") {
+            let code: Option<String> = match v {
+                Value::String(s) => Some(s.clone()),
+                Value::Number(n) => Some(format!("{:03}", n.as_i64().unwrap_or(0))),
+                _ => None,
+            };
+            if let Some(code) = code {
+                if let Some(label) = repurchase_progress_label(&code) {
+                    *v = Value::String(label.to_string());
+                }
+            }
+        }
+    }
+    let mut df = finalize_report(
+        &rows,
+        &REPURCHASE_RENAME,
+        &REPURCHASE_SELECT,
+        &REPURCHASE_NUMERIC,
+        Some("序号"),
+    )?;
+    df.cast_date(&REPURCHASE_DATE)?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1872,6 +2131,18 @@ pub fn stock_hk_spot_em() -> Result<Df> {
 #[cfg(test)]
 mod tests_e1 {
     use super::*;
+
+    /// 锁定股票回购「实施进度」代码 → 中文标签映射（对应 akshare `process_map`）。
+    #[test]
+    fn repurchase_progress_label_offline() {
+        assert_eq!(repurchase_progress_label("001"), Some("董事会预案"));
+        assert_eq!(repurchase_progress_label("002"), Some("股东大会通过"));
+        assert_eq!(repurchase_progress_label("003"), Some("股东大会否决"));
+        assert_eq!(repurchase_progress_label("004"), Some("实施中"));
+        assert_eq!(repurchase_progress_label("005"), Some("停止实施"));
+        assert_eq!(repurchase_progress_label("006"), Some("完成实施"));
+        assert_eq!(repurchase_progress_label("999"), None);
+    }
 
     /// 键名映射（finalize_spot）列契约：与 akshare 输出一致。
     /// 模拟 fetch_clist 输出行（含 index 序号 + f2..f25 键），验证 rename+select。

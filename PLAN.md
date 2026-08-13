@@ -633,4 +633,28 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 
 ---
 
+## 9. 实施进度（批次记录）
+
+> 差分测试守护：每批次函数均在 `tools/parity_runner.py` 注册 CASES + 生成 golden fixture，
+> 并以 `--check`（loose：列名 + dtype 类）与 akshare 1.18.83 实测对齐。下列批次均已提交。
+
+| 批次 | 模块 / 数据源 | 函数（akshare 同名） | 报表 | parity |
+|---|---|---|---|---|
+| 批次11 | `stock`（securities datacenter） | `stock_zh_growth_comparison_em`, `stock_zh_dupont_comparison_em`, `stock_zh_scale_comparison_em`, `stock_hk_growth_comparison_em`, `stock_hk_scale_comparison_em`（5） | `RPT_PCF10_INDUSTRY_*` | 5/5 ✓ |
+| 批次12 | `stock`（securities datacenter） | `stock_hk_security_profile_em`, `stock_hk_company_profile_em`, `stock_hk_financial_indicator_em`, `stock_hk_dividend_payout_em`（4） | `RPT_HKF10_*` / `RPT_CUSTOM_HKF10_*` | 4/4 ✓ |
+| 批次13 | `stock`（securities datacenter） | `stock_zh_valuation_comparison_em`, `stock_hk_valuation_comparison_em`（2） | `RPT_PCF10_INDUSTRY_CVALUE` / `RPT_PCF10_INDUSTRY_HKCVALUE` | 2/2 ✓ |
+| 批次14 | `stock_fundamental`（datacenter-web） | `stock_dzjy_hygtj`, `stock_dzjy_hyyybtj`, `stock_dzjy_mrmx`, `stock_dzjy_mrtj`, `stock_dzjy_sctj`, `stock_dzjy_yybph`（6） | `RPT_*_BLOCKTRADE_*` | 6/6 ✓ |
+| 批次15 | `stock`（datacenter-web） | `stock_gsrl_gsdt_em`, `stock_hold_management_detail_em`, `stock_hold_management_person_em`, `stock_repurchase_em`（4） | `RPT_ORGOP_ALL` / `RPT_EXECUTIVE_HOLD_DETAILS` / `RPTA_WEB_GETHGLIST_NEW` | 4/4 ✓ |
+
+**累计新增（批次11–15）：21 个东财 `RPT_*` 数据中心函数。**
+
+### 9.1 后续候选（未实现）
+- `stock_fund_hold.py`：`stock_report_fund_hold` / `stock_report_fund_hold_detail`（2）。
+  前者走 `data.eastmoney.com/dataapi/zlsj/list` 非标准 host，且用「位置式列映射 + 占位列 `_`」，
+  需按 JSON 键顺序构建 rename（或新增位置映射辅助）；后者 `RPT_MAINDATA_MAIN_POSITIONDETAILS`
+  为 datacenter-web 标准报表，可独立先做。留待后续批次。
+- 反爬豁免：雪球 `*_basic_info_*_xq`（需登录态 `xq_a_token`），`--check` 无 golden 自动跳过。
+
+---
+
 *文档结束。计划基于 sample 源码盘点 + 实测验证（rquickjs JS 引擎可跑通 cninfo/ths、akshare 直连基线）。v1.2 起实施范围：纯 HTTP + JS 引擎，无浏览器（浏览器兜底 v2.0 远期）。*

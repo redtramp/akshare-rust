@@ -443,6 +443,11 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_dzjy_mrtj", ["20240102", "20240103"], "loose", "大宗交易-每日统计"),
     ("stock_dzjy_sctj", [], "loose", "大宗交易-市场统计"),
     ("stock_dzjy_yybph", ["近三月"], "loose", "大宗交易-营业部排行"),
+    # 东财 datacenter 股市日历/高管持股/股票回购系列（4 个，loose 比列契约）
+    ("stock_gsrl_gsdt_em", ["20230808"], "loose", "股市日历-公司动态"),
+    ("stock_hold_management_detail_em", [], "loose", "高管持股-变动明细"),
+    ("stock_hold_management_person_em", ["001308", "吴远"], "loose", "高管持股-人员明细"),
+    ("stock_repurchase_em", [], "loose", "股票回购数据"),
     # 雪球个股公司简介（需登录态 xq_a_token，无则返回 AuthRequired；无法生成 golden，
     # --check 阶段无 golden 自动跳过，计入登录态豁免，见报告说明）
     ("stock_individual_basic_info_xq", ["SH601127"], "loose", "雪球个股公司简介(A股)"),

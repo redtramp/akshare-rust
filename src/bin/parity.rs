@@ -189,6 +189,9 @@ use akshare_rust::stock::{
     stock_hk_dividend_payout_em,
     // === BATCH13 估值对比（RPT_PCF10_INDUSTRY_CVALUE / RPT_PCF10_INDUSTRY_HKCVALUE） ===
     stock_zh_valuation_comparison_em, stock_hk_valuation_comparison_em,
+    // === BATCH15 东财数据中心：股市日历/高管持股/股票回购（RPT_ORGOP_ALL / RPT_EXECUTIVE_HOLD_DETAILS / RPTA_WEB_GETHGLIST_NEW） ===
+    stock_gsrl_gsdt_em, stock_hold_management_detail_em, stock_hold_management_person_em,
+    stock_repurchase_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
@@ -403,6 +406,17 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(stock_hk_valuation_comparison_em(s)?)
         }
+        // === BATCH15 东财数据中心：股市日历/高管持股/股票回购 ===
+        "stock_gsrl_gsdt_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_gsrl_gsdt_em(d)?)
+        }
+        "stock_hold_management_detail_em" => Ok(stock_hold_management_detail_em()?),
+        "stock_hold_management_person_em" => {
+            let [s, n] = take2(func, args)?;
+            Ok(stock_hold_management_person_em(s, n)?)
+        }
+        "stock_repurchase_em" => Ok(stock_repurchase_em()?),
         "stock_individual_fund_flow" => {
             let [s, m] = take2(func, args)?;
             Ok(stock_individual_fund_flow(s, m)?)
