@@ -241,6 +241,13 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_profit_forecast_ths", ["000063", "预测年报每股收益"], "loose", "同花顺盈利预测"),
     ("stock_management_change_ths", ["000063"], "loose", "同花顺高管持股变动"),
     ("stock_shareholder_change_ths", ["000063"], "loose", "同花顺股东持股变动"),
+    # === BATCH8 注册制 IPO 审核信息（RPT_IPO_INFOALLNEW 系列，loose 比列契约） ===
+    ("stock_register_all_em", [], "loose", "注册制IPO审核-全部"),
+    ("stock_register_kcb", [], "loose", "注册制IPO审核-科创板"),
+    ("stock_register_cyb", [], "loose", "注册制IPO审核-创业板"),
+    ("stock_register_bj", [], "loose", "注册制IPO审核-北交所"),
+    ("stock_register_sh", [], "loose", "注册制IPO审核-上海主板"),
+    ("stock_register_sz", [], "loose", "注册制IPO审核-深圳主板"),
     # 批次3 阶段3e 乐咕系（历史序列长且持续追加，loose 只比列契约）
     ("stock_market_pe_lg", ["上证"], "loose", "乐咕主板市盈率"),
     ("stock_index_pe_lg", ["沪深300"], "loose", "乐咕指数市盈率"),

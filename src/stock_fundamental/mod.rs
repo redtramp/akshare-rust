@@ -22,6 +22,108 @@ use crate::stock_feature::{datacenter, fmt_ymd, report_extra};
 use scraper::{Html, Selector};
 use serde_json::{Map, Value};
 
+// ============ 8. 注册制 IPO 审核信息（stock_register_em，东财 datacenter-web RPT_IPO_INFOALLNEW） ============
+
+/// `RPT_IPO_INFOALLNEW` 显式列清单（对应 akshare `stock_register_em` 的 `columns` 参数）。
+const REGISTER_COLUMNS: &str = "SECURITY_CODE,STATE,REG_ADDRESS,INFO_CODE,CSRC_INDUSTRY,\
+ACCEPT_DATE,DECLARE_ORG,PREDICT_LISTING_MARKET,LAW_FIRM,ACCOUNT_FIRM,ORG_CODE,UPDATE_DATE,\
+RECOMMEND_ORG,IS_REGISTRATION";
+
+/// 东财 JSON 键 → 中文列名（akshare `rename` 字典，含 序号 由 index_name 前置）。
+const REGISTER_RENAME: [(&str, &str); 11] = [
+    ("DECLARE_ORG", "企业名称"),
+    ("STATE", "最新状态"),
+    ("REG_ADDRESS", "注册地"),
+    ("CSRC_INDUSTRY", "行业"),
+    ("RECOMMEND_ORG", "保荐机构"),
+    ("LAW_FIRM", "律师事务所"),
+    ("ACCOUNT_FIRM", "会计师事务所"),
+    ("UPDATE_DATE", "更新日期"),
+    ("ACCEPT_DATE", "受理日期"),
+    ("PREDICT_LISTING_MARKET", "拟上市地点"),
+    ("INFO_CODE", "招股说明书"),
+];
+/// 最终输出列序（akshare `[[...]]` 选取；`序号` 由 `finalize_report` 经
+/// `index_name` 前置，故此处不含 `序号`）。
+const REGISTER_SELECT: [&str; 11] = [
+    "企业名称",
+    "最新状态",
+    "注册地",
+    "行业",
+    "保荐机构",
+    "律师事务所",
+    "会计师事务所",
+    "更新日期",
+    "受理日期",
+    "拟上市地点",
+    "招股说明书",
+];
+
+/// 东方财富-数据中心-新股数据-IPO 审核信息（对应 akshare `stock_register_em` 系列）。
+///
+/// 报表 `RPT_IPO_INFOALLNEW`，按 `PREDICT_LISTING_MARKET` 过滤细分市场；输出统一 12 列
+/// `序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所,
+/// 更新日期, 受理日期, 拟上市地点, 招股说明书`。`序号` 前置 1-based（对应 akshare
+/// `reset_index` + `range(1,..)`）；`更新日期`/`受理日期` 截断 `YYYY-MM-DD`；
+/// `招股说明书` 由 `INFO_CODE` 拼接为东财 PDF 链接 `https://pdf.dfcfw.com/pdf/H2_{INFO_CODE}_1.pdf`
+/// （对应 akshare 的 URL 拼接；`INFO_CODE` 为空时该格为 `None`）。
+pub(crate) fn stock_register_em_core(filter: Option<&str>) -> Result<Df> {
+    let extra = report_extra("UPDATE_DATE,ORG_CODE", "-1,-1", filter, None, None, None);
+    let mut rows = datacenter("RPT_IPO_INFOALLNEW", REGISTER_COLUMNS, &extra, "500")?;
+    // INFO_CODE -> 招股说明书 PDF 链接（对应 akshare `f"https://pdf.dfcfw.com/pdf/H2_{item}_1.pdf"`）
+    for row in &mut rows {
+        if let Some(obj) = row.as_object_mut() {
+            if let Some(code) = obj.get("INFO_CODE").and_then(|v| v.as_str()) {
+                let url = format!("https://pdf.dfcfw.com/pdf/H2_{code}_1.pdf");
+                obj.insert("INFO_CODE".into(), Value::String(url));
+            }
+        }
+    }
+    let mut df = finalize_report(&rows, &REGISTER_RENAME, &REGISTER_SELECT, &[], Some("序号"))?;
+    df.cast_date(&["更新日期", "受理日期"])?;
+    Ok(df)
+}
+
+macro_rules! stock_register_em_fn {
+    ($name:ident, $filter:expr, $doc:literal) => {
+        #[doc = $doc]
+        pub fn $name() -> Result<Df> {
+            stock_register_em_core($filter)
+        }
+    };
+}
+
+stock_register_em_fn!(
+    stock_register_all_em,
+    None,
+    "东方财富-数据中心-新股数据-IPO审核信息-全部（对应 akshare [`akshare.stock_register_all_em`]）。\n\n# 返回列\n`序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`"
+);
+stock_register_em_fn!(
+    stock_register_kcb,
+    Some("(PREDICT_LISTING_MARKET=\"科创板\")"),
+    "东方财富-数据中心-新股数据-IPO审核信息-科创板（对应 akshare [`akshare.stock_register_kcb`]）。\n\n# 返回列\n`序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`"
+);
+stock_register_em_fn!(
+    stock_register_cyb,
+    Some("(PREDICT_LISTING_MARKET=\"创业板\")"),
+    "东方财富-数据中心-新股数据-IPO审核信息-创业板（对应 akshare [`akshare.stock_register_cyb`]）。\n\n# 返回列\n`序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`"
+);
+stock_register_em_fn!(
+    stock_register_bj,
+    Some("(PREDICT_LISTING_MARKET=\"北交所\")"),
+    "东方财富-数据中心-新股数据-IPO审核信息-北交所（对应 akshare [`akshare.stock_register_bj`]）。\n\n# 返回列\n`序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`"
+);
+stock_register_em_fn!(
+    stock_register_sh,
+    Some("(PREDICT_LISTING_MARKET=\"沪主板\")"),
+    "东方财富-数据中心-新股数据-IPO审核信息-上海主板（对应 akshare [`akshare.stock_register_sh`]）。\n\n# 返回列\n`序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`"
+);
+stock_register_em_fn!(
+    stock_register_sz,
+    Some("(PREDICT_LISTING_MARKET=\"深主板\")"),
+    "东方财富-数据中心-新股数据-IPO审核信息-深圳主板（对应 akshare [`akshare.stock_register_sz`]）。\n\n# 返回列\n`序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`"
+);
+
 // ============ 1. stock_restricted_release_summary_em ============
 
 const SUMMARY_RENAME: [(&str, &str); 7] = [
