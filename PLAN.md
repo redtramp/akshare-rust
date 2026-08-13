@@ -66,13 +66,13 @@
 
 ### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-12 刷新）
 
-> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以 `src/` 下所有 `pub fn`（doc comment 声明「对应 akshare `akshare.X`」或源层公开 helper）**356** 个为准，并逐一与 akshare 公开名交叉验证（`cargo test --lib` 175 passed 含存在性校验，无虚报）。注：356 含源层公开 helper（如 `eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等 ~53 个），纯用户面函数按功能大类拆分见下表。
+> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以 `src/` 下所有 `pub fn`（doc comment 声明「对应 akshare `akshare.X`」或源层公开 helper）**364** 个为准，并逐一与 akshare 公开名交叉验证（`cargo test --lib` 175 passed 含存在性校验，无虚报）。注：364 含源层公开 helper（如 `eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等 ~53 个），纯用户面函数按功能大类拆分见下表。
 
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **356**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
-| 整体覆盖率 | **≈ 32.4%**（356 / 1099）|
+| Rust 已实现并验证函数数 | **364**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
+| 整体覆盖率 | **≈ 33.1%**（364 / 1099）|
 | 已触及功能大类 | **19 / 47**（按 API 前缀分类）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -88,7 +88,7 @@
 | economic | 31 | 226 | 13.7% |
 | futures | 7 | 70 | 10.0% |
 | option | 46 | 47 | 97.9% |
-| bond | 22 | 46 | 47.8% |
+| bond | 29 | 46 | 63.0% |
 | currency | 2 | ~数十 | 长尾 |
 | energy | 7 | ~数十 | 长尾 |
 | news | 5 | ~数十 | 长尾 |
@@ -140,6 +140,7 @@
 > - **批次 2 · 阶段 2b（futures 统一入口 + 合约详情，2 个）**：✅ 已完成并验证（2026-08-11）。在 `src/futures/mod.rs` 落地 `futures_settle(date, market)`（统一入口，对应 akshare `futures/futures_settle.py::futures_settle`）：按 `market` 分派到 CFFEX/CZCE/SHFE/GFEX/INE 五家原始接口后经 `normalize_settle` 规范化——实现 akshare `_normalize_settle_columns` 的 20 列 `SETTLE_OUTPUT_COLUMNS` 映射（含 GFEX `hedge_short_margin_ratio ← spec_buy_rate` 等上游映射怪癖），按「目标列已存在则原样保留、否则取第一个命中来源列、无来源输出全空列」语义逐交易所求值，源列按 dtype 原样复制（float64 仍是 float64，全空列为 str）；空表输入输出 20 列空表。配套在 `src/core/df.rs` 新增 `Df::from_inner`（保留 dtype 构建）。另落地 `futures_contract_detail(symbol)`（新浪期货合约详情，GB2312 页面）：第 7 张表（`id="table-futures-basic-data"`，akshare `pd.read_html[6]`）每行 6 个 th/td 单元格，按 akshare 三个 `iloc[:, a:b]` 列组**纵向拼接**（先所有行的 (0,1) 列组、再 (2,3)、最后 (4,5)），单元格文本按空白折叠（对应 pandas `_remove_whitespace`）。配套在 `tools/parity_runner.py` 引入 `golden_key(func, params)`：同名函数多个参数用例（如 futures_settle 分市场）按参数摘要分文件存 golden，避免互相覆盖。2 个函数全部生成 golden fixture（akshare 直出）并差分对账通过（**strict**，列名/dtype/行数/head 值逐位一致）：futures_settle CFFEX 20×46 / CZCE 20×241 / GFEX 20×48 / SHFE 20×300 / INE 20×62、futures_contract_detail 2×15；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 全绿（新增 6 个离线测试：20 列映射完整性、CZCE/GFEX 映射与 dtype 保留、空表 20 列、合约详情列组拼接与空白折叠）。
 > - **批次 1 · 后续阶段**：stock_feature 非 datacenter-web 系——同花顺 `ths.js` 系（`stock_technology_ths`/`stock_finance_ths` 等）、乐咕/新浪系（`stock_a_indicator_lg`/`stock_buffett_index_lg`/`stock_ttm_lyr` 等）。**caveat（ths 序号 dtype）**：`stock_rank_*_ths` 的 `序号` 列 dtype 依赖实时页面内容（pandas 对纯数字页推断 int64、对含异常值的页面推断 str，Rust 侧恒为 num/float64），本会话中 `stock_rank_lxxd_ths` 的 golden 即因此漂移过一次——日后重生成 golden 若报 dtype 不一致，先重生成而非视为回归。
 > - **批次 2–5 集成合并（2026-08-12）**：✅ 已完成并验证。将 5 个 worktree 分支（`batch2-option` 46、`batch3-stockfund` 10、`batch3-economic-cn` 31 宏观、`batch4-bond` 28、`batch5-longtail` 31+fortune）经 `git merge --no-ff` 逐一合入 `main`（基线 `a8c1ae6`，安全标签 `integrate-base`），冲突文件（`parity.rs` / `parity_runner.py` / `sources/mod.rs`）手动 union 双侧增量（区域标记隔离法：各分支在同一 `// === BATCHx ===` 标记后追加，合并时保留双方）。质量门禁全绿：`cargo build` 通过、`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed（修复 `js_engine` 单测——`SHIMS` 注册表因 bond 新增 `sina.js` 变 6 项，断言同步改 6 并补 `sina.js` 断言，提交 `26fb8b9`）。全量 `parity --check` 抽样（每批次 1 函数）与定向 `--only` 复验（option/bond/economic/stock_fundamental/currency/energy/spot/fortune 共 13 个代表函数）均通过，证明合并后 dispatch 路由与列契约正确、无真实回归。新增公开函数 ≈ +161（195 → 356）。各分支已各自在阶段完成时提交（满足「每项任务完成后提交 git」）。
+> - **批次 4 债券尾巴补合（2026-08-12）**：✅ 已完成并验证。`batch4-bond` 在首次合并（`756ab71`，父 `a542e33`）之后又往前走了 1 提交 `e27266f`（新浪债券补充 6 函数 + `bond_info_cm_query`，bond 净 +7），此前漏在 worktree 未进 main。现已 `git merge --no-ff e27266f` 合入（提交 `5a08acb`）：冲突文件 `core/html.rs`（add/add，双方 API 不同——main 用 `read_html_tables` 二维字符串、bond 用 `read_html` 返回 `Vec<Df>`，已 union 保留两个 `pub fn`）、`core/http.rs`（content，保留 `get_json_allow_status` 与 bond 调用的 `random_delay` 两者）、其余 `parity.rs`/`parity_runner.py`/`js_engine.rs` 自动合并。质量门禁全绿（build / clippy -D warnings / test --lib 175 / 6 个新债券函数 `parity --only` 全部通过），公开函数 356 → **364**（bond 22 → 29）。
 
 **关键判断：**
 
@@ -148,7 +149,7 @@
 3. **质量高于数量**：每个实现均列名/列序逐字对齐、离线单测、JS 引擎验证，满足 §9 生产级标准（clippy `-D warnings`、无 unwrap）。
 4. **真实网络验证有缺口**（见 README「已知限制」）：legulegu 当前返回 403、部分东财 clist 接口因限流未能真实验证，靠键名映射 + 离线单测保障正确性——这部分计入「已实现」但需在环境恢复后补真实对账。
 
-**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–5 集成，约覆盖 **32.4%** 公开函数、覆盖 19/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange）。距 1099 全量目标，剩余 ~68% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 24、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
+**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–5 集成，约覆盖 **33.1%** 公开函数、覆盖 19/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange）。距 1099 全量目标，剩余 ~67% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 17、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
 
 ---
 
@@ -177,7 +178,7 @@
 9. **spot_price_qh**：期现价格为实时波动序列，strict 比对易误报——**已改为 loose**（2026-08-12 修正 `parity_runner.py`）。
 10. **EM push2 实时端点**（push2his/push2 类）：受东财瞬时限流影响——属网络环境，非代码缺陷，环境恢复后复验。
 
-> 上述跳过/暂缓项不计入「已实现」覆盖率（356 为实际落地并 `cargo build` 通过的公开函数数，其中部分长尾端点因网络/时效在 parity 中偶发失败，已在上方逐条登记，非实现缺陷）。
+> 上述跳过/暂缓项不计入「已实现」覆盖率（364 为实际落地并 `cargo build` 通过的公开函数数，其中部分长尾端点因网络/时效在 parity 中偶发失败，已在上方逐条登记，非实现缺陷）。
 
 ---
 
