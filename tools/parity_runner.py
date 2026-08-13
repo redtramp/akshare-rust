@@ -391,6 +391,22 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("macro_swiss_gdp_quarterly", [], "loose", "瑞士-GDP季率"),
     ("macro_swiss_gbd_yearly", [], "loose", "瑞士-GDP年率"),
     ("macro_swiss_gbd_bank_rate", [], "loose", "瑞士-央行公布利率决议"),
+    # === BATCH7b 海外宏观（RPT_ECONOMICVALUE_BRITAIN 系列，loose 只比列契约） ===
+    ("macro_uk_halifax_monthly", [], "loose", "英国-Halifax房价指数月率"),
+    ("macro_uk_halifax_yearly", [], "loose", "英国-Halifax房价指数年率"),
+    ("macro_uk_trade", [], "loose", "英国-贸易帐"),
+    ("macro_uk_bank_rate", [], "loose", "英国-央行公布利率决议"),
+    ("macro_uk_core_cpi_yearly", [], "loose", "英国-核心消费者物价指数年率"),
+    ("macro_uk_core_cpi_monthly", [], "loose", "英国-核心消费者物价指数月率"),
+    ("macro_uk_cpi_yearly", [], "loose", "英国-消费者物价指数年率"),
+    ("macro_uk_cpi_monthly", [], "loose", "英国-消费者物价指数月率"),
+    ("macro_uk_retail_monthly", [], "loose", "英国-零售销售月率"),
+    ("macro_uk_retail_yearly", [], "loose", "英国-零售销售年率"),
+    ("macro_uk_rightmove_yearly", [], "loose", "英国-Rightmove房价指数年率"),
+    ("macro_uk_rightmove_monthly", [], "loose", "英国-Rightmove房价指数月率"),
+    ("macro_uk_gdp_quarterly", [], "loose", "英国-GDP季率初值"),
+    ("macro_uk_gdp_yearly", [], "loose", "英国-GDP年率初值"),
+    ("macro_uk_unemployment_rate", [], "loose", "英国-失业率"),
     # === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
     # 乐咕股息率（复用 legu 两步流，历史序列长，loose 比列契约）
     ("stock_a_gxl_lg", ["上证A股"], "loose", "乐咕A股股息率"),

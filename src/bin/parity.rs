@@ -131,6 +131,22 @@ use akshare_rust::economic::{
     macro_swiss_gdp_quarterly,
     macro_swiss_gbd_yearly,
     macro_swiss_gbd_bank_rate,
+    // === BATCH7b 海外宏观（RPT_ECONOMICVALUE_BRITAIN 系列） ===
+    macro_uk_halifax_monthly,
+    macro_uk_halifax_yearly,
+    macro_uk_trade,
+    macro_uk_bank_rate,
+    macro_uk_core_cpi_yearly,
+    macro_uk_core_cpi_monthly,
+    macro_uk_cpi_yearly,
+    macro_uk_cpi_monthly,
+    macro_uk_retail_monthly,
+    macro_uk_retail_yearly,
+    macro_uk_rightmove_yearly,
+    macro_uk_rightmove_monthly,
+    macro_uk_gdp_quarterly,
+    macro_uk_gdp_yearly,
+    macro_uk_unemployment_rate,
 };
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
 use akshare_rust::fund::{
@@ -863,6 +879,22 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "macro_swiss_gdp_quarterly" => Ok(macro_swiss_gdp_quarterly()?),
         "macro_swiss_gbd_yearly" => Ok(macro_swiss_gbd_yearly()?),
         "macro_swiss_gbd_bank_rate" => Ok(macro_swiss_gbd_bank_rate()?),
+        // === BATCH7b 海外宏观（RPT_ECONOMICVALUE_BRITAIN 系列） ===
+        "macro_uk_halifax_monthly" => Ok(macro_uk_halifax_monthly()?),
+        "macro_uk_halifax_yearly" => Ok(macro_uk_halifax_yearly()?),
+        "macro_uk_trade" => Ok(macro_uk_trade()?),
+        "macro_uk_bank_rate" => Ok(macro_uk_bank_rate()?),
+        "macro_uk_core_cpi_yearly" => Ok(macro_uk_core_cpi_yearly()?),
+        "macro_uk_core_cpi_monthly" => Ok(macro_uk_core_cpi_monthly()?),
+        "macro_uk_cpi_yearly" => Ok(macro_uk_cpi_yearly()?),
+        "macro_uk_cpi_monthly" => Ok(macro_uk_cpi_monthly()?),
+        "macro_uk_retail_monthly" => Ok(macro_uk_retail_monthly()?),
+        "macro_uk_retail_yearly" => Ok(macro_uk_retail_yearly()?),
+        "macro_uk_rightmove_yearly" => Ok(macro_uk_rightmove_yearly()?),
+        "macro_uk_rightmove_monthly" => Ok(macro_uk_rightmove_monthly()?),
+        "macro_uk_gdp_quarterly" => Ok(macro_uk_gdp_quarterly()?),
+        "macro_uk_gdp_yearly" => Ok(macro_uk_gdp_yearly()?),
+        "macro_uk_unemployment_rate" => Ok(macro_uk_unemployment_rate()?),
         // 批次3 阶段3e 乐咕系
         "stock_market_pe_lg" => {
             let [s] = take1(func, args)?;

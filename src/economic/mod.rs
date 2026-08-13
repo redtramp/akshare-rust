@@ -404,6 +404,115 @@ macro_em_economic_fn!(
     "东方财富-经济数据一览-瑞士-央行公布利率决议（对应 akshare [`akshare.macro_swiss_gbd_bank_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
 );
 
+// 英国（RPT_ECONOMICVALUE_BRITAIN）：akshare 按 `发布日期` 升序。
+// 注：`macro_uk_cpi_monthly` 与 `macro_uk_core_cpi_monthly` 在 akshare 中均用
+// INDICATOR_ID=EMG00010291（上游拷贝笔误），此处保持与 akshare 一致。
+macro_em_economic_fn!(
+    macro_uk_halifax_monthly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00342256",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-Halifax房价指数月率（对应 akshare [`akshare.macro_uk_halifax_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_halifax_yearly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00010370",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-Halifax房价指数年率（对应 akshare [`akshare.macro_uk_halifax_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_trade,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00158309",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-贸易帐（对应 akshare [`akshare.macro_uk_trade`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_bank_rate,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00342253",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-央行公布利率决议（对应 akshare [`akshare.macro_uk_bank_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_core_cpi_yearly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00010279",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-核心消费者物价指数年率（对应 akshare [`akshare.macro_uk_core_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_core_cpi_monthly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00010291",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-核心消费者物价指数月率（对应 akshare [`akshare.macro_uk_core_cpi_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_cpi_yearly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00010267",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-消费者物价指数年率（对应 akshare [`akshare.macro_uk_cpi_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_cpi_monthly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00010291",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-消费者物价指数月率（对应 akshare [`akshare.macro_uk_cpi_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_retail_monthly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00158298",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-零售销售月率（对应 akshare [`akshare.macro_uk_retail_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_retail_yearly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00158297",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-零售销售年率（对应 akshare [`akshare.macro_uk_retail_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_rightmove_yearly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00341608",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-Rightmove房价指数年率（对应 akshare [`akshare.macro_uk_rightmove_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_rightmove_monthly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00341607",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-Rightmove房价指数月率（对应 akshare [`akshare.macro_uk_rightmove_monthly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_gdp_quarterly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00158277",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-GDP季率初值（对应 akshare [`akshare.macro_uk_gdp_quarterly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_gdp_yearly,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00158276",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-GDP年率初值（对应 akshare [`akshare.macro_uk_gdp_yearly`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+macro_em_economic_fn!(
+    macro_uk_unemployment_rate,
+    "RPT_ECONOMICVALUE_BRITAIN",
+    "EMG00010348",
+    Some(("发布日期", true)),
+    "东方财富-经济数据一览-英国-失业率（对应 akshare [`akshare.macro_uk_unemployment_rate`]）。\n\n# 返回列\n`时间, 前值, 现值, 发布日期`"
+);
+
 /// 东方财富-经济数据一览-中国-企业商品价格指数（对应 akshare [`akshare.macro_china_qyspjg`]）。
 ///
 /// 报表 `RPT_ECONOMY_GOODS_INDEX`，服务端按 `REPORT_DATE` 降序返回（akshare 不再排序）。
