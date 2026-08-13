@@ -71,8 +71,8 @@
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **425**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
-| 整体覆盖率 | **≈ 38.7%**（425 / 1099）|
+| Rust 已实现并验证函数数 | **430**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
+| 整体覆盖率 | **≈ 39.1%**（430 / 1099）|
 | 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk 大类）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -80,7 +80,7 @@
 
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---|---|---|
-| stock | 21 | 407 | 5.2% |
+| stock | 26 | 407 | 6.4% |
 | fund | 4 | 74 | 5.4% |
 | index | 3 | 79 | 3.8% |
 | stock_feature | 95 | 211 | 45.0% |
@@ -150,6 +150,8 @@
 
 > - **批次 10 · 盈利预测（`stock_profit_forecast_em`，1 个）**：✅ 已完成并验证（2026-08-13）。在 `src/stock_fundamental/mod.rs` 落地 `stock_profit_forecast_em(symbol)`（报表 `RPT_WEB_RESPREDICT`，`columns=WEB_RESPREDICT`，按 `RATING_ORG_NUM` 降序；`symbol` 非空按 `(INDUSTRY_BOARD="{symbol}")` 过滤）。原始 31 列按 akshare 位置契约（`big_df.columns=[...]` 32 位，序号占 0、数据占 1–31）选取 13 输出列：`序号, 代码, 名称, 研报数, 机构投资评级(近六个月)-买入/增持/中性/减持/卖出, {YEAR1..4}预测每股收益`；`{YEAR*}预测每股收益` 由各行 `YEAR1..4` 的众数动态生成（对应 akshare `big_df["YEAR*"].mode()`，新增模块内 `mode_string` 辅助）。`序号` 经 `finalize_report` 的 `index_name=Some("序号")` 前置，末段按 `研报数` 降序重排（`Df::sort_by` numeric）后重置 `序号` 为 `1..N`（`with_column` + `cast_numeric`，对应 akshare `sort_values`+`range(1,len+1)`）；研报数/5 个评级/4 个 EPS 数值化。golden fixture（akshare 直出，13 列 × 2819 行）差分对账通过（loose PASS，动态列头逐字一致）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs`（`take1` 派发，默认 `symbol=""`）与 `tools/parity_runner.py` 注册 1 个用例（loose）。公开函数 **424 → 425**。
 
+> - **批次 11 · 东财行业对比（A 股/HK 成长性·杜邦·规模，5 个）**：✅ 已完成并验证（2026-08-13）。在 `src/stock/mod.rs` 复用 `stock_feature::{report_extra}` + `eastmoney::{fetch_securities_pages, finalize_report}`（批次 8 新增的 `datacenter.eastmoney.com/securities` 独立 host，`source=HSF10`/`client=PC` 用于 A 股、`source=F10` 用于港股）落地 5 个行业对比函数：`stock_zh_growth_comparison_em`（A 股成长性，`RPT_PCF10_INDUSTRY_GROWTH`，21 列，按 `END_DATE,SECURITY_CODE` 降序）、`stock_zh_dupont_comparison_em`（A 股杜邦，`RPT_PCF10_INDUSTRY_DBFX`，19 列）、`stock_zh_scale_comparison_em`（A 股规模，`RPT_PCF10_INDUSTRY_MARKET`，10 列、`pageSize=5`、按 `TOTAL_CAP` 降序）、`stock_hk_growth_comparison_em`（港股成长性，`RPT_PCF10_INDUSTRY_HKGROWTH`，10 列）、`stock_hk_scale_comparison_em`（港股规模，`RPT_PCF10_INDUSTRY_SCALE`，10 列）；均按 `SECUCODE`+`CORRE_SECUCODE`（A 股 `zh_secucode(symbol)` 形如 `000895.SZ`、港股 `{symbol}.HK`）过滤、`source/client` 经 `report_extra` 透传。列契约逐个比对 akshare 实测 JSON 键序推导，各数值比率/排名列 `to_numeric`（代码/简称保持 str）。**caveat（akshare 命名 bug）**：`stock_hk_growth_comparison_em` 的 `TOTAL_ASSET_YOY` 在 akshare 1.18.83 `field_mapping` 中被硬编码为 `基本每股收总资产同比增长率益同比增长率`（基本每股收益同比增长率 + 总资产同比增长率 拼接错误），为列名逐字对齐予以保留（Rust 侧同名校验通过）。5 个函数全部生成 golden fixture（akshare 直出：growth 21×8、dupont 19×8、scale 10×1、hk_growth 10×1、hk_scale 10×1 行）并差分对账通过（loose 5/5 PASS）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 175 passed 无回归；在 `src/bin/parity.rs`（`take1` 派发）与 `tools/parity_runner.py` 注册 5 个用例（loose）。公开函数 **425 → 430**。`stock_zh_valuation_comparison_em`/`stock_hk_valuation_comparison_em`（估值对比）因 akshare 对非首行做 `concat([iloc[-1:], iloc[:-1]])` 重排 + `{x}/{TOTAL_COUNT}` 排名串 + 行 1/2 互换，非纯 rename+select，未纳入本批，后续单独评估。
+
 **关键判断：**
 
 1. **基础设施杠杆远大于函数计数**——已实现 `eastmoney` 源层（`fetch_clist` 分页 + 多节点容灾、`fetch_kline` 链路），而 akshare 约 **1008** 个函数走东财。stock/fund/index 下大量同构接口（含 `stock_feature` 的 `stock_margin_*` 系列）可低成本批量封装，目前只是尚未做。
@@ -157,7 +159,7 @@
 3. **质量高于数量**：每个实现均列名/列序逐字对齐、离线单测、JS 引擎验证，满足 §9 生产级标准（clippy `-D warnings`、无 unwrap）。
 4. **真实网络验证有缺口**（见 README「已知限制」）：legulegu 当前返回 403、部分东财 clist 接口因限流未能真实验证，靠键名映射 + 离线单测保障正确性——这部分计入「已实现」但需在环境恢复后补真实对账。
 
-**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–5 集成，约覆盖 **33.1%** 公开函数、覆盖 19/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange）。距 1099 全量目标，剩余 ~67% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 17、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
+**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–5 集成，约覆盖 **39.1%** 公开函数、覆盖 24/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange + 海外宏观 australia/canada/germany/japan/swiss/uk）。距 1099 全量目标，剩余 ~61% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 17、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
 
 ---
 

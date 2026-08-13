@@ -738,6 +738,31 @@ pub(crate) fn fetch_eastmoney_pages(
     Ok(all)
 }
 
+/// `datacenter.eastmoney.com/securities` 分页数据（F10/同行比较/HK-US F10 系列）。A 股同行比较
+/// 用 `source=HSF10`、港股同行比较用 `source=F10`（均 `client=PC`），与 `datacenter-web` 的
+/// `WEB/WEB` 不同。`source`/`client` 由调用方透传。其余翻页/JSONP 剥壳逻辑与
+/// [`fetch_datacenter_pages`] 完全一致（共用 [`fetch_eastmoney_pages`]）。
+pub(crate) fn fetch_securities_pages(
+    http: &HttpClient,
+    report_name: &str,
+    columns: &str,
+    extra: &Map<String, Value>,
+    page_size: &str,
+    source: &str,
+    client: &str,
+) -> Result<Vec<Value>> {
+    fetch_eastmoney_pages(
+        http,
+        "https://datacenter.eastmoney.com/securities/api/data/v1/get",
+        report_name,
+        columns,
+        extra,
+        page_size,
+        source,
+        client,
+    )
+}
+
 /// datacenter-web 分页数据（见 [`fetch_eastmoney_pages`]，固定 `source=WEB`/`client=WEB`）。
 pub(crate) fn fetch_datacenter_pages(
     http: &HttpClient,

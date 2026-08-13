@@ -57,6 +57,12 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_board_industry_hist_em", ["小金属", "20240101", "20240131", "日K"], "strict", "行业板块历史"),
     ("stock_board_concept_hist_em", ["昨日连板", "daily", "20240101", "20240131", ""], "strict", "概念板块历史"),
     ("stock_zt_pool_em", ["20260807"], "strict", "涨停股池"),
+    # === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter，loose 比列契约） ===
+    ("stock_zh_growth_comparison_em", ["SZ000895"], "loose", "A股成长性比较"),
+    ("stock_zh_dupont_comparison_em", ["SZ000895"], "loose", "A股杜邦分析比较"),
+    ("stock_zh_scale_comparison_em", ["SZ000895"], "loose", "A股公司规模比较"),
+    ("stock_hk_growth_comparison_em", ["03900"], "loose", "港股成长性比较"),
+    ("stock_hk_scale_comparison_em", ["03900"], "loose", "港股规模比较"),
     ("stock_individual_fund_flow", ["000001", "sh"], "strict", "个股资金流"),
     ("stock_lhb_detail_em", ["20240101", "20240131"], "strict", "龙虎榜详情"),
     ("stock_hsgt_fund_flow_summary_em", [], "loose", "沪深港通资金流"),

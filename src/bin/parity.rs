@@ -181,6 +181,9 @@ use akshare_rust::stock::{
     stock_board_industry_name_em, stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow,
     stock_individual_info_em, stock_sh_a_spot_em, stock_sz_a_spot_em, stock_zh_a_hist,
     stock_zh_a_hist_min_em, stock_zh_a_spot_em, stock_zt_pool_em,
+    // === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter） ===
+    stock_zh_growth_comparison_em, stock_zh_dupont_comparison_em, stock_zh_scale_comparison_em,
+    stock_hk_growth_comparison_em, stock_hk_scale_comparison_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
@@ -349,6 +352,27 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_zt_pool_em" => {
             let [d] = take1(func, args)?;
             Ok(stock_zt_pool_em(d)?)
+        }
+        // === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter） ===
+        "stock_zh_growth_comparison_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_growth_comparison_em(s)?)
+        }
+        "stock_zh_dupont_comparison_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_dupont_comparison_em(s)?)
+        }
+        "stock_zh_scale_comparison_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_scale_comparison_em(s)?)
+        }
+        "stock_hk_growth_comparison_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_growth_comparison_em(s)?)
+        }
+        "stock_hk_scale_comparison_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_scale_comparison_em(s)?)
         }
         "stock_individual_fund_flow" => {
             let [s, m] = take2(func, args)?;

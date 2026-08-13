@@ -8,12 +8,14 @@ use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{
-    a_share_market_code, board_name_pairs, fetch_clist, fetch_datacenter_pages, fetch_kline,
-    fetch_kline_ext, fetch_kline_min, fetch_trends, finalize_board_cons, finalize_board_name,
-    finalize_fflow, finalize_hsgt, finalize_zt_pool, json_value_to_string, kline_to_df,
-    min_kline_to_df, push2_urls, require_kline_data, BOARD_HIST_SELECT, KLINE_COLS,
-    KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_SELECT,
+    a_share_market_code, board_name_pairs, fetch_clist, fetch_datacenter_pages,
+    fetch_securities_pages, fetch_kline, fetch_kline_ext, fetch_kline_min, fetch_trends,
+    finalize_board_cons, finalize_board_name, finalize_fflow, finalize_hsgt, finalize_report,
+    finalize_zt_pool, json_value_to_string, kline_to_df, min_kline_to_df, push2_urls,
+    require_kline_data,
+    BOARD_HIST_SELECT, KLINE_COLS, KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_SELECT,
 };
+use crate::stock_feature::report_extra;
 use serde_json::{json, Map, Value};
 
 /// 东财 A 股历史行情。
@@ -743,6 +745,365 @@ pub fn stock_hsgt_fund_flow_summary_em() -> Result<Df> {
         return Err(AkshareError::empty("无沪深港通资金流向数据"));
     }
     finalize_hsgt(&rows)
+}
+
+// ============ 11. 同行比较（东财 securities datacenter，RPT_PCF10_INDUSTRY_*） ============
+
+/// A 股代码 → 东财 `SECUCODE`（`SZ000895` → `000895.SZ`）。
+fn zh_secucode(symbol: &str) -> String {
+    if symbol.len() >= 2 {
+        format!("{}.{}", &symbol[2..], &symbol[0..2])
+    } else {
+        symbol.to_string()
+    }
+}
+
+/// 东方财富-行情中心-同行比较-成长性比较（对应 akshare [`akshare.stock_zh_growth_comparison_em`]）。
+///
+/// 报表 `RPT_PCF10_INDUSTRY_GROWTH`（`datacenter.eastmoney.com/securities`，`source=HSF10`），
+/// 按 `SECUCODE` 过滤个股；输出 21 列 `代码, 简称, 基本每股收益增长率-3年复合/-24A/-TTM/-25E/-26E/-27E,
+/// 营业收入增长率-*(同上), 净利润增长率-*(同上), 基本每股收益增长率-3年复合排名`（无 `序号`，
+/// 对应 akshare `rename`+`[[...]]` 选取）。各增长率/排名数值化。
+pub fn stock_zh_growth_comparison_em(symbol: &str) -> Result<Df> {
+    let code = zh_secucode(symbol);
+    let filter = format!("(SECUCODE=\"{code}\")");
+    let extra = report_extra("PAIMING", "1", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_PCF10_INDUSTRY_GROWTH",
+        "ALL",
+        &extra,
+        "0",
+        "HSF10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 21] = [
+        ("CORRE_SECURITY_CODE", "代码"),
+        ("CORRE_SECURITY_NAME", "简称"),
+        ("MGSY_3Y", "基本每股收益增长率-3年复合"),
+        ("MGSYTB", "基本每股收益增长率-24A"),
+        ("MGSYTTM", "基本每股收益增长率-TTM"),
+        ("MGSY_1E", "基本每股收益增长率-25E"),
+        ("MGSY_2E", "基本每股收益增长率-26E"),
+        ("MGSY_3E", "基本每股收益增长率-27E"),
+        ("YYSR_3Y", "营业收入增长率-3年复合"),
+        ("YYSRTB", "营业收入增长率-24A"),
+        ("YYSRTTM", "营业收入增长率-TTM"),
+        ("YYSR_1E", "营业收入增长率-25E"),
+        ("YYSR_2E", "营业收入增长率-26E"),
+        ("YYSR_3E", "营业收入增长率-27E"),
+        ("JLR_3Y", "净利润增长率-3年复合"),
+        ("JLRTB", "净利润增长率-24A"),
+        ("JLRTTM", "净利润增长率-TTM"),
+        ("JLR_1E", "净利润增长率-25E"),
+        ("JLR_2E", "净利润增长率-26E"),
+        ("JLR_3E", "净利润增长率-27E"),
+        ("PAIMING", "基本每股收益增长率-3年复合排名"),
+    ];
+    const SELECT: [&str; 21] = [
+        "代码",
+        "简称",
+        "基本每股收益增长率-3年复合",
+        "基本每股收益增长率-24A",
+        "基本每股收益增长率-TTM",
+        "基本每股收益增长率-25E",
+        "基本每股收益增长率-26E",
+        "基本每股收益增长率-27E",
+        "营业收入增长率-3年复合",
+        "营业收入增长率-24A",
+        "营业收入增长率-TTM",
+        "营业收入增长率-25E",
+        "营业收入增长率-26E",
+        "营业收入增长率-27E",
+        "净利润增长率-3年复合",
+        "净利润增长率-24A",
+        "净利润增长率-TTM",
+        "净利润增长率-25E",
+        "净利润增长率-26E",
+        "净利润增长率-27E",
+        "基本每股收益增长率-3年复合排名",
+    ];
+    const NUMERIC: [&str; 19] = [
+        "基本每股收益增长率-3年复合",
+        "基本每股收益增长率-24A",
+        "基本每股收益增长率-TTM",
+        "基本每股收益增长率-25E",
+        "基本每股收益增长率-26E",
+        "基本每股收益增长率-27E",
+        "营业收入增长率-3年复合",
+        "营业收入增长率-24A",
+        "营业收入增长率-TTM",
+        "营业收入增长率-25E",
+        "营业收入增长率-26E",
+        "营业收入增长率-27E",
+        "净利润增长率-3年复合",
+        "净利润增长率-24A",
+        "净利润增长率-TTM",
+        "净利润增长率-25E",
+        "净利润增长率-26E",
+        "净利润增长率-27E",
+        "基本每股收益增长率-3年复合排名",
+    ];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
+}
+
+/// 东方财富-行情中心-同行比较-杜邦分析比较（对应 akshare [`akshare.stock_zh_dupont_comparison_em`]）。
+///
+/// 报表 `RPT_PCF10_INDUSTRY_DBFX`（`source=HSF10`），按 `SECUCODE` 过滤；输出 19 列
+/// `代码, 简称, ROE-3年平均/-22A/-23A/-24A, 净利率-*(同上), 总资产周转率-*(同上),
+/// 权益乘数-*(同上), ROE-3年平均排名`（无 `序号`）。各比率/排名数值化。
+pub fn stock_zh_dupont_comparison_em(symbol: &str) -> Result<Df> {
+    let code = zh_secucode(symbol);
+    let filter = format!("(SECUCODE=\"{code}\")");
+    let extra = report_extra("PAIMING", "1", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_PCF10_INDUSTRY_DBFX",
+        "ALL",
+        &extra,
+        "0",
+        "HSF10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 19] = [
+        ("CORRE_SECURITY_CODE", "代码"),
+        ("CORRE_SECURITY_NAME", "简称"),
+        ("ROE_AVG", "ROE-3年平均"),
+        ("ROEPJ_L3", "ROE-22A"),
+        ("ROEPJ_L2", "ROE-23A"),
+        ("ROEPJ_L1", "ROE-24A"),
+        ("XSJLL_AVG", "净利率-3年平均"),
+        ("XSJLL_L3", "净利率-22A"),
+        ("XSJLL_L2", "净利率-23A"),
+        ("XSJLL_L1", "净利率-24A"),
+        ("TOAZZL_AVG", "总资产周转率-3年平均"),
+        ("TOAZZL_L3", "总资产周转率-22A"),
+        ("TOAZZL_L2", "总资产周转率-23A"),
+        ("TOAZZL_L1", "总资产周转率-24A"),
+        ("QYCS_AVG", "权益乘数-3年平均"),
+        ("QYCS_L3", "权益乘数-22A"),
+        ("QYCS_L2", "权益乘数-23A"),
+        ("QYCS_L1", "权益乘数-24A"),
+        ("PAIMING", "ROE-3年平均排名"),
+    ];
+    const SELECT: [&str; 19] = [
+        "代码",
+        "简称",
+        "ROE-3年平均",
+        "ROE-22A",
+        "ROE-23A",
+        "ROE-24A",
+        "净利率-3年平均",
+        "净利率-22A",
+        "净利率-23A",
+        "净利率-24A",
+        "总资产周转率-3年平均",
+        "总资产周转率-22A",
+        "总资产周转率-23A",
+        "总资产周转率-24A",
+        "权益乘数-3年平均",
+        "权益乘数-22A",
+        "权益乘数-23A",
+        "权益乘数-24A",
+        "ROE-3年平均排名",
+    ];
+    const NUMERIC: [&str; 17] = [
+        "ROE-3年平均",
+        "ROE-22A",
+        "ROE-23A",
+        "ROE-24A",
+        "净利率-3年平均",
+        "净利率-22A",
+        "净利率-23A",
+        "净利率-24A",
+        "总资产周转率-3年平均",
+        "总资产周转率-22A",
+        "总资产周转率-23A",
+        "总资产周转率-24A",
+        "权益乘数-3年平均",
+        "权益乘数-22A",
+        "权益乘数-23A",
+        "权益乘数-24A",
+        "ROE-3年平均排名",
+    ];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
+}
+
+/// 东方财富-行情中心-同行比较-公司规模（对应 akshare [`akshare.stock_zh_scale_comparison_em`]）。
+///
+/// 报表 `RPT_PCF10_INDUSTRY_MARKET`（`source=HSF10`），按 `SECUCODE`+`CORRE_SECUCODE` 过滤、
+/// `TOTAL_CAP` 降序、`pageSize=5`；输出 10 列 `代码, 简称, 总市值, 总市值排名, 流通市值,
+/// 流通市值排名, 营业收入, 营业收入排名, 净利润, 净利润排名`（无 `序号`）。各市值/收入/利润/排名数值化。
+pub fn stock_zh_scale_comparison_em(symbol: &str) -> Result<Df> {
+    let code = zh_secucode(symbol);
+    let filter = format!("(SECUCODE=\"{code}\")(CORRE_SECUCODE=\"{code}\")");
+    let extra = report_extra("TOTAL_CAP", "-1", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_PCF10_INDUSTRY_MARKET",
+        "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,CORRE_SECUCODE,\
+CORRE_SECURITY_CODE,CORRE_SECURITY_NAME,CORRE_ORG_CODE,TOTAL_CAP,FREECAP,\
+TOTAL_OPERATEINCOME,NETPROFIT,REPORT_TYPE,TOTAL_CAP_RANK,FREECAP_RANK,\
+TOTAL_OPERATEINCOME_RANK,NETPROFIT_RANK",
+        &extra,
+        "5",
+        "HSF10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 10] = [
+        ("CORRE_SECURITY_CODE", "代码"),
+        ("CORRE_SECURITY_NAME", "简称"),
+        ("TOTAL_CAP", "总市值"),
+        ("TOTAL_CAP_RANK", "总市值排名"),
+        ("FREECAP", "流通市值"),
+        ("FREECAP_RANK", "流通市值排名"),
+        ("TOTAL_OPERATEINCOME", "营业收入"),
+        ("TOTAL_OPERATEINCOME_RANK", "营业收入排名"),
+        ("NETPROFIT", "净利润"),
+        ("NETPROFIT_RANK", "净利润排名"),
+    ];
+    const SELECT: [&str; 10] = [
+        "代码",
+        "简称",
+        "总市值",
+        "总市值排名",
+        "流通市值",
+        "流通市值排名",
+        "营业收入",
+        "营业收入排名",
+        "净利润",
+        "净利润排名",
+    ];
+    const NUMERIC: [&str; 8] = [
+        "总市值",
+        "总市值排名",
+        "流通市值",
+        "流通市值排名",
+        "营业收入",
+        "营业收入排名",
+        "净利润",
+        "净利润排名",
+    ];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
+}
+
+/// 东方财富-港股-行业对比-成长性对比（对应 akshare [`akshare.stock_hk_growth_comparison_em`]）。
+///
+/// 报表 `RPT_PCF10_INDUSTRY_HKGROWTH`（`datacenter.eastmoney.com/securities`，`source=F10`），
+/// 按 `SECUCODE`+`CORRE_SECUCODE`（`{symbol}.HK`）过滤；输出 10 列 `代码, 简称,
+/// 基本每股收益同比增长率(及排名), 营业收入同比增长率(及排名), 营业利润率同比增长率(及排名),
+/// 总资产同比增长率(及排名)`（无 `序号`）。各比率/排名数值化。
+pub fn stock_hk_growth_comparison_em(symbol: &str) -> Result<Df> {
+    let code = format!("{symbol}.HK");
+    let filter = format!("(SECUCODE=\"{code}\")(CORRE_SECUCODE=\"{code}\")");
+    let extra = report_extra("", "", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_PCF10_INDUSTRY_HKGROWTH",
+        "SECUCODE,SECURITY_CODE,ORG_CODE,REPORT_DATE,TYPE_ID,TYPE_TYPE,\
+TYPE_NAME,TYPE_NAME_EN,CORRE_SECURITY_CODE,CORRE_SECUCODE,CORRE_SECURITY_NAME,\
+EPS_YOY,OPERATE_INCOME_YOY,OPERATE_PROFIT_YOY,TOTAL_ASSET_YOY,EPS_YOY_RANK,\
+OPINCOME_YOY_RANK,OPROFIT_YOY_RANK,TOASSET_YOY_RANK",
+        &extra,
+        "0",
+        "F10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 10] = [
+        ("CORRE_SECURITY_CODE", "代码"),
+        ("CORRE_SECURITY_NAME", "简称"),
+        ("EPS_YOY", "基本每股收益同比增长率"),
+        ("EPS_YOY_RANK", "基本每股收益同比增长率排名"),
+        ("OPERATE_INCOME_YOY", "营业收入同比增长率"),
+        ("OPINCOME_YOY_RANK", "营业收入同比增长率排名"),
+        ("OPERATE_PROFIT_YOY", "营业利润率同比增长率"),
+        ("OPROFIT_YOY_RANK", "营业利润率同比增长率排名"),
+        // 注：akshare 原版 field_mapping 此处为 "基本每股收总资产同比增长率益同比增长率"
+        // （基本每股收益同比增长率 + 总资产同比增长率 拼接的命名 bug），为保持列名完全对齐予以保留。
+        ("TOTAL_ASSET_YOY", "基本每股收总资产同比增长率益同比增长率"),
+        ("TOASSET_YOY_RANK", "总资产同比增长率排名"),
+    ];
+    const SELECT: [&str; 10] = [
+        "代码",
+        "简称",
+        "基本每股收益同比增长率",
+        "基本每股收益同比增长率排名",
+        "营业收入同比增长率",
+        "营业收入同比增长率排名",
+        "营业利润率同比增长率",
+        "营业利润率同比增长率排名",
+        "基本每股收总资产同比增长率益同比增长率",
+        "总资产同比增长率排名",
+    ];
+    const NUMERIC: [&str; 8] = [
+        "基本每股收益同比增长率",
+        "基本每股收益同比增长率排名",
+        "营业收入同比增长率",
+        "营业收入同比增长率排名",
+        "营业利润率同比增长率",
+        "营业利润率同比增长率排名",
+        "基本每股收总资产同比增长率益同比增长率",
+        "总资产同比增长率排名",
+    ];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
+}
+
+/// 东方财富-港股-行业对比-规模对比（对应 akshare [`akshare.stock_hk_scale_comparison_em`]）。
+///
+/// 报表 `RPT_PCF10_INDUSTRY_SCALE`（`source=F10`），按 `SECUCODE`+`CORRE_SECUCODE`（`{symbol}.HK`）
+/// 过滤；输出 10 列 `代码, 简称, 总市值, 总市值排名, 流通市值, 流通市值排名, 营业总收入,
+/// 营业总收入排名, 净利润, 净利润排名`（无 `序号`）。各市值/收入/利润/排名数值化。
+pub fn stock_hk_scale_comparison_em(symbol: &str) -> Result<Df> {
+    let code = format!("{symbol}.HK");
+    let filter = format!("(SECUCODE=\"{code}\")(CORRE_SECUCODE=\"{code}\")");
+    let extra = report_extra("", "", Some(&filter), Some(""), None, None);
+    let rows = fetch_securities_pages(
+        &HttpClient::default(),
+        "RPT_PCF10_INDUSTRY_SCALE",
+        "SECURITY_CODE,SECUCODE,TYPE_ID,TYPE_TYPE,TYPE_NAME,TYPE_NAME_EN,\
+CORRE_SECURITY_CODE,CORRE_SECUCODE,CORRE_SECURITY_NAME,MAXSTDREPORTDATE,\
+HKSDQMV,HKTOTAL_MARKET_CAP,OPERATE_INCOME,GROSS_PROFIT,HKSDQMV_RANK,\
+HKTOTAL_CAP_RANK,OPERATE_INCOME_RANK,GROSS_PROFIT_RANK",
+        &extra,
+        "0",
+        "F10",
+        "PC",
+    )?;
+    const RENAME: [(&str, &str); 10] = [
+        ("CORRE_SECURITY_CODE", "代码"),
+        ("CORRE_SECURITY_NAME", "简称"),
+        ("HKSDQMV", "总市值"),
+        ("HKSDQMV_RANK", "总市值排名"),
+        ("HKTOTAL_MARKET_CAP", "流通市值"),
+        ("HKTOTAL_CAP_RANK", "流通市值排名"),
+        ("OPERATE_INCOME", "营业总收入"),
+        ("OPERATE_INCOME_RANK", "营业总收入排名"),
+        ("GROSS_PROFIT", "净利润"),
+        ("GROSS_PROFIT_RANK", "净利润排名"),
+    ];
+    const SELECT: [&str; 10] = [
+        "代码",
+        "简称",
+        "总市值",
+        "总市值排名",
+        "流通市值",
+        "流通市值排名",
+        "营业总收入",
+        "营业总收入排名",
+        "净利润",
+        "净利润排名",
+    ];
+    const NUMERIC: [&str; 8] = [
+        "总市值",
+        "总市值排名",
+        "流通市值",
+        "流通市值排名",
+        "营业总收入",
+        "营业总收入排名",
+        "净利润",
+        "净利润排名",
+    ];
+    finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)
 }
 
 #[cfg(test)]
