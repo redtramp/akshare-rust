@@ -39,6 +39,7 @@ pub mod sources;
 pub mod spot;
 pub mod stock;
 pub mod stock_feature;
+pub mod stock_fund_flow;
 pub mod stock_fundamental;
 pub mod xueqiu;
 

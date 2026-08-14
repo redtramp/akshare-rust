@@ -117,6 +117,11 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_esg_rate_sina", [], "loose", "新浪ESG-评级数据"),
     ("stock_esg_zd_sina", [], "loose", "新浪ESG-秩鼎评级"),
     ("stock_esg_hz_sina", [], "loose", "新浪ESG-华证指数评级"),
+    # === BATCH25 同花顺-数据中心-资金流向（data.10jqka.com.cn/funds/*，HTML 表格，loose 比列契约） ===
+    ("stock_fund_flow_individual", ["即时"], "loose", "同花顺个股资金流-即时"),
+    ("stock_fund_flow_concept", ["即时"], "loose", "同花顺概念资金流-即时"),
+    ("stock_fund_flow_industry", ["即时"], "loose", "同花顺行业资金流-即时"),
+    ("stock_fund_flow_big_deal", [], "loose", "同花顺大单追踪"),
     # stock_feature 东财系（Batch 1 Stage 1a）
     ("stock_cy_a_spot_em", [], "loose", "创业板实时行情"),
     ("stock_kc_a_spot_em", [], "loose", "科创板实时行情"),

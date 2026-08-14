@@ -237,6 +237,10 @@ use akshare_rust::stock_feature::{
     stock_esg_hz_sina, stock_esg_msci_sina, stock_esg_rate_sina, stock_esg_rft_sina,
     stock_esg_zd_sina,
 };
+use akshare_rust::stock_fund_flow::{
+    stock_fund_flow_big_deal, stock_fund_flow_concept, stock_fund_flow_individual,
+    stock_fund_flow_industry,
+};
 use akshare_rust::stock_fundamental::{
     stock_a_gxl_lg, stock_dzjy_hygtj, stock_dzjy_hyyybtj, stock_dzjy_mrmx, stock_dzjy_mrtj,
     stock_dzjy_sctj, stock_dzjy_yybph, stock_financial_abstract_new_ths,
@@ -557,6 +561,20 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_esg_rate_sina" => Ok(stock_esg_rate_sina()?),
         "stock_esg_zd_sina" => Ok(stock_esg_zd_sina()?),
         "stock_esg_hz_sina" => Ok(stock_esg_hz_sina()?),
+        // BATCH25 同花顺-资金流向（data.10jqka.com.cn/funds/*）
+        "stock_fund_flow_individual" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_fund_flow_individual(s)?)
+        }
+        "stock_fund_flow_concept" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_fund_flow_concept(s)?)
+        }
+        "stock_fund_flow_industry" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_fund_flow_industry(s)?)
+        }
+        "stock_fund_flow_big_deal" => Ok(stock_fund_flow_big_deal()?),
         "stock_new_a_spot_em" => Ok(stock_new_a_spot_em()?),
         "stock_hk_main_board_spot_em" => Ok(stock_hk_main_board_spot_em()?),
         "stock_hk_ggt_components_em" => Ok(stock_hk_ggt_components_em()?),
