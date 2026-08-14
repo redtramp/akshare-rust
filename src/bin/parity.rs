@@ -234,6 +234,8 @@ use akshare_rust::stock_feature::{
     stock_sy_profile_em, stock_sy_yq_em, stock_tfp_em, stock_value_em, stock_xgsglb_em,
     stock_xjll_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em, stock_zcfz_bj_em,
     stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em, stock_zh_b_spot_em,
+    stock_esg_hz_sina, stock_esg_msci_sina, stock_esg_rate_sina, stock_esg_rft_sina,
+    stock_esg_zd_sina,
 };
 use akshare_rust::stock_fundamental::{
     stock_a_gxl_lg, stock_dzjy_hygtj, stock_dzjy_hyyybtj, stock_dzjy_mrmx, stock_dzjy_mrtj,
@@ -549,6 +551,12 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_cy_a_spot_em" => Ok(stock_cy_a_spot_em()?),
         "stock_kc_a_spot_em" => Ok(stock_kc_a_spot_em()?),
         "stock_zh_b_spot_em" => Ok(stock_zh_b_spot_em()?),
+        // BATCH24 新浪 ESG 评级中心（0 参数）
+        "stock_esg_msci_sina" => Ok(stock_esg_msci_sina()?),
+        "stock_esg_rft_sina" => Ok(stock_esg_rft_sina()?),
+        "stock_esg_rate_sina" => Ok(stock_esg_rate_sina()?),
+        "stock_esg_zd_sina" => Ok(stock_esg_zd_sina()?),
+        "stock_esg_hz_sina" => Ok(stock_esg_hz_sina()?),
         "stock_new_a_spot_em" => Ok(stock_new_a_spot_em()?),
         "stock_hk_main_board_spot_em" => Ok(stock_hk_main_board_spot_em()?),
         "stock_hk_ggt_components_em" => Ok(stock_hk_ggt_components_em()?),

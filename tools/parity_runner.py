@@ -111,6 +111,12 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_zh_a_st_em", [], "loose", "ST股板块"),
     ("stock_zh_a_new_em", [], "loose", "新股板块"),
     ("stock_hk_spot_em", [], "loose", "东财港股实时行情"),
+    # === BATCH24 新浪财经-ESG 评级中心（global.finance.sina.com.cn EsgService.*，纯 JSON，loose 比列契约） ===
+    ("stock_esg_msci_sina", [], "loose", "新浪ESG-MSCI评级"),
+    ("stock_esg_rft_sina", [], "loose", "新浪ESG-路孚特评级"),
+    ("stock_esg_rate_sina", [], "loose", "新浪ESG-评级数据"),
+    ("stock_esg_zd_sina", [], "loose", "新浪ESG-秩鼎评级"),
+    ("stock_esg_hz_sina", [], "loose", "新浪ESG-华证指数评级"),
     # stock_feature 东财系（Batch 1 Stage 1a）
     ("stock_cy_a_spot_em", [], "loose", "创业板实时行情"),
     ("stock_kc_a_spot_em", [], "loose", "科创板实时行情"),

@@ -6266,6 +6266,324 @@ pub fn stock_hot_rank_relate_em(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH24 新浪财经-ESG 评级中心（stock_esg_*_sina）===
+//
+// 数据源 `global.finance.sina.com.cn/api/openapi.php/EsgService.*`，纯 JSON，
+// 无需 JS token / 登录态。对应 akshare `stock_feature/stock_esg_sina.py`。
+// 列名与 akshare 逐字对齐（`result/data/data` 字段 → 中文列），日期列 `cast_date`
+// 归一为 ISO，数值列 `cast_numeric` 对应 `pd.to_numeric(errors="coerce")`。
+
+const ESG_HOST: &str = "https://global.finance.sina.com.cn/api/openapi.php/EsgService";
+
+/// 取单字段为字符串（Null→None，其余按原值字符串化）。
+fn esg_jstr(v: &Value) -> Option<String> {
+    match v {
+        Value::Null => None,
+        Value::String(s) => Some(s.clone()),
+        other => Some(other.to_string()),
+    }
+}
+
+/// 单页请求：`EsgService.{method}?p={p}&num={num}`（带 Referer）。
+fn esg_get(http: &HttpClient, method: &str, p: usize, num: usize) -> Result<Value> {
+    let url = format!("{ESG_HOST}.{method}");
+    let mut params = Map::new();
+    params.insert("p".into(), json!(p));
+    params.insert("num".into(), json!(num));
+    http.get_json(&url, &params, Some("https://finance.sina.com.cn/"))
+}
+
+/// 分页抓取 `result/data/data` 数组（`total` 驱动分页；`paginate=false` 时仅取首屏，
+/// 对应 akshare 对路孚特单次 `num=20000` 拉全）。
+fn esg_fetch(method: &str, num: usize, paginate: bool) -> Result<Vec<Value>> {
+    let http = HttpClient::default();
+    let first = esg_get(&http, method, 1, num)?;
+    let data = first
+        .pointer("/result/data/data")
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| AkshareError::Empty(format!("ESG {method} data 缺失")))?;
+    if !paginate {
+        return Ok(data);
+    }
+    let total = first
+        .pointer("/result/data/total")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+        .max(0) as usize;
+    let pages = total.div_ceil(num);
+    let mut all = data;
+    for page in 2..=pages {
+        let j = esg_get(&http, method, page, num)?;
+        if let Some(arr) = j.pointer("/result/data/data").and_then(Value::as_array) {
+            all.extend(arr.iter().cloned());
+        }
+        http.random_delay();
+    }
+    Ok(all)
+}
+
+/// 抓取 `getEsgStocks`：`result/data/info/stocks[].esg_info` 为嵌套评级明细数组，
+/// 每条明细追加所属股票的 `symbol` / `market` 后展平为一行（对应 akshare 逐股 concat）。
+fn esg_rate_fetch() -> Result<Vec<Value>> {
+    let http = HttpClient::default();
+    let url = format!("{ESG_HOST}.getEsgStocks");
+    let mut params = Map::new();
+    params.insert("page".into(), json!(1));
+    params.insert("num".into(), json!(200));
+
+    let mut rows: Vec<Value> = Vec::new();
+    let total_pages = {
+        let first = http.get_json(&url, &params, Some("https://finance.sina.com.cn/"))?;
+        let stocks = first
+            .pointer("/result/data/info/stocks")
+            .and_then(Value::as_array)
+            .ok_or_else(|| AkshareError::Empty("ESG rate stocks 缺失".into()))?;
+        append_esg_info(&mut rows, stocks);
+        let total = first
+            .pointer("/result/data/info/total")
+            .and_then(Value::as_i64)
+            .unwrap_or(0)
+            .max(0) as usize;
+        total.div_ceil(200)
+    };
+    for page in 2..=total_pages {
+        params.insert("page".into(), json!(page));
+        let j = http.get_json(&url, &params, Some("https://finance.sina.com.cn/"))?;
+        if let Some(stocks) = j.pointer("/result/data/info/stocks").and_then(Value::as_array) {
+            append_esg_info(&mut rows, stocks);
+        }
+        http.random_delay();
+    }
+    Ok(rows)
+}
+
+/// 将一只股票的 `esg_info` 明细展平，并带上 `symbol` / `market`。
+fn append_esg_info(rows: &mut Vec<Value>, stocks: &[Value]) {
+    for stock in stocks {
+        let symbol = stock.get("symbol").cloned();
+        let market = stock.get("market").cloned();
+        if let Some(esg_info) = stock.get("esg_info").and_then(Value::as_array) {
+            for e in esg_info {
+                let mut row = e.clone();
+                if let Some(obj) = row.as_object_mut() {
+                    if let Some(sym) = symbol.clone() {
+                        obj.insert("symbol".into(), sym);
+                    }
+                    if let Some(mkt) = market.clone() {
+                        obj.insert("market".into(), mkt);
+                    }
+                }
+                rows.push(row);
+            }
+        }
+    }
+}
+
+/// MSCI ESG 评级（`getMsciEsgStocks`）。
+const ESG_MSCI_SELECT: [&str; 7] = [
+    "股票代码",
+    "ESG评分",
+    "环境总评",
+    "社会责任总评",
+    "治理总评",
+    "评级日期",
+    "交易市场",
+];
+
+/// 由 `getMsciEsgStocks` 原始行构建表（I/O 分离，便于离线单测）。
+pub fn build_esg_msci(rows: &[Value]) -> Result<Df> {
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in rows {
+        out.push(vec![
+            r.get("symbol").and_then(esg_jstr),
+            r.get("esg_rating").and_then(esg_jstr),
+            r.get("env_score").and_then(esg_jstr),
+            r.get("social_score").and_then(esg_jstr),
+            r.get("governance_score").and_then(esg_jstr),
+            r.get("quarter_date").and_then(esg_jstr),
+            r.get("market").and_then(esg_jstr),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&ESG_MSCI_SELECT, &out)?;
+    df.cast_date(&["评级日期"])?;
+    df.cast_numeric(&["环境总评", "社会责任总评", "治理总评"])?;
+    Ok(df)
+}
+
+/// 路孚特 ESG 评级（`getRftEsgStocks`，单次 `num=20000` 拉全，评分含等级后缀不数值化）。
+const ESG_RFT_SELECT: [&str; 13] = [
+    "股票代码",
+    "ESG评分",
+    "ESG评分日期",
+    "环境总评",
+    "环境总评日期",
+    "社会责任总评",
+    "社会责任总评日期",
+    "治理总评",
+    "治理总评日期",
+    "争议总评",
+    "争议总评日期",
+    "行业",
+    "交易所",
+];
+
+/// 由 `getRftEsgStocks` 原始行构建表（I/O 分离）。
+pub fn build_esg_rft(rows: &[Value]) -> Result<Df> {
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in rows {
+        out.push(vec![
+            r.get("symbol").and_then(esg_jstr),
+            r.get("esg_score").and_then(esg_jstr),
+            r.get("esg_score_date").and_then(esg_jstr),
+            r.get("env_score").and_then(esg_jstr),
+            r.get("env_score_date").and_then(esg_jstr),
+            r.get("social_score").and_then(esg_jstr),
+            r.get("social_score_date").and_then(esg_jstr),
+            r.get("governance_score").and_then(esg_jstr),
+            r.get("governance_score_date").and_then(esg_jstr),
+            r.get("zy_score").and_then(esg_jstr),
+            r.get("zy_score_date").and_then(esg_jstr),
+            r.get("industry").and_then(esg_jstr),
+            r.get("exchange").and_then(esg_jstr),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&ESG_RFT_SELECT, &out)?;
+    df.cast_date(&[
+        "ESG评分日期",
+        "环境总评日期",
+        "社会责任总评日期",
+        "治理总评日期",
+        "争议总评日期",
+    ])?;
+    Ok(df)
+}
+
+/// ESG 评级数据（`getEsgStocks`，`stocks[].esg_info` 嵌套展平）。
+const ESG_RATE_SELECT: [&str; 6] = [
+    "成分股代码",
+    "评级机构",
+    "评级",
+    "评级季度",
+    "标识",
+    "交易市场",
+];
+
+/// 由展平后的 `getEsgStocks` 行构建表（I/O 分离）。
+pub fn build_esg_rate(rows: &[Value]) -> Result<Df> {
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in rows {
+        out.push(vec![
+            r.get("symbol").and_then(esg_jstr),
+            r.get("agency_name").and_then(esg_jstr),
+            r.get("esg_score").and_then(esg_jstr),
+            r.get("esg_dt").and_then(esg_jstr),
+            r.get("remark").and_then(esg_jstr),
+            r.get("market").and_then(esg_jstr),
+        ]);
+    }
+    Df::from_string_rows(&ESG_RATE_SELECT, &out)
+}
+
+/// 秩鼎 ESG 评级（`getZdEsgStocks`）。
+const ESG_ZD_SELECT: [&str; 6] = [
+    "股票代码",
+    "ESG评分",
+    "环境总评",
+    "社会责任总评",
+    "治理总评",
+    "评分日期",
+];
+
+/// 由 `getZdEsgStocks` 原始行构建表（I/O 分离）。
+pub fn build_esg_zd(rows: &[Value]) -> Result<Df> {
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in rows {
+        out.push(vec![
+            r.get("ticker").and_then(esg_jstr),
+            r.get("esg_score").and_then(esg_jstr),
+            r.get("environmental_score").and_then(esg_jstr),
+            r.get("social_score").and_then(esg_jstr),
+            r.get("governance_score").and_then(esg_jstr),
+            r.get("report_date").and_then(esg_jstr),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&ESG_ZD_SELECT, &out)?;
+    df.cast_date(&["评分日期"])?;
+    Ok(df)
+}
+
+/// 华证指数 ESG 评级（`getHzEsgStocks`）。
+const ESG_HZ_SELECT: [&str; 12] = [
+    "日期",
+    "股票代码",
+    "交易市场",
+    "股票名称",
+    "ESG评分",
+    "ESG等级",
+    "环境",
+    "环境等级",
+    "社会",
+    "社会等级",
+    "公司治理",
+    "公司治理等级",
+];
+
+/// 由 `getHzEsgStocks` 原始行构建表（I/O 分离）。
+pub fn build_esg_hz(rows: &[Value]) -> Result<Df> {
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in rows {
+        out.push(vec![
+            r.get("date").and_then(esg_jstr),
+            r.get("symbol").and_then(esg_jstr),
+            r.get("market").and_then(esg_jstr),
+            r.get("name").and_then(esg_jstr),
+            r.get("esg_score").and_then(esg_jstr),
+            r.get("esg_score_grade").and_then(esg_jstr),
+            r.get("e_score").and_then(esg_jstr),
+            r.get("e_score_grade").and_then(esg_jstr),
+            r.get("s_score").and_then(esg_jstr),
+            r.get("s_score_grade").and_then(esg_jstr),
+            r.get("g_score").and_then(esg_jstr),
+            r.get("g_score_grade").and_then(esg_jstr),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&ESG_HZ_SELECT, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&["ESG评分", "环境", "社会", "公司治理"])?;
+    Ok(df)
+}
+
+/// 新浪财经-ESG评级中心-MSCI（`stock_esg_msci_sina`）。
+pub fn stock_esg_msci_sina() -> Result<Df> {
+    let rows = esg_fetch("getMsciEsgStocks", 100, true)?;
+    build_esg_msci(&rows)
+}
+
+/// 新浪财经-ESG评级中心-路孚特（`stock_esg_rft_sina`）。
+pub fn stock_esg_rft_sina() -> Result<Df> {
+    let rows = esg_fetch("getRftEsgStocks", 20000, false)?;
+    build_esg_rft(&rows)
+}
+
+/// 新浪财经-ESG评级中心-ESG评级数据（`stock_esg_rate_sina`，`stocks[].esg_info` 嵌套展平）。
+pub fn stock_esg_rate_sina() -> Result<Df> {
+    let rows = esg_rate_fetch()?;
+    build_esg_rate(&rows)
+}
+
+/// 新浪财经-ESG评级中心-秩鼎（`stock_esg_zd_sina`）。
+pub fn stock_esg_zd_sina() -> Result<Df> {
+    let rows = esg_fetch("getZdEsgStocks", 100, true)?;
+    build_esg_zd(&rows)
+}
+
+/// 新浪财经-ESG评级中心-华证指数（`stock_esg_hz_sina`）。
+pub fn stock_esg_hz_sina() -> Result<Df> {
+    let rows = esg_fetch("getHzEsgStocks", 100, true)?;
+    build_esg_hz(&rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -8638,5 +8956,149 @@ mod tests {
         // 证券代码 直传
         let symbol = df.inner().column("证券代码").unwrap().str().unwrap();
         assert_eq!(symbol.get(0), Some("SZ000665"));
+    }
+
+    // === BATCH24 新浪 ESG 评级中心离线单测 ===
+    #[test]
+    fn esg_msci_build_offline() {
+        let rows = json!([
+            {"symbol":"000001.SZ","quarter_date":"2026-07-08","market":"CN","esg_rating":"AAA",
+             "env_score":"6.3","social_score":"6.0","governance_score":"5.4"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = build_esg_msci(&rows).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec!["股票代码", "ESG评分", "环境总评", "社会责任总评", "治理总评", "评级日期", "交易市场"]
+        );
+        assert_eq!(df.height(), 1);
+        // 评级日期 归一为 ISO 字符串（仍为 str 列，对应 akshare .dt.date → object）
+        let dt = df.inner().column("评级日期").unwrap().str().unwrap();
+        assert_eq!(dt.get(0), Some("2026-07-08"));
+        // 三项评分数值化
+        assert_eq!(df.inner().column("环境总评").unwrap().f64().unwrap().get(0), Some(6.3));
+        assert_eq!(df.inner().column("社会责任总评").unwrap().f64().unwrap().get(0), Some(6.0));
+        assert_eq!(df.inner().column("治理总评").unwrap().f64().unwrap().get(0), Some(5.4));
+        // ESG评分 为等级字母，保持字符串
+        assert_eq!(df.inner().column("ESG评分").unwrap().str().unwrap().get(0), Some("AAA"));
+    }
+
+    #[test]
+    fn esg_rft_build_offline() {
+        let rows = json!([
+            {"symbol":"000661.SZ","exchange":"深交所","industry":"生物制品","market":"CN",
+             "esg_score":"65.8(B)","esg_score_date":"2026-08-08",
+             "env_score":"67.9(B+)","env_score_date":"2026-08-08",
+             "social_score":"68.7(B+)","social_score_date":"2026-08-08",
+             "governance_score":"60.1(B)","governance_score_date":"2026-08-08",
+             "zy_score":"100.0(A+)","zy_score_date":"2026-05-09"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = build_esg_rft(&rows).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec![
+                "股票代码", "ESG评分", "ESG评分日期", "环境总评", "环境总评日期", "社会责任总评",
+                "社会责任总评日期", "治理总评", "治理总评日期", "争议总评", "争议总评日期", "行业", "交易所"
+            ]
+        );
+        // 5 个日期列归一为 ISO 字符串
+        assert_eq!(df.inner().column("ESG评分日期").unwrap().str().unwrap().get(0), Some("2026-08-08"));
+        assert_eq!(df.inner().column("环境总评日期").unwrap().str().unwrap().get(0), Some("2026-08-08"));
+        assert_eq!(df.inner().column("争议总评日期").unwrap().str().unwrap().get(0), Some("2026-05-09"));
+        // 评分含等级后缀，不数值化（保持字符串）
+        assert_eq!(df.inner().column("ESG评分").unwrap().str().unwrap().get(0), Some("65.8(B)"));
+        assert_eq!(df.inner().column("交易所").unwrap().str().unwrap().get(0), Some("深交所"));
+    }
+
+    #[test]
+    fn esg_rate_build_offline() {
+        // 模拟 getEsgStocks 的 stocks[].esg_info 嵌套结构，验证展平逻辑
+        let stocks = json!([
+            {"symbol":"000001.SZ","market":"CN","esg_info":[
+                {"agency_name":"MSCI","esg_score":"AAA","esg_dt":"2026Q1","remark":""},
+                {"agency_name":"S&P","esg_score":"AA","esg_dt":"2026Q1","remark":"领跑"}
+            ]}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let mut rows: Vec<Value> = Vec::new();
+        append_esg_info(&mut rows, &stocks);
+        assert_eq!(rows.len(), 2);
+        let df = build_esg_rate(&rows).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec!["成分股代码", "评级机构", "评级", "评级季度", "标识", "交易市场"]
+        );
+        assert_eq!(df.height(), 2);
+        // 同一股票的不同机构明细都带上了 symbol / market
+        let sym = df.inner().column("成分股代码").unwrap().str().unwrap();
+        assert_eq!(sym.get(0), Some("000001.SZ"));
+        assert_eq!(sym.get(1), Some("000001.SZ"));
+        let inst = df.inner().column("评级机构").unwrap().str().unwrap();
+        assert_eq!(inst.get(0), Some("MSCI"));
+        assert_eq!(inst.get(1), Some("S&P"));
+        assert_eq!(df.inner().column("评级").unwrap().str().unwrap().get(0), Some("AAA"));
+        assert_eq!(df.inner().column("标识").unwrap().str().unwrap().get(1), Some("领跑"));
+    }
+
+    #[test]
+    fn esg_zd_build_offline() {
+        let rows = json!([
+            {"ticker":"00386.HK","market":"hk","esg_rating":"AAA","esg_score":"87.6(AAA)",
+             "environmental_rating":"AAA","environmental_score":"96.11(AAA)",
+             "social_rating":"A","social_score":"68.92(A)","governance_rating":"AAA",
+             "governance_score":"95.17(AAA)","report_date":"2026-07-31"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = build_esg_zd(&rows).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec!["股票代码", "ESG评分", "环境总评", "社会责任总评", "治理总评", "评分日期"]
+        );
+        // 评分含等级后缀保持字符串
+        assert_eq!(df.inner().column("ESG评分").unwrap().str().unwrap().get(0), Some("87.6(AAA)"));
+        // 评分日期 归一为 ISO 字符串
+        assert_eq!(df.inner().column("评分日期").unwrap().str().unwrap().get(0), Some("2026-07-31"));
+        // 未入选字段（esg_rating/rating 等）不出现在列中
+        assert!(!df.column_names().contains(&"esg_rating".to_string()));
+    }
+
+    #[test]
+    fn esg_hz_build_offline() {
+        let rows = json!([
+            {"date":"2025-10-31","symbol":"600522.SH","market":"cn","name":"中天科技",
+             "esg_score":"99.86","esg_score_grade":"AAA","e_score":"88.5","e_score_grade":"A",
+             "s_score":"92.59","s_score_grade":"AA","g_score":"91.62","g_score_grade":"AA",
+             "created_time":"2026-01-24 03:00:04"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = build_esg_hz(&rows).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec![
+                "日期", "股票代码", "交易市场", "股票名称", "ESG评分", "ESG等级", "环境", "环境等级",
+                "社会", "社会等级", "公司治理", "公司治理等级"
+            ]
+        );
+        // 日期列归一
+        assert_eq!(df.inner().column("日期").unwrap().str().unwrap().get(0), Some("2025-10-31"));
+        // 数值列（esg/e/s/g），created_time 未入选
+        assert_eq!(df.inner().column("ESG评分").unwrap().f64().unwrap().get(0), Some(99.86));
+        assert_eq!(df.inner().column("环境").unwrap().f64().unwrap().get(0), Some(88.5));
+        assert_eq!(df.inner().column("社会").unwrap().f64().unwrap().get(0), Some(92.59));
+        assert_eq!(df.inner().column("公司治理").unwrap().f64().unwrap().get(0), Some(91.62));
+        // 等级列保持字符串
+        assert_eq!(df.inner().column("ESG等级").unwrap().str().unwrap().get(0), Some("AAA"));
+        assert!(!df.column_names().contains(&"created_time".to_string()));
     }
 }
