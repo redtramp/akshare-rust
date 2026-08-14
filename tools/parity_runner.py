@@ -193,6 +193,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_restricted_release_detail_em", ["20221202", "20221204"], "loose", "限售股解禁-详情"),
     ("stock_restricted_release_queue_em", ["600000"], "loose", "限售股解禁-个股批次"),
     ("stock_restricted_release_stockholder_em", ["600000", "20200904"], "loose", "限售股解禁-股东"),
+    ("stock_restricted_release_queue_sina", ["sh600000"], "loose", "限售股解禁-新浪队列"),
     # 批次1 阶段2a/2b 同花顺数据中心-技术选股排名（HTML 表格 + v token Cookie，loose）
     ("stock_rank_cxg_ths", ["创月新高"], "loose", "技术选股-创新高"),
     ("stock_rank_cxd_ths", ["创月新低"], "loose", "技术选股-创新低"),

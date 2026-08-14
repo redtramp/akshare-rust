@@ -236,7 +236,8 @@ use akshare_rust::stock_fundamental::{
     stock_financial_debt_ths, stock_individual_basic_info_hk_xq, stock_individual_basic_info_us_xq,
     stock_individual_basic_info_xq, stock_management_change_ths, stock_profit_forecast_ths,
     stock_restricted_release_detail_em, stock_restricted_release_queue_em,
-    stock_restricted_release_stockholder_em, stock_restricted_release_summary_em,
+    stock_restricted_release_queue_sina, stock_restricted_release_stockholder_em,
+    stock_restricted_release_summary_em,
     stock_shareholder_change_ths,
     // === BATCH8 注册制 IPO 审核信息（RPT_IPO_INFOALLNEW 系列） ===
     stock_register_all_em, stock_register_kcb, stock_register_cyb, stock_register_bj,
@@ -780,6 +781,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_restricted_release_queue_em" => {
             let [s] = take1(func, args)?;
             Ok(stock_restricted_release_queue_em(s)?)
+        }
+        "stock_restricted_release_queue_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_restricted_release_queue_sina(s)?)
         }
         "stock_restricted_release_stockholder_em" => {
             let [s, d] = take2(func, args)?;

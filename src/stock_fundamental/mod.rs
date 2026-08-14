@@ -6,6 +6,10 @@
 //!   `datacenter` / `report_extra` / `fmt_ymd` 与 `sources::eastmoney::finalize_report`
 //!   工具，列名与 akshare 逐字对齐。数值列（数量/市值类）服务端以「股」为单位返回，
 //!   与 akshare 一致地统一除以 10000 转为「万股/万元」；日期列截断为 `YYYY-MM-DD`。
+//! - 限售股解禁（新浪，`stock_restricted_release_queue_sina`）：解析新浪
+//!   `vip.stock.finance.sina.com.cn` 的 HTML 表格（`read_html_tables` 按位置取表体 +
+//!   硬编码中文列重命名 + 数量去千分位逗号转 float64 + 日期归一化 `YYYY-MM-DD`），
+//!   与 akshare `pd.read_html` 取第 0 张表的语义对齐。
 //! - 同花顺财务指标（`stock_financial_*_ths`，对应 akshare `stock_finance_ths.py`）：
 //!   旧系列（`stock_financial_abstract/debt/benefit/cash_ths`）解析
 //!   `basic.10jqka.com.cn` 的 HTML `<p id="main">` 内嵌 JSON / `flashData` 双重 JSON，
@@ -16,6 +20,7 @@
 
 use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
+use crate::core::html::read_html_tables;
 use crate::core::http::HttpClient;
 use crate::sources::eastmoney::finalize_report;
 use crate::stock_feature::{datacenter, fmt_ymd, report_extra};
@@ -660,7 +665,85 @@ pub fn stock_restricted_release_stockholder_em(symbol: &str, date: &str) -> Resu
     Ok(df)
 }
 
-// ============ 5. 同花顺财务指标（旧系列 + 新系列，8 个） ============
+// ============ 5. stock_restricted_release_queue_sina ============
+
+/// 新浪财经-限售解禁（个股解禁队列，对应 akshare `stock_restricted_release_queue_sina`）。
+///
+/// 数据源为 `vip.stock.finance.sina.com.cn` 的 HTML 表格（`pd.read_html` 取第 0 张表），
+/// 列名由 akshare 硬编码重命名为中文；本实现用 `read_html_tables` 按位置取表体单元格，
+/// 与 akshare 的位置式重命名逐列对齐。
+///
+/// `symbol`：股票代码（默认 `"600000"`，akshare 原样拼入 URL，故 `sh600000` / `600000` 均可）。
+///
+/// # 返回列
+/// `代码, 名称, 解禁日期, 解禁数量, 解禁股流通市值, 上市批次, 公告日期`
+/// （`解禁数量` 由服务端「万股」字符串去千分位逗号后转 float64；`解禁日期` / `公告日期`
+/// 归一化为 `YYYY-MM-DD`；`上市批次` 转 float64，与 akshare `pd.to_numeric` 一致）。
+pub fn stock_restricted_release_queue_sina(symbol: &str) -> Result<Df> {
+    let url = format!(
+        "https://vip.stock.finance.sina.com.cn/q/go.php/vInvestConsult/kind/xsjj/index.phtml?symbol={symbol}"
+    );
+    let text = HttpClient::default().get_text(&url, &Map::new(), None)?;
+    parse_restricted_release_queue_sina(&text)
+}
+
+/// 解析新浪限售解禁 HTML（[`stock_restricted_release_queue_sina`] 的纯解析内核，离线可测）。
+///
+/// `read_html_tables` 按 `<tr>` 收集单元格（`th`/`td` 不加区分），故 `<thead>` 内的表头行
+/// 作为 `table[0]`、数据行自 `table[1]` 起——与 akshare `pd.read_html` 取第 0 张表一致。
+/// 数据单元格内的 `<a>` 链接文本（如 `600000`）按 `read_html_tables` 折叠为纯文本。
+pub(crate) fn parse_restricted_release_queue_sina(html: &str) -> Result<Df> {
+    let empty = || {
+        Df::from_string_rows(
+            &[
+                "代码",
+                "名称",
+                "解禁日期",
+                "解禁数量",
+                "解禁股流通市值",
+                "上市批次",
+                "公告日期",
+            ],
+            &[],
+        )
+    };
+    let tables = read_html_tables(html)?;
+    let table = match tables.into_iter().next() {
+        Some(t) => t,
+        None => return empty(),
+    };
+    // 无数据行（仅表头）→ 返回空契约，与 akshare 零行 DataFrame 对齐
+    if table.len() < 2 {
+        return empty();
+    }
+    let cols = [
+        "代码",
+        "名称",
+        "解禁日期",
+        "解禁数量",
+        "解禁股流通市值",
+        "上市批次",
+        "公告日期",
+    ];
+    let mut string_rows: Vec<Vec<Option<String>>> = Vec::with_capacity(table.len() - 1);
+    for r in &table[1..] {
+        let mut cells: Vec<Option<String>> = r.iter().map(|s| Some(s.clone())).collect();
+        cells.resize(cols.len(), None);
+        cells.truncate(cols.len());
+        string_rows.push(cells);
+    }
+    let mut df = Df::from_string_rows(&cols, &string_rows)?;
+    // 代码/数量/市值/批次：去千分位逗号后转数值（与 akshare `pd.read_html` 将代码列推断为
+    // int64、`pd.to_numeric` 将数量/市值/批次转 float64 对齐；loose 模式下 int64/float64
+    // 同归为数值类）。
+    df.strip_commas(&["代码", "解禁数量", "解禁股流通市值", "上市批次"])?
+        .cast_numeric(&["代码", "解禁数量", "解禁股流通市值", "上市批次"])?
+        // 日期列归一化为 YYYY-MM-DD（与 akshare `pd.to_datetime(...).dt.date` 对齐）
+        .cast_date(&["解禁日期", "公告日期"])?;
+    Ok(df)
+}
+
+// ============ 6. 同花顺财务指标（旧系列 + 新系列，8 个） ============
 
 /// 同花顺基础页 UA（与 akshare `stock_finance_ths.py` 的 `cons.headers` 一致）。
 const THS_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
@@ -2625,5 +2708,89 @@ mod tests {
         );
         // 非对象 → Empty 错误
         assert!(build_xq_df(&json!([1, 2, 3])).is_err());
+    }
+
+    #[test]
+    fn restricted_release_queue_sina_offline() {
+        // 复刻 sina 限售解禁表结构：<thead> 内用 <td> 作表头（含单位后缀），数据行
+        // 单元格含 <a> 链接，数量带千分位逗号。验证位置式重命名 + 数值化 + 日期归一化。
+        let html = r#"
+        <table class="list_table" id="dataTable">
+          <thead>
+            <tr class="head">
+              <td>代码</td><td>名称</td><td>解禁日期</td><td>解禁数量(万股)</td>
+              <td>解禁股流通市值(亿元)</td><td>上市批次</td><td>公告日期</td>
+            </tr>
+          </thead>
+          <tr>
+            <td><a href="x">600000</a></td><td><a href="x">浦发银行</a></td>
+            <td>2020-09-04</td><td>124,831.65</td><td>127.0786</td><td>10</td><td>2017-09-06</td>
+          </tr>
+          <tr>
+            <td><a href="x">600000</a></td><td><a href="x">浦发银行</a></td>
+            <td>2017-03-20</td><td>109,946.14</td><td>179.1023</td><td>9</td><td>2016-03-22</td>
+          </tr>
+        </table>"#;
+        let df = parse_restricted_release_queue_sina(html).unwrap();
+        // 7 列契约（重命名后无单位后缀）
+        assert_eq!(
+            df.column_names(),
+            vec![
+                "代码",
+                "名称",
+                "解禁日期",
+                "解禁数量",
+                "解禁股流通市值",
+                "上市批次",
+                "公告日期"
+            ]
+        );
+        assert_eq!(df.height(), 2);
+        // 数据单元格内 <a> 链接文本被正确提取；代码列按 akshare read_html 推断为数值
+        assert_eq!(
+            df.inner().column("代码").unwrap().f64().unwrap().get(0),
+            Some(600_000.0)
+        );
+        assert_eq!(
+            df.inner().column("名称").unwrap().str().unwrap().get(0),
+            Some("浦发银行")
+        );
+        // 数量去千分位逗号并转 float64
+        assert_eq!(
+            df.inner().column("解禁数量").unwrap().f64().unwrap().get(0),
+            Some(124_831.65)
+        );
+        // 市值为 float64
+        assert_eq!(
+            df.inner()
+                .column("解禁股流通市值")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
+            Some(127.0786)
+        );
+        // 批次转 float64
+        assert_eq!(
+            df.inner().column("上市批次").unwrap().f64().unwrap().get(0),
+            Some(10.0)
+        );
+        // 日期归一化为 YYYY-MM-DD
+        assert_eq!(
+            df.inner().column("解禁日期").unwrap().str().unwrap().get(0),
+            Some("2020-09-04")
+        );
+        assert_eq!(
+            df.inner().column("公告日期").unwrap().str().unwrap().get(0),
+            Some("2017-09-06")
+        );
+    }
+
+    #[test]
+    fn restricted_release_queue_sina_offline_empty() {
+        // 无 <table> → 空 7 列契约（与 akshare 零行 DataFrame 对齐）
+        let df = parse_restricted_release_queue_sina("<html><body>暂无数据</body></html>").unwrap();
+        assert_eq!(df.column_names().len(), 7);
+        assert_eq!(df.height(), 0);
     }
 }

@@ -647,12 +647,14 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 | 批次15 | `stock`（datacenter-web） | `stock_gsrl_gsdt_em`, `stock_hold_management_detail_em`, `stock_hold_management_person_em`, `stock_repurchase_em`（4） | `RPT_ORGOP_ALL` / `RPT_EXECUTIVE_HOLD_DETAILS` / `RPTA_WEB_GETHGLIST_NEW` | 4/4 ✓ |
 | 批次16 | `stock`（datacenter-web） | `stock_report_fund_hold_detail`（1） | `RPT_MAINDATA_MAIN_POSITIONDETAILS` | 1/1 ✓ |
 | 批次17 | `stock`（dataapi host） | `stock_report_fund_hold`（1） | `data.eastmoney.com/dataapi/zlsj/list` | 1/1 ✓ |
+| 批次18 | `stock_fundamental`（新浪 HTML 表） | `stock_restricted_release_queue_sina`（1） | 新浪 `vip.stock.finance.sina.com.cn` HTML 表（`read_html_tables` 取第 0 张表 + 位置式中文重命名） | 1/1 ✓ |
 
-**累计新增（批次11–17）：23 个东财数据中心函数（含 1 个非标准 dataapi host）。**
+**累计新增（批次11–18）：24 个数据中心函数（含 1 个非标准 dataapi host、1 个新浪 HTML 表解析）。**
+> 限售股解禁整族（`stock_restricted_release_*`）至此全部落地：4 个东财 `_em` 函数（`summary_em` / `detail_em` / `queue_em` / `stockholder_em`，批次 10 已提交）+ 1 个新浪 `queue_sina`（批次 18）。
 
 ### 9.1 后续候选（未实现）
-- 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如限售股解禁、盈利预测、
-  融资融券等已在 `stock_fundamental` 部分实现）；其余 `stock_*` / `stock_feature_*` 文件可按同类
+- 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在
+  `stock_fundamental` 部分实现）；其余 `stock_*` / `stock_feature_*` 文件可按同类
   「`datacenter` + `finalize_report` 键→中文 rename」模式继续批量推进。
 - 反爬豁免：雪球 `*_basic_info_*_xq`（需登录态 `xq_a_token`），`--check` 无 golden 自动跳过。
 
