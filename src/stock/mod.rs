@@ -1875,6 +1875,112 @@ pub fn stock_report_fund_hold_detail(symbol: &str, date: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ============ 17. 东财数据中心：基金持仓（dataapi host，位置式列映射 → 键 rename） ============
+
+/// `stock_report_fund_hold` 的 `symbol` → 服务端 `type` 编码（对应 akshare `symbol_map`）。
+fn fund_hold_type_code(symbol: &str) -> Result<&'static str> {
+    match symbol {
+        "基金持仓" => Ok("1"),
+        "QFII持仓" => Ok("2"),
+        "社保持仓" => Ok("3"),
+        "券商持仓" => Ok("4"),
+        "保险持仓" => Ok("5"),
+        "信托持仓" => Ok("6"),
+        _ => Err(AkshareError::Param(format!(
+            "无效 symbol: {symbol}（应为 基金持仓/QFII持仓/社保持仓/券商持仓/保险持仓/信托持仓）"
+        ))),
+    }
+}
+
+/// 抓取 `data.eastmoney.com/dataapi/zlsj/list`（非标准 host，响应体为 `{data, pages}` 而非
+/// `result.data`），按 `pages` 全量分页。
+fn fetch_fund_hold_rows(date: &str, type_code: &str) -> Result<Vec<Value>> {
+    let http = HttpClient::default();
+    let mut all: Vec<Value> = Vec::new();
+    let mut page: i64 = 1;
+    loop {
+        let mut params = Map::new();
+        params.insert("date".into(), json!(date));
+        params.insert("type".into(), json!(type_code));
+        params.insert("zjc".into(), json!("0"));
+        params.insert("sortField".into(), json!("HOULD_NUM"));
+        params.insert("sortDirec".into(), json!("1"));
+        params.insert("pageNum".into(), json!(page));
+        params.insert("pageSize".into(), json!("500"));
+        params.insert("p".into(), json!(page));
+        params.insert("pageNo".into(), json!(page));
+        let v = http.get_json("https://data.eastmoney.com/dataapi/zlsj/list", &params, None)?;
+        let data = v.get("data").and_then(Value::as_array).cloned().unwrap_or_default();
+        if data.is_empty() {
+            break;
+        }
+        let pages = v.get("pages").and_then(Value::as_i64).unwrap_or(1);
+        all.extend(data);
+        if page >= pages {
+            break;
+        }
+        page += 1;
+    }
+    Ok(all)
+}
+
+/// `dataapi/zlsj/list` 列清单（位置式列映射等价按 JSON 键 rename；`序号` 由 index_name 前置）。
+const FUND_HOLD_RENAME: [(&str, &str); 8] = [
+    ("SECURITY_CODE", "股票代码"),
+    ("SECURITY_NAME_ABBR", "股票简称"),
+    ("HOULD_NUM", "持有基金家数"),
+    ("TOTAL_SHARES", "持股总数"),
+    ("HOLD_VALUE", "持股市值"),
+    ("HOLDCHA", "持股变化"),
+    ("HOLDCHA_NUM", "持股变动数值"),
+    ("HOLDCHA_RATIO", "持股变动比例"),
+];
+const FUND_HOLD_SELECT: [&str; 8] = [
+    "股票代码",
+    "股票简称",
+    "持有基金家数",
+    "持股总数",
+    "持股市值",
+    "持股变化",
+    "持股变动数值",
+    "持股变动比例",
+];
+const FUND_HOLD_NUMERIC: [&str; 5] = [
+    "持有基金家数",
+    "持股总数",
+    "持股市值",
+    "持股变动数值",
+    "持股变动比例",
+];
+
+/// 东方财富-数据中心-主力数据-基金持仓（对应 akshare [`akshare.stock_report_fund_hold`]）。
+///
+/// `symbol`：`{基金持仓, QFII持仓, 社保持仓, 券商持仓, 保险持仓, 信托持仓}`；`date`：`YYYYMMDD`
+/// 财报发布日期。走非标准 host `data.eastmoney.com/dataapi/zlsj/list`，按 `type` + `date` 过滤。
+/// akshare 用「位置式列映射」，等价按 JSON 键 rename（序号由 index_name 前置）。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 持有基金家数, 持股总数, 持股市值, 持股变化, 持股变动数值, 持股变动比例`
+pub fn stock_report_fund_hold(symbol: &str, date: &str) -> Result<Df> {
+    let type_code = fund_hold_type_code(symbol)?;
+    let ymd = if date.len() == 8 && date.bytes().all(|b| b.is_ascii_digit()) {
+        format!("{}-{}-{}", &date[..4], &date[4..6], &date[6..])
+    } else {
+        return Err(AkshareError::Param(format!(
+            "无效 date: {date}（应为 YYYYMMDD）"
+        )));
+    };
+    let rows = fetch_fund_hold_rows(&ymd, type_code)?;
+    let df = finalize_report(
+        &rows,
+        &FUND_HOLD_RENAME,
+        &FUND_HOLD_SELECT,
+        &FUND_HOLD_NUMERIC,
+        Some("序号"),
+    )?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2200,6 +2306,18 @@ mod tests_e1 {
         assert_eq!(repurchase_progress_label("005"), Some("停止实施"));
         assert_eq!(repurchase_progress_label("006"), Some("完成实施"));
         assert_eq!(repurchase_progress_label("999"), None);
+    }
+
+    /// 锁定基金持仓 `symbol` → 服务端 `type` 编码映射（对应 akshare `symbol_map`）。
+    #[test]
+    fn fund_hold_type_code_offline() {
+        assert_eq!(fund_hold_type_code("基金持仓").unwrap(), "1");
+        assert_eq!(fund_hold_type_code("QFII持仓").unwrap(), "2");
+        assert_eq!(fund_hold_type_code("社保持仓").unwrap(), "3");
+        assert_eq!(fund_hold_type_code("券商持仓").unwrap(), "4");
+        assert_eq!(fund_hold_type_code("保险持仓").unwrap(), "5");
+        assert_eq!(fund_hold_type_code("信托持仓").unwrap(), "6");
+        assert!(fund_hold_type_code("非法").is_err());
     }
 
     /// 键名映射（finalize_spot）列契约：与 akshare 输出一致。

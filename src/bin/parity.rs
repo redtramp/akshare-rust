@@ -194,6 +194,8 @@ use akshare_rust::stock::{
     stock_repurchase_em,
     // === BATCH16 东财数据中心：基金持仓明细（RPT_MAINDATA_MAIN_POSITIONDETAILS） ===
     stock_report_fund_hold_detail,
+    // === BATCH17 东财数据中心：基金持仓（dataapi host，位置式列映射→键 rename） ===
+    stock_report_fund_hold,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
@@ -422,6 +424,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_report_fund_hold_detail" => {
             let [s, d] = take2(func, args)?;
             Ok(stock_report_fund_hold_detail(s, d)?)
+        }
+        "stock_report_fund_hold" => {
+            let [s, d] = take2(func, args)?;
+            Ok(stock_report_fund_hold(s, d)?)
         }
         "stock_individual_fund_flow" => {
             let [s, m] = take2(func, args)?;
