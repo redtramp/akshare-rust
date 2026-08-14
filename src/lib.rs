@@ -30,6 +30,7 @@ pub mod futures;
 pub mod fund;
 pub mod fx;
 pub mod index;
+pub mod interest_rate;
 pub mod legu;
 pub mod news;
 pub mod option;

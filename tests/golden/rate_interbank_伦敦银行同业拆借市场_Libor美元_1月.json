@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "报告日",
+      "dtype": "str"
+    },
+    {
+      "name": "利率",
+      "dtype": "float64"
+    },
+    {
+      "name": "涨跌",
+      "dtype": "float64"
+    }
+  ],
+  "height": 1,
+  "head": [
+    [
+      "2024-09-30",
+      "4.96018",
+      "0.16"
+    ]
+  ]
+}

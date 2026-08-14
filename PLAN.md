@@ -649,8 +649,9 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 | 批次17 | `stock`（dataapi host） | `stock_report_fund_hold`（1） | `data.eastmoney.com/dataapi/zlsj/list` | 1/1 ✓ |
 | 批次18 | `stock_fundamental`（新浪 HTML 表） | `stock_restricted_release_queue_sina`（1） | 新浪 `vip.stock.finance.sina.com.cn` HTML 表（`read_html_tables` 取第 0 张表 + 位置式中文重命名） | 1/1 ✓ |
 | 批次19 | `futures`（东财 datacenter-web） | `futures_comex_inventory`, `futures_inventory_em`（2） | `RPT_FUTUOPT_GOLDSIL`（黄金/白银库存）+ `RPT_FUTU_POSITIONCODE`/`RPT_FUTU_STOCKDATA`（品种库存/增减，含 `INVENTORY_SYMBOL_MAP` 兜底映射） | 2/2 ✓ |
+| 批次20 | `interest_rate`（新模块，东财 datacenter-web） | `rate_interbank`（1） | `RPT_IMP_INTRESTRATEN`（银行间拆借利率，market/symbol/indicator 三映射，输出 报告日/利率/涨跌） | 1/1 ✓ |
 
-**累计新增（批次11–19）：26 个数据中心函数（含 1 个非标准 dataapi host、1 个新浪 HTML 表解析、2 个期货库存 datacenter）。**
+**累计新增（批次11–20）：27 个数据中心函数（含 1 个非标准 dataapi host、1 个新浪 HTML 表解析、2 个期货库存 datacenter、1 个利率 datacenter 新模块）。**
 > 附带修复：核心 `detect_block_or_auth` 的 `400016` 登录态判据原为裸子串匹配，会误伤含该数字子串的大响应体（如 COMEX 白银库存报表），改为仅匹配雪球错误信封 `"error_code":400016`，并新增回归单测 `detect_400016_not_in_data`。
 > 限售股解禁整族（`stock_restricted_release_*`）至此全部落地：4 个东财 `_em` 函数（`summary_em` / `detail_em` / `queue_em` / `stockholder_em`，批次 10 已提交）+ 1 个新浪 `queue_sina`（批次 18）。
 
@@ -658,6 +659,10 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在
   `stock_fundamental` 部分实现）；其余 `stock_*` / `stock_feature_*` 文件可按同类
   「`datacenter` + `finalize_report` 键→中文 rename」模式继续批量推进。
+- 已知 finicky 项：`stock_register_db`（`stock_fundamental/stock_register_em.py`，
+  `RPT_KCB_IPO`，`columns=KCB_LB`，filter `(ORG_TYPE_CODE="03")`）——akshare 自身
+  `rename` 引用 `ORG_NAME` 但请求列仅 `KCB_LB`，存在潜在列名不一致，需先确认上游实际返回字段再落地，
+  建议单独验证而非并入常规批次。
 - 反爬豁免：雪球 `*_basic_info_*_xq`（需登录态 `xq_a_token`），`--check` 无 golden 自动跳过。
 
 ---

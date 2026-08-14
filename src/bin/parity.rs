@@ -158,6 +158,7 @@ use akshare_rust::futures::{
     futures_settle_shfe,
 };
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
+use akshare_rust::interest_rate::{rate_interbank};
 use akshare_rust::legu::{
     fund_balance_position_lg, fund_linghuo_position_lg, fund_stock_position_lg,
     stock_a_congestion_lg, stock_buffett_index_lg, stock_ebs_lg, stock_index_pb_lg,
@@ -896,6 +897,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_inventory_em" => {
             let [s] = take1(func, args)?;
             Ok(futures_inventory_em(s)?)
+        }
+        "rate_interbank" => {
+            let [m, s, ind] = take3(func, args)?;
+            Ok(rate_interbank(m, s, ind)?)
         }
         // 批次3 阶段3d 同花顺板块/新股/公司大事
         "stock_board_industry_name_ths" => Ok(stock_board_industry_name_ths()?),
