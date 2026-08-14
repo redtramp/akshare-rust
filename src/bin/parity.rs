@@ -242,8 +242,8 @@ use akshare_rust::stock_fundamental::{
     stock_restricted_release_summary_em,
     stock_shareholder_change_ths,
     // === BATCH8 注册制 IPO 审核信息（RPT_IPO_INFOALLNEW 系列） ===
-    stock_register_all_em, stock_register_kcb, stock_register_cyb, stock_register_bj,
-    stock_register_sh, stock_register_sz,
+    stock_register_all_em, stock_register_db, stock_register_kcb, stock_register_cyb,
+    stock_register_bj, stock_register_sh, stock_register_sz,
     // === BATCH9 首发申报/上会/辅导备案（RPT_IPO_DECORGNEWEST / RPT_IPO_REVIEW / RPT_IPO_TUTRECORD） ===
     stock_ipo_declare_em, stock_ipo_review_em, stock_ipo_tutor_em,
     // === BATCH10 盈利预测（RPT_WEB_RESPREDICT，动态 YEAR 列头） ===
@@ -936,6 +936,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         // === BATCH8 注册制 IPO 审核信息（RPT_IPO_INFOALLNEW 系列） ===
         "stock_register_all_em" => Ok(stock_register_all_em()?),
+        "stock_register_db" => Ok(stock_register_db()?),
         "stock_register_kcb" => Ok(stock_register_kcb()?),
         "stock_register_cyb" => Ok(stock_register_cyb()?),
         "stock_register_bj" => Ok(stock_register_bj()?),

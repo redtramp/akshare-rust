@@ -269,6 +269,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_register_bj", [], "loose", "注册制IPO审核-北交所"),
     ("stock_register_sh", [], "loose", "注册制IPO审核-上海主板"),
     ("stock_register_sz", [], "loose", "注册制IPO审核-深圳主板"),
+    ("stock_register_db", [], "loose", "注册制IPO审核-达标企业"),
     # === BATCH9 首发申报/上会/辅导备案（RPT_IPO_DECORGNEWEST / RPT_IPO_REVIEW / RPT_IPO_TUTRECORD，loose 比列契约） ===
     ("stock_ipo_declare_em", [], "loose", "首发申报企业信息"),
     ("stock_ipo_review_em", [], "loose", "新股上会信息"),

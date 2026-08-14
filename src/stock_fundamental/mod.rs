@@ -129,6 +129,23 @@ stock_register_em_fn!(
     "东方财富-数据中心-新股数据-IPO审核信息-深圳主板（对应 akshare [`akshare.stock_register_sz`]）。\n\n# 返回列\n`序号, 企业名称, 最新状态, 注册地, 行业, 保荐机构, 律师事务所, 会计师事务所, 更新日期, 受理日期, 拟上市地点, 招股说明书`"
 );
 
+/// 东方财富-数据中心-新股数据-IPO审核信息-达标企业（对应 akshare [`akshare.stock_register_db`]）。
+///
+/// 报表 `RPT_KCB_IPO`，过滤 `(ORG_TYPE_CODE="03")`（三板达标企业）。akshare 请求
+/// `columns=KCB_LB`，但东财实际返回完整行（含 `ORG_NAME`，故列名映射以 `ORG_NAME` 为准）。
+///
+/// # 返回列
+/// `序号, 企业名称`（`序号` 前置 1-based，对应 akshare `reset_index` + `range(1,..)`）。
+pub fn stock_register_db() -> Result<Df> {
+    let extra = report_extra("NOTICE_DATE,SECURITY_CODE", "-1,-1", Some(r#"(ORG_TYPE_CODE="03")"#), None, None, None);
+    // 沿用 akshare 的 `columns=KCB_LB`（东财忽略该限制、返回完整行，含 ORG_NAME）
+    let rows = datacenter("RPT_KCB_IPO", "KCB_LB", &extra, "500")?;
+    let rename: [(&str, &str); 1] = [("ORG_NAME", "企业名称")];
+    let select: [&str; 1] = ["企业名称"];
+    let df = finalize_report(&rows, &rename, &select, &[], Some("序号"))?;
+    Ok(df)
+}
+
 // ============ 9. 首发申报 / 上会 / 辅导备案（东财 datacenter-web RPT_IPO_*） ============
 
 /// `RPT_IPO_DECORGNEWEST` 显式列清单（对应 akshare `stock_ipo_declare_em` 的 `columns` 参数）。
@@ -2323,6 +2340,24 @@ mod tests {
             .get(0)
             .unwrap();
         assert!(approx(residual, 40000.0));
+    }
+
+    #[test]
+    fn register_db_offline_contract() {
+        // 复刻 stock_register_db 的 finalize 契约：序号 + 企业名称（ORG_NAME）
+        let rows = vec![json!({
+            "ORG_NAME": "常州铭赛机器人科技股份有限公司",
+            "ORG_TYPE_CODE": "03",
+        })];
+        let rename: [(&str, &str); 1] = [("ORG_NAME", "企业名称")];
+        let select: [&str; 1] = ["企业名称"];
+        let df = finalize_report(&rows, &rename, &select, &[], Some("序号")).unwrap();
+
+        assert_eq!(col_names(&df), vec!["序号", "企业名称"]);
+        let idx = df.inner().column("序号").unwrap().f64().unwrap().get(0);
+        assert_eq!(idx, Some(1.0));
+        let name = df.inner().column("企业名称").unwrap().str().unwrap().get(0);
+        assert_eq!(name, Some("常州铭赛机器人科技股份有限公司"));
     }
 
     #[test]
