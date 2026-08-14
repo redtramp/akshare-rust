@@ -220,6 +220,9 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("futures_settle", ["20260119", "INE"], "strict", "结算参数统一入口-上能中心"),
     # 批次2 新浪期货合约详情：合约基础信息为静态数据，可安全 strict 对比
     ("futures_contract_detail", ["V2201"], "strict", "期货合约详情"),
+    ("futures_comex_inventory", ["黄金"], "loose", "COMEX黄金库存"),
+    ("futures_comex_inventory", ["白银"], "loose", "COMEX白银库存"),
+    ("futures_inventory_em", ["a"], "loose", "期货库存-豆一"),
     # 批次3 阶段3b 同花顺财务指标（8 个）：报告期集合随时间增长，loose 只比列契约
     ("stock_financial_abstract_ths", ["000063", "按报告期"], "loose", "同花顺财务-主要指标"),
     ("stock_financial_debt_ths", ["000063", "按报告期"], "loose", "同花顺财务-资产负债表"),

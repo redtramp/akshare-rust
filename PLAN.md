@@ -648,8 +648,10 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 | 批次16 | `stock`（datacenter-web） | `stock_report_fund_hold_detail`（1） | `RPT_MAINDATA_MAIN_POSITIONDETAILS` | 1/1 ✓ |
 | 批次17 | `stock`（dataapi host） | `stock_report_fund_hold`（1） | `data.eastmoney.com/dataapi/zlsj/list` | 1/1 ✓ |
 | 批次18 | `stock_fundamental`（新浪 HTML 表） | `stock_restricted_release_queue_sina`（1） | 新浪 `vip.stock.finance.sina.com.cn` HTML 表（`read_html_tables` 取第 0 张表 + 位置式中文重命名） | 1/1 ✓ |
+| 批次19 | `futures`（东财 datacenter-web） | `futures_comex_inventory`, `futures_inventory_em`（2） | `RPT_FUTUOPT_GOLDSIL`（黄金/白银库存）+ `RPT_FUTU_POSITIONCODE`/`RPT_FUTU_STOCKDATA`（品种库存/增减，含 `INVENTORY_SYMBOL_MAP` 兜底映射） | 2/2 ✓ |
 
-**累计新增（批次11–18）：24 个数据中心函数（含 1 个非标准 dataapi host、1 个新浪 HTML 表解析）。**
+**累计新增（批次11–19）：26 个数据中心函数（含 1 个非标准 dataapi host、1 个新浪 HTML 表解析、2 个期货库存 datacenter）。**
+> 附带修复：核心 `detect_block_or_auth` 的 `400016` 登录态判据原为裸子串匹配，会误伤含该数字子串的大响应体（如 COMEX 白银库存报表），改为仅匹配雪球错误信封 `"error_code":400016`，并新增回归单测 `detect_400016_not_in_data`。
 > 限售股解禁整族（`stock_restricted_release_*`）至此全部落地：4 个东财 `_em` 函数（`summary_em` / `detail_em` / `queue_em` / `stockholder_em`，批次 10 已提交）+ 1 个新浪 `queue_sina`（批次 18）。
 
 ### 9.1 后续候选（未实现）

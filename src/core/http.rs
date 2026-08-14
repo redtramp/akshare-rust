@@ -18,7 +18,16 @@ use std::time::Duration;
 const BLOCK_MARKERS: &[&str] = &["_waf", "alichlgref", "just a moment", "challenge-platform"];
 
 /// 需要登录态的响应特征（雪球等）。
-const AUTH_MARKERS: &[&str] = &["400016", "xq_a_token", "需要登录", "login required"];
+/// 注意：`400016` 仅作为雪球业务错误信封 `"error_code":400016` 的一部分匹配，
+/// 不可作裸子串——东财等大报表的真实数据里数字字段可能巧合包含 `400016`，
+/// 裸匹配会在大响应体上误报为登录态缺失（见 futures_comex_inventory 白银系列）。
+const AUTH_MARKERS: &[&str] = &[
+    "\"error_code\":400016",
+    "\"error_code\": 400016",
+    "xq_a_token",
+    "需要登录",
+    "login required",
+];
 
 /// 轻量 HTTP 客户端，围绕 `reqwest::blocking` 封装重试与解码。
 #[derive(Debug, Clone)]
@@ -733,6 +742,22 @@ mod tests {
 
         let r = detect_block_or_auth("http://x", "正常数据");
         assert!(r.is_ok());
+    }
+
+    #[test]
+    fn detect_400016_not_in_data() {
+        // 大响应体中数字字段巧合包含 "400016" 子串（如 COMEX 白银库存报表），
+        // 不得误报为登录态缺失（裸子串匹配的回归用例）。
+        let big = format!(
+            "{{\"result\":{{\"pages\":3,\"data\":[{{\"STORAGE_TON\":{}}}],\"count\":1}}}}",
+            "123400016.78"
+        );
+        assert!(detect_block_or_auth("http://x", &big).is_ok());
+        // 但真正的雪球错误信封仍须命中
+        assert!(matches!(
+            detect_block_or_auth("http://x", r#"{"error_code": 400016,"error_info":"need login"}"#),
+            Err(AkshareError::AuthRequired(_))
+        ));
     }
 
     #[test]

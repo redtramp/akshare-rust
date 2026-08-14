@@ -8,6 +8,9 @@
 //! - 统一入口 [`futures_settle`]：按 `market` 分派到上述五家，输出 akshare 统一的
 //!   20 列规范字段（`SETTLE_OUTPUT_COLUMNS`，对应 `_normalize_settle_columns`）
 //! - 新浪期货合约详情 [`futures_contract_detail`]（对应 akshare `futures/futures_contract_detail.py`）
+//! - 东财 datacenter 期货库存：
+//!   [`futures_comex_inventory`]（COMEX 黄金/白银库存，`RPT_FUTUOPT_GOLDSIL`）、
+//!   [`futures_inventory_em`]（期货品种库存/增减，`RPT_FUTU_STOCKDATA`）
 //!
 //! 大商所（DCE）因网站反爬保护（412）暂缓，与 akshare 上游状态一致。
 //! 各接口均为「指定日期 → 该交易所全部期货合约的保证金/手续费/涨跌停参数」，
@@ -16,6 +19,8 @@
 use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
+use crate::sources::eastmoney::finalize_report;
+use crate::stock_feature::{datacenter, report_extra};
 use polars::prelude::*;
 use scraper::{Html, Selector};
 use serde_json::{Map, Value};
@@ -766,9 +771,209 @@ fn parse_contract_detail(text: &str) -> Result<Df> {
     Df::from_string_rows(&["item", "value"], &rows_out)
 }
 
+// ============ 东财 datacenter 期货库存（RPT_FUTUOPT_GOLDSIL / RPT_FUTU_*） ============
+
+/// JSON 值转字符串（兼容 str / 数值，对应 datacenter 单元格的多种类型）。
+fn cell_str(v: &Value) -> Option<String> {
+    match v {
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
+/// COMEX 库存数据（对应 akshare [`akshare.futures_comex_inventory`]）。
+///
+/// `symbol`：`黄金` → `EMI00069026`、`白银` → `EMI00069027`（akshare `symbol_map`）。
+/// 报表 `RPT_FUTUOPT_GOLDSIL`，过滤 `(@STORAGE_TON<>"NULL")` 去掉空库存行，按日期降序。
+/// 列名随 `symbol` 动态拼接（`COMEX黄金库存量-吨` / `COMEX黄金库存量-盎司` 等）。
+///
+/// # 返回列
+/// `序号, 日期, COMEX{黄金|白银}库存量-吨, COMEX{黄金|白银}库存量-盎司`
+/// （`日期` 归一化为 `YYYY-MM-DD`；两个库存量列转 float64）。
+pub fn futures_comex_inventory(symbol: &str) -> Result<Df> {
+    let indicator = match symbol {
+        "黄金" => "EMI00069026",
+        "白银" => "EMI00069027",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "未知 symbol: {other}（可选：黄金/白银）"
+            )))
+        }
+    };
+    let filter = format!(r#"(INDICATOR_ID1="{indicator}")(@STORAGE_TON<>"NULL")"#);
+    let extra = report_extra("REPORT_DATE", "-1", Some(&filter), Some(""), None, None);
+    let rows = datacenter("RPT_FUTUOPT_GOLDSIL", "ALL", &extra, "500")?;
+
+    let ton = format!("COMEX{symbol}库存量-吨");
+    let ounce = format!("COMEX{symbol}库存量-盎司");
+    let rename: [(&str, &str); 3] = [
+        ("REPORT_DATE", "日期"),
+        ("STORAGE_TON", ton.as_str()),
+        ("STORAGE_OUNCE", ounce.as_str()),
+    ];
+    let select: [&str; 3] = ["日期", ton.as_str(), ounce.as_str()];
+    let numeric: [&str; 2] = [ton.as_str(), ounce.as_str()];
+    let mut df = finalize_report(&rows, &rename, &select, &numeric, Some("序号"))?;
+    df.cast_date(&["日期"])?;
+    Ok(df)
+}
+
+/// 期货库存 `symbol` 兜底映射（对应 akshare `futures.cons.futures_inventory_em_symbol_dict`，
+/// 仅取非 `None` 项）。优先用东财 `RPT_FUTU_POSITIONCODE` 返回的 `TRADE_TYPE → TRADE_CODE`
+/// 主合约映射；命中不到时回退到此表（覆盖东财主合约表里缺失的品种，如 `a → A`）。
+const INVENTORY_SYMBOL_MAP: &[(&str, &str)] = &[
+    ("a", "A"),
+    ("ag", "AG"),
+    ("al", "AL"),
+    ("ao", "AO"),
+    ("AP", "AP"),
+    ("au", "AU"),
+    ("b", "B"),
+    ("br", "BR"),
+    ("bu", "BU"),
+    ("c", "C"),
+    ("CF", "CF"),
+    ("CJ", "CJ"),
+    ("cs", "CS"),
+    ("cu", "CU"),
+    ("CY", "CY"),
+    ("eb", "EB"),
+    ("ec", "ec"),
+    ("eg", "EG"),
+    ("FG", "FG"),
+    ("PL", "PL"),
+    ("fu", "FU"),
+    ("hc", "HC"),
+    ("i", "I"),
+    ("IC", "IC"),
+    ("IF", "IF"),
+    ("IH", "IH"),
+    ("IM", "IM"),
+    ("j", "J"),
+    ("jd", "JD"),
+    ("jm", "JM"),
+    ("l", "L"),
+    ("lc", "lc"),
+    ("lh", "LH"),
+    ("lu", "lu"),
+    ("m", "M"),
+    ("MA", "MA"),
+    ("ni", "NI"),
+    ("nr", "nr"),
+    ("OI", "OI"),
+    ("p", "P"),
+    ("pb", "PB"),
+    ("PF", "PF"),
+    ("pg", "PG"),
+    ("PK", "PK"),
+    ("pp", "PP"),
+    ("PX", "PX"),
+    ("rb", "RB"),
+    ("RM", "RM"),
+    ("RS", "RS"),
+    ("ru", "RU"),
+    ("SA", "SA"),
+    ("SF", "SF"),
+    ("SH", "SH"),
+    ("si", "si"),
+    ("SM", "SM"),
+    ("sn", "SN"),
+    ("sp", "SP"),
+    ("SR", "SR"),
+    ("ss", "SS"),
+    ("T", "T"),
+    ("TA", "TA"),
+    ("TF", "TF"),
+    ("TL", "TL"),
+    ("TS", "TS"),
+    ("UR", "UR"),
+    ("v", "V"),
+    ("y", "Y"),
+    ("zn", "ZN"),
+];
+
+/// 期货库存数据（对应 akshare [`akshare.futures_inventory_em`]）。
+///
+/// `symbol`：品种代码或中文名（默认 `"a"`）。先查 `RPT_FUTU_POSITIONCODE`（`IS_MAINCODE="1"`）
+/// 取主合约映射 `TRADE_TYPE → TRADE_CODE`；命中不到时回退到 [`INVENTORY_SYMBOL_MAP`]
+/// （对应 akshare 的 `futures_inventory_em_symbol_dict`）。再查 `RPT_FUTU_STOCKDATA`
+/// （`SECURITY_CODE=产品代码`、`TRADE_DATE>='2020-10-28'`），按日期降序。
+///
+/// # 返回列
+/// `日期, 库存, 增减`（`日期` 归一化为 `YYYY-MM-DD`；`库存`/`增减` 转 float64）。
+pub fn futures_inventory_em(symbol: &str) -> Result<Df> {
+    // 1) 主合约映射：TRADE_TYPE -> TRADE_CODE
+    let extra0 = report_extra("", "", Some(r#"(IS_MAINCODE="1")"#), None, None, None);
+    let rows0 = datacenter(
+        "RPT_FUTU_POSITIONCODE",
+        "TRADE_MARKET_CODE,TRADE_CODE,TRADE_TYPE",
+        &extra0,
+        "500",
+    )?;
+    let mut code_by_type: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    for r in &rows0 {
+        if let (Some(t), Some(c)) = (
+            r.get("TRADE_TYPE").and_then(cell_str),
+            r.get("TRADE_CODE").and_then(cell_str),
+        ) {
+            code_by_type.insert(t, c);
+        }
+    }
+    // akshare 解析顺序：先命中 datacenter 主合约表，再回退到硬编码品种表，否则报错。
+    let product_id = if let Some(code) = code_by_type.get(symbol) {
+        code.clone()
+    } else if let Some((_, code)) = INVENTORY_SYMBOL_MAP
+        .iter()
+        .find(|(s, _)| *s == symbol)
+    {
+        (*code).to_string()
+    } else {
+        return Err(AkshareError::Param(format!(
+            "未找到品种: {symbol}（可选项见东财期货库存数据页的品种列表）"
+        )));
+    };
+
+    // 2) 库存数据：SECURITY_CODE + 起始日期过滤
+    let filter = format!(r#"(SECURITY_CODE="{product_id}")(TRADE_DATE>='2020-10-28')"#);
+    let extra = report_extra("TRADE_DATE", "-1", Some(&filter), None, None, None);
+    let rows = datacenter(
+        "RPT_FUTU_STOCKDATA",
+        "SECURITY_CODE,TRADE_DATE,ON_WARRANT_NUM,ADDCHANGE",
+        &extra,
+        "500",
+    )?;
+    let rename: [(&str, &str); 3] = [
+        ("TRADE_DATE", "日期"),
+        ("ON_WARRANT_NUM", "库存"),
+        ("ADDCHANGE", "增减"),
+    ];
+    let select: [&str; 3] = ["日期", "库存", "增减"];
+    let numeric: [&str; 2] = ["库存", "增减"];
+    let mut df = finalize_report(&rows, &rename, &select, &numeric, None)?;
+    df.cast_date(&["日期"])?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    /// 抽取列名（与 parity export_parity 同口径），用于断言列契约顺序。
+    fn col_names(df: &Df) -> Vec<String> {
+        df.export_parity(0)["columns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["name"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-6
+    }
 
     #[test]
     fn convert_date_formats() {
@@ -1001,5 +1206,65 @@ mod tests {
     #[test]
     fn parse_contract_detail_missing_table_is_err() {
         assert!(parse_contract_detail("<html><body>无表格</body></html>").is_err());
+    }
+
+    #[test]
+    fn comex_inventory_offline_contract() {
+        // 复刻 futures_comex_inventory（symbol=黄金）的 finalize 契约：
+        // 序号（1 起始）+ 日期 + COMEX黄金库存量-吨 + COMEX黄金库存量-盎司
+        let rows = vec![json!({
+            "REPORT_DATE": "2024-01-05 00:00:00",
+            "STORAGE_TON": 12345.67,
+            "STORAGE_OUNCE": 398765.4,
+        })];
+        let ton = "COMEX黄金库存量-吨";
+        let ounce = "COMEX黄金库存量-盎司";
+        let rename: [(&str, &str); 3] = [
+            ("REPORT_DATE", "日期"),
+            ("STORAGE_TON", ton),
+            ("STORAGE_OUNCE", ounce),
+        ];
+        let select: [&str; 3] = ["日期", ton, ounce];
+        let numeric: [&str; 2] = [ton, ounce];
+        let mut df = finalize_report(&rows, &rename, &select, &numeric, Some("序号")).unwrap();
+        df.cast_date(&["日期"]).unwrap();
+
+        assert_eq!(
+            col_names(&df),
+            vec!["序号", "日期", "COMEX黄金库存量-吨", "COMEX黄金库存量-盎司"]
+        );
+        let idx = df.inner().column("序号").unwrap().f64().unwrap().get(0);
+        assert_eq!(idx, Some(1.0));
+        let d = df.inner().column("日期").unwrap().str().unwrap().get(0);
+        assert_eq!(d, Some("2024-01-05"));
+        let t = df.inner().column(ton).unwrap().f64().unwrap().get(0).unwrap();
+        assert!(approx(t, 12345.67));
+    }
+
+    #[test]
+    fn inventory_em_offline_contract() {
+        // 复刻 futures_inventory_em 第二段的 finalize 契约：日期 + 库存 + 增减
+        let rows = vec![json!({
+            "TRADE_DATE": "2024-02-08 00:00:00",
+            "ON_WARRANT_NUM": 123456.0,
+            "ADDCHANGE": -789.0,
+        })];
+        let rename: [(&str, &str); 3] = [
+            ("TRADE_DATE", "日期"),
+            ("ON_WARRANT_NUM", "库存"),
+            ("ADDCHANGE", "增减"),
+        ];
+        let select: [&str; 3] = ["日期", "库存", "增减"];
+        let numeric: [&str; 2] = ["库存", "增减"];
+        let mut df = finalize_report(&rows, &rename, &select, &numeric, None).unwrap();
+        df.cast_date(&["日期"]).unwrap();
+
+        assert_eq!(col_names(&df), vec!["日期", "库存", "增减"]);
+        let d = df.inner().column("日期").unwrap().str().unwrap().get(0);
+        assert_eq!(d, Some("2024-02-08"));
+        let n = df.inner().column("库存").unwrap().f64().unwrap().get(0).unwrap();
+        assert!(approx(n, 123456.0));
+        let c = df.inner().column("增减").unwrap().f64().unwrap().get(0).unwrap();
+        assert!(approx(c, -789.0));
     }
 }
