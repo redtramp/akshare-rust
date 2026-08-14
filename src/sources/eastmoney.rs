@@ -40,6 +40,72 @@ pub fn push2_urls(path: &str) -> Vec<String> {
         .collect()
 }
 
+/// 东方财富个股人气榜（emappdata.eastmoney.com/stockrank）POST-JSON 接口。
+///
+/// 所有接口共用固定 `appId` / `globalId` / `marketType` 头，调用方通过 `payload`
+/// 追加业务参数（如 `srcSecurityCode` / `yearType`）。成功响应形如
+/// `{"code":"0", "data": [...], ...}`（或 data 为对象），返回其中的 `data` 字段。
+/// `code` 非 `"0"`（或缺失 `data`）时返回 [`AkshareError::Empty`]。
+pub(crate) fn emappdata_stockrank(
+    action: &str,
+    payload: &Map<String, Value>,
+) -> Result<Value> {
+    let url = format!("https://emappdata.eastmoney.com/stockrank/{action}");
+    let mut body = json!({
+        "appId": "appId01",
+        "globalId": "786e4c21-70dc-435a-93bb-38",
+        "marketType": "",
+    });
+    if let Some(obj) = body.as_object_mut() {
+        for (k, v) in payload {
+            obj.insert(k.clone(), v.clone());
+        }
+    }
+    let http = HttpClient::default();
+    let resp = http.post_json_body(&url, &body, &[])?;
+    let code_ok = resp
+        .get("code")
+        .map(|v| match v {
+            Value::String(s) => s == "0",
+            Value::Number(n) => n.as_i64() == Some(0),
+            _ => false,
+        })
+        .unwrap_or(false);
+    if !code_ok {
+        let code = resp.get("code").map(|v| v.to_string()).unwrap_or_default();
+        return Err(AkshareError::Empty(format!(
+            "emappdata/{action} 返回非成功 code={code}"
+        )));
+    }
+    resp.get("data")
+        .cloned()
+        .ok_or_else(|| AkshareError::Empty(format!("emappdata/{action} 无 data 字段")))
+}
+
+/// 批量证券快照（push2 ulist）：返回每个 `secid` 的 `f2/f3/f12/f14`
+/// （最新价 / 涨跌幅 / 代码 / 名称），顺序与 `secids` 一致。
+///
+/// `secids` 形如 `"0.002081,1.688825"`（市场前缀 `.` 证券代码），由人气榜 `sc`
+/// 字段转换而来。对应 akshare `requests.get(push2 ulist, params={fields:"f14,f3,f12,f2",...})`。
+pub(crate) fn push2_ulist(secids: &str) -> Result<Vec<Value>> {
+    let url = push2_urls("/api/qt/ulist.np/get");
+    let params = json!({
+        "ut": "f057cbcbce2a86e2866ab8877db1d059",
+        "fltt": "2",
+        "invt": "2",
+        "fields": "f14,f3,f12,f2",
+        "secids": secids,
+    });
+    let http = HttpClient::default();
+    let value = http.get_json(&url[0], &params.as_object().cloned().unwrap_or_default(), None)?;
+    value
+        .get("data")
+        .and_then(|d| d.get("diff"))
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| AkshareError::Empty("push2 ulist 无 diff 数据".into()))
+}
+
 /// 分页抓取 clist 行情列表并合并、排序、编序（对应 akshare `fetch_paginated_data`）。
 ///
 /// `urls` 为候选节点 URL 列表（见 [`push2_urls`]），首页自动故障转移。

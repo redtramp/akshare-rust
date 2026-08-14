@@ -217,7 +217,10 @@ use akshare_rust::stock_feature::{
     stock_gpzy_profile_em, stock_hk_ggt_components_em, stock_hk_main_board_spot_em,
     stock_hsgt_board_rank_em, stock_hsgt_hist_em, stock_hsgt_hold_stock_em,
     stock_hsgt_individual_detail_em, stock_hsgt_individual_em,
-    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_ipo_hk_ths,
+    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em,
+    stock_hot_keyword_em, stock_hot_rank_detail_em, stock_hot_rank_detail_realtime_em,
+    stock_hot_rank_em, stock_hot_rank_latest_em, stock_hot_rank_relate_em, stock_hot_up_em,
+    stock_ipo_hk_ths,
     stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
     stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
     stock_lhb_stock_detail_date_em, stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em,
@@ -653,6 +656,28 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_lhb_yyb_detail_em" => {
             let [s] = take1(func, args)?;
             Ok(stock_lhb_yyb_detail_em(s)?)
+        }
+        "stock_hot_rank_em" => Ok(stock_hot_rank_em()?),
+        "stock_hot_up_em" => Ok(stock_hot_up_em()?),
+        "stock_hot_rank_detail_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hot_rank_detail_em(s)?)
+        }
+        "stock_hot_rank_detail_realtime_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hot_rank_detail_realtime_em(s)?)
+        }
+        "stock_hot_keyword_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hot_keyword_em(s)?)
+        }
+        "stock_hot_rank_latest_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hot_rank_latest_em(s)?)
+        }
+        "stock_hot_rank_relate_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hot_rank_relate_em(s)?)
         }
         "stock_gdfx_free_holding_statistics_em" => {
             let [d] = take1(func, args)?;

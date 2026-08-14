@@ -9,8 +9,8 @@ use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{
-    fetch_clist, fetch_datacenter_pages, fetch_eastmoney_pages, finalize_report, finalize_spot,
-    push2_urls,
+    emappdata_stockrank, fetch_clist, fetch_datacenter_pages, fetch_eastmoney_pages,
+    finalize_report, finalize_spot, push2_ulist, push2_urls,
 };
 use serde_json::{json, Map, Value};
 
@@ -5961,6 +5961,311 @@ pub fn stock_fhps_detail_ths(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// ===== 东方财富个股人气榜（emappdata.eastmoney.com/stockrank，POST-JSON） =====
+// 与 akshare `stock_hot_rank_em` / `stock_hot_up_em` 等 7 个函数逐字对齐列契约。
+// `emappdata_stockrank` 返回响应体 `data`；列表类接口的 `data` 为对象数组，
+// 字典类接口（最新排名）的 `data` 为对象。网络获取与行构建分离：`build_*`
+// 函数接收已拉取的 JSON，便于离线单测列契约。
+
+/// JSON 值 → `Option<String>`（Null/缺失 → None，其余转字符串）。
+fn hot_jstr(v: Option<&Value>) -> Option<String> {
+    match v {
+        None => None,
+        Some(Value::Null) => None,
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(other) => Some(other.to_string()),
+    }
+}
+
+/// 人气榜 `sc`（如 `SZ002081`）→ push2 `secid`（`0.002081` / `1.688825`）。
+fn hot_sc_to_mark(sc: &str) -> String {
+    if sc.contains("SZ") {
+        format!("0.{}", &sc[2..])
+    } else {
+        format!("1.{}", &sc[2..])
+    }
+}
+
+/// 涨跌幅：剥离尾随 `%` 后保留原始数值字符串（akshare 不除 100）。
+fn hot_pct_num(s: &str) -> Option<String> {
+    let t = s.trim_end_matches('%').trim();
+    if t.parse::<f64>().is_ok() {
+        Some(t.to_string())
+    } else {
+        None
+    }
+}
+
+/// 粉丝占比：剥离 `%` 后 ÷100（akshare `.str.strip("%").astype(float) / 100`）。
+fn hot_pct_frac(s: &str) -> Option<String> {
+    let t = s.trim_end_matches('%').trim();
+    t.parse::<f64>().ok().map(|f| (f / 100.0).to_string())
+}
+
+/// 涨跌额 = 最新价 × 涨跌幅 / 100。
+fn hot_change_amount(price: &str, pct: &str) -> Option<String> {
+    let p = price.parse::<f64>().ok()?;
+    let c = pct.trim_end_matches('%').trim().parse::<f64>().ok()?;
+    Some((p * c / 100.0).to_string())
+}
+
+/// 人气榜行构建（I/O 无关，便于离线单测）。
+fn hot_rank_em_build(rank_arr: &[Value], ulist: &[Value]) -> Result<Df> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(rank_arr.len());
+    for (i, row) in rank_arr.iter().enumerate() {
+        let u = ulist.get(i);
+        let f2 = u.and_then(|x| hot_jstr(x.get("f2")));
+        let f3 = u.and_then(|x| hot_jstr(x.get("f3")));
+        let f14 = u.and_then(|x| hot_jstr(x.get("f14")));
+        let change = hot_change_amount(f2.as_deref().unwrap_or(""), f3.as_deref().unwrap_or(""));
+        rows.push(vec![
+            hot_jstr(row.get("rk")),
+            hot_jstr(row.get("sc")),
+            f14,
+            f2,
+            change,
+            f3,
+        ]);
+    }
+    const COLS: [&str; 6] = ["当前排名", "代码", "股票名称", "最新价", "涨跌额", "涨跌幅"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["当前排名", "最新价", "涨跌额", "涨跌幅"])?;
+    Ok(df)
+}
+
+/// 人气榜（对应 akshare [`akshare.stock_hot_rank_em`]）。
+///
+/// 无参数。先拉取全市场人气排名，再用 push2 ulist 补全最新价/涨跌幅/名称，计算涨跌额。
+///
+/// # 返回列
+/// `当前排名, 代码, 股票名称, 最新价, 涨跌额, 涨跌幅`
+pub fn stock_hot_rank_em() -> Result<Df> {
+    let data = emappdata_stockrank("getAllCurrentList", &Map::new())?;
+    let rank_arr = data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getAllCurrentList 数据非数组".into()))?;
+    let secids: String = rank_arr
+        .iter()
+        .filter_map(|r| r.get("sc").and_then(Value::as_str))
+        .map(hot_sc_to_mark)
+        .collect::<Vec<_>>()
+        .join(",");
+    let ulist = push2_ulist(&secids)?;
+    hot_rank_em_build(rank_arr, &ulist)
+}
+
+/// 飙升榜行构建（I/O 无关，便于离线单测）。
+fn hot_up_em_build(rank_arr: &[Value], ulist: &[Value]) -> Result<Df> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(rank_arr.len());
+    for (i, row) in rank_arr.iter().enumerate() {
+        let u = ulist.get(i);
+        let f2 = u.and_then(|x| hot_jstr(x.get("f2")));
+        let f3 = u.and_then(|x| hot_jstr(x.get("f3")));
+        let f14 = u.and_then(|x| hot_jstr(x.get("f14")));
+        let change = hot_change_amount(f2.as_deref().unwrap_or(""), f3.as_deref().unwrap_or(""));
+        rows.push(vec![
+            hot_jstr(row.get("hrc")),
+            hot_jstr(row.get("rk")),
+            hot_jstr(row.get("sc")),
+            f14,
+            f2,
+            change,
+            f3,
+        ]);
+    }
+    const COLS: [&str; 7] = [
+        "排名较昨日变动",
+        "当前排名",
+        "代码",
+        "股票名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["排名较昨日变动", "当前排名", "最新价", "涨跌额", "涨跌幅"])?;
+    Ok(df)
+}
+
+/// 飙升榜（对应 akshare [`akshare.stock_hot_up_em`]）。
+///
+/// 无参数。列契约与 [`stock_hot_rank_em`] 类似，额外含 `排名较昨日变动`（`hrc`）。
+///
+/// # 返回列
+/// `排名较昨日变动, 当前排名, 代码, 股票名称, 最新价, 涨跌额, 涨跌幅`
+pub fn stock_hot_up_em() -> Result<Df> {
+    let data = emappdata_stockrank("getAllHisRcList", &Map::new())?;
+    let rank_arr = data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getAllHisRcList 数据非数组".into()))?;
+    let secids: String = rank_arr
+        .iter()
+        .filter_map(|r| r.get("sc").and_then(Value::as_str))
+        .map(hot_sc_to_mark)
+        .collect::<Vec<_>>()
+        .join(",");
+    let ulist = push2_ulist(&secids)?;
+    hot_up_em_build(rank_arr, &ulist)
+}
+
+/// 历史趋势及粉丝特征行构建（I/O 无关，便于离线单测）。
+fn hot_rank_detail_em_build(
+    rank_arr: &[Value],
+    profile_arr: &[Value],
+    symbol: &str,
+) -> Result<Df> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(rank_arr.len());
+    for (r, p) in rank_arr.iter().zip(profile_arr.iter()) {
+        let new_fan = hot_pct_frac(&hot_jstr(p.get("newUidRate")).unwrap_or_default());
+        let old_fan = hot_pct_frac(&hot_jstr(p.get("oldUidRate")).unwrap_or_default());
+        rows.push(vec![
+            hot_jstr(r.get("calcTime")),
+            hot_jstr(r.get("rank")),
+            Some(symbol.to_string()),
+            new_fan,
+            old_fan,
+        ]);
+    }
+    rows.sort_by(|a, b| a[0].cmp(&b[0]));
+    const COLS: [&str; 5] = ["时间", "排名", "证券代码", "新晋粉丝", "铁杆粉丝"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["排名", "新晋粉丝", "铁杆粉丝"])?;
+    Ok(df)
+}
+
+/// 历史趋势及粉丝特征（对应 akshare [`akshare.stock_hot_rank_detail_em`]）。
+///
+/// `symbol`：带市场标识的证券代码，如 `"SZ000665"`。
+///
+/// # 返回列
+/// `时间, 排名, 证券代码, 新晋粉丝, 铁杆粉丝`（按 `时间` 升序）
+pub fn stock_hot_rank_detail_em(symbol: &str) -> Result<Df> {
+    let payload = json!({ "srcSecurityCode": symbol, "yearType": "5" })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let rank_data = emappdata_stockrank("getHisList", &payload)?;
+    let rank_arr = rank_data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getHisList 数据非数组".into()))?;
+    let profile_data = emappdata_stockrank("getHisProfileList", &payload)?;
+    let profile_arr = profile_data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getHisProfileList 数据非数组".into()))?;
+    hot_rank_detail_em_build(rank_arr, profile_arr, symbol)
+}
+
+/// 实时变动（对应 akshare [`akshare.stock_hot_rank_detail_realtime_em`]）。
+///
+/// `symbol`：带市场标识的证券代码，如 `"SZ000665"`。
+///
+/// # 返回列
+/// `时间, 排名`
+pub fn stock_hot_rank_detail_realtime_em(symbol: &str) -> Result<Df> {
+    let payload = json!({ "srcSecurityCode": symbol })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let data = emappdata_stockrank("getCurrentList", &payload)?;
+    let arr = data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getCurrentList 数据非数组".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(arr.len());
+    for r in arr {
+        rows.push(vec![hot_jstr(r.get("calcTime")), hot_jstr(r.get("rank"))]);
+    }
+    const COLS: [&str; 2] = ["时间", "排名"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["排名"])?;
+    Ok(df)
+}
+
+/// 热门关键词（对应 akshare [`akshare.stock_hot_keyword_em`]）。
+///
+/// `symbol`：带市场标识的证券代码，如 `"SZ000665"`。
+///
+/// # 返回列
+/// `时间, 股票代码, 概念名称, 概念代码, 热度`
+pub fn stock_hot_keyword_em(symbol: &str) -> Result<Df> {
+    let payload = json!({ "srcSecurityCode": symbol })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let data = emappdata_stockrank("getHotStockRankList", &payload)?;
+    let arr = data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getHotStockRankList 数据非数组".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(arr.len());
+    for r in arr {
+        rows.push(vec![
+            hot_jstr(r.get("calcTime")),
+            hot_jstr(r.get("srcSecurityCode")),
+            hot_jstr(r.get("conceptName")),
+            hot_jstr(r.get("conceptId")),
+            hot_jstr(r.get("hitCount")),
+        ]);
+    }
+    const COLS: [&str; 5] = ["时间", "股票代码", "概念名称", "概念代码", "热度"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["热度"])?;
+    Ok(df)
+}
+
+/// 最新排名（对应 akshare [`akshare.stock_hot_rank_latest_em`]）。
+///
+/// `symbol`：带市场标识的证券代码，如 `"SZ000665"`。响应 `data` 为对象，
+/// 逐键值展开为 `item` / `value` 两列（均为字符串）。
+///
+/// # 返回列
+/// `item, value`
+pub fn stock_hot_rank_latest_em(symbol: &str) -> Result<Df> {
+    let payload = json!({ "srcSecurityCode": symbol })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let data = emappdata_stockrank("getCurrentLatest", &payload)?;
+    let obj = data
+        .as_object()
+        .ok_or_else(|| AkshareError::Empty("getCurrentLatest 数据非对象".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(obj.len());
+    for (k, v) in obj {
+        rows.push(vec![Some(k.clone()), hot_jstr(Some(v))]);
+    }
+    const COLS: [&str; 2] = ["item", "value"];
+    Df::from_string_rows(&COLS, &rows)
+}
+
+/// 相关股票（对应 akshare [`akshare.stock_hot_rank_relate_em`]）。
+///
+/// `symbol`：带市场标识的证券代码，如 `"SZ000665"`。
+///
+/// # 返回列
+/// `时间, 股票代码, 相关股票代码, 涨跌幅`
+pub fn stock_hot_rank_relate_em(symbol: &str) -> Result<Df> {
+    let payload = json!({ "srcSecurityCode": symbol })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let data = emappdata_stockrank("getFollowStockRankList", &payload)?;
+    let arr = data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getFollowStockRankList 数据非数组".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(arr.len());
+    for r in arr {
+        let rate = hot_jstr(r.get("rate")).unwrap_or_default();
+        rows.push(vec![
+            hot_jstr(r.get("calcTime")),
+            hot_jstr(r.get("srcSecurityCode")),
+            hot_jstr(r.get("followSrcSecurityCode")),
+            hot_pct_num(&rate),
+        ]);
+    }
+    const COLS: [&str; 4] = ["时间", "股票代码", "相关股票代码", "涨跌幅"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["涨跌幅"])?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -8189,5 +8494,149 @@ mod tests {
             crate::sources::ths::parse_ths_theaded_table_sel(html, "table.m_table", 1).unwrap();
         assert_eq!(h2, vec!["公告日期", "变动股东"]);
         assert_eq!(r2[0], vec!["2025-08-05", "华夏基金"]);
+    }
+
+    // ===== 东方财富个股人气榜（emappdata.eastmoney.com/stockrank）离线单测 =====
+
+    /// 离线验证 `sc` → push2 `secid` 转换（SZ→0.，其余→1.）。
+    #[test]
+    fn hot_sc_to_mark_offline() {
+        assert_eq!(hot_sc_to_mark("SZ002081"), "0.002081");
+        assert_eq!(hot_sc_to_mark("SH600000"), "1.600000");
+        // 科创板/北交所（非 SZ）均按 1. 前缀
+        assert_eq!(hot_sc_to_mark("BJ830799"), "1.830799");
+    }
+
+    /// 离线验证涨跌幅/粉丝占比/涨跌额辅助函数数值口径。
+    #[test]
+    fn hot_helpers_offline() {
+        // 涨跌幅：剥离 `%` 保留原始数值
+        assert_eq!(hot_pct_num("9.9%"), Some("9.9".to_string()));
+        assert_eq!(hot_pct_num("-1.0"), Some("-1.0".to_string()));
+        // 粉丝占比：剥离 `%` 后 ÷100
+        assert_eq!(hot_pct_frac("50%"), Some("0.5".to_string()));
+        assert_eq!(hot_pct_frac("30.5%"), Some("0.305".to_string()));
+        // 涨跌额 = 最新价 × 涨跌幅 / 100（涨跌幅不预除 100）
+        assert_eq!(hot_change_amount("10.5", "9.9"), Some("1.0395".to_string()));
+        assert_eq!(hot_change_amount("20.0", "-2.5"), Some("-0.5".to_string()));
+    }
+
+    /// 离线验证人气榜行构建列契约 + 数值化 + 涨跌额计算。
+    #[test]
+    fn hot_rank_em_build_offline() {
+        let rank_arr = json!([
+            {"rk": "1", "sc": "SZ002081"},
+            {"rk": "2", "sc": "SH600000"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let ulist = json!([
+            {"f2": "10.5", "f3": "9.9", "f14": "股票A"},
+            {"f2": "20.0", "f3": "-1.0", "f14": "股票B"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = hot_rank_em_build(&rank_arr, &ulist).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec!["当前排名", "代码", "股票名称", "最新价", "涨跌额", "涨跌幅"]
+        );
+        assert_eq!(df.height(), 2);
+        // 当前排名 数值化
+        let rank = df.inner().column("当前排名").unwrap().f64().unwrap();
+        assert_eq!(rank.get(0), Some(1.0));
+        assert_eq!(rank.get(1), Some(2.0));
+        // 最新价 / 涨跌幅 数值化
+        let px = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(10.5));
+        let pct = df.inner().column("涨跌幅").unwrap().f64().unwrap();
+        assert_eq!(pct.get(0), Some(9.9));
+        // 涨跌额 = 10.5 × 9.9 / 100 = 1.0395
+        let change = df.inner().column("涨跌额").unwrap().f64().unwrap();
+        assert_eq!(change.get(0), Some(1.0395));
+        assert_eq!(change.get(1), Some(-0.2));
+        // 名称 / 代码 直传
+        let name = df.inner().column("股票名称").unwrap().str().unwrap();
+        assert_eq!(name.get(0), Some("股票A"));
+        let code = df.inner().column("代码").unwrap().str().unwrap();
+        assert_eq!(code.get(0), Some("SZ002081"));
+    }
+
+    /// 离线验证飙升榜行构建列契约（含 `排名较昨日变动` = hrc）。
+    #[test]
+    fn hot_up_em_build_offline() {
+        let rank_arr = json!([
+            {"hrc": "5", "rk": "1", "sc": "SZ002081"},
+            {"hrc": "-2", "rk": "2", "sc": "SH600000"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let ulist = json!([
+            {"f2": "10.5", "f3": "9.9", "f14": "股票A"},
+            {"f2": "20.0", "f3": "-1.0", "f14": "股票B"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = hot_up_em_build(&rank_arr, &ulist).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec![
+                "排名较昨日变动",
+                "当前排名",
+                "代码",
+                "股票名称",
+                "最新价",
+                "涨跌额",
+                "涨跌幅"
+            ]
+        );
+        // 排名较昨日变动 数值化（可为负）
+        let hrc = df.inner().column("排名较昨日变动").unwrap().f64().unwrap();
+        assert_eq!(hrc.get(0), Some(5.0));
+        assert_eq!(hrc.get(1), Some(-2.0));
+    }
+
+    /// 离线验证历史趋势及粉丝特征行构建列契约（按时间升序 + 粉丝占比 ÷100）。
+    #[test]
+    fn hot_rank_detail_em_build_offline() {
+        let rank_arr = json!([
+            {"calcTime": "2024-03-01 00:00:00", "rank": "3"},
+            {"calcTime": "2024-01-01 00:00:00", "rank": "1"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let profile_arr = json!([
+            {"newUidRate": "50%", "oldUidRate": "30%"},
+            {"newUidRate": "60%", "oldUidRate": "40%"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = hot_rank_detail_em_build(&rank_arr, &profile_arr, "SZ000665").unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec!["时间", "排名", "证券代码", "新晋粉丝", "铁杆粉丝"]
+        );
+        assert_eq!(df.height(), 2);
+        // 按时间升序：2024-01-01 应在前
+        let t = df.inner().column("时间").unwrap().str().unwrap();
+        assert_eq!(t.get(0), Some("2024-01-01 00:00:00"));
+        assert_eq!(t.get(1), Some("2024-03-01 00:00:00"));
+        // 排名 数值化
+        let rank = df.inner().column("排名").unwrap().f64().unwrap();
+        assert_eq!(rank.get(0), Some(1.0));
+        // 新晋粉丝 / 铁杆粉丝 = 剥离 `%` ÷100
+        let new_fan = df.inner().column("新晋粉丝").unwrap().f64().unwrap();
+        assert_eq!(new_fan.get(0), Some(0.6));
+        let old_fan = df.inner().column("铁杆粉丝").unwrap().f64().unwrap();
+        assert_eq!(old_fan.get(0), Some(0.4));
+        // 证券代码 直传
+        let symbol = df.inner().column("证券代码").unwrap().str().unwrap();
+        assert_eq!(symbol.get(0), Some("SZ000665"));
     }
 }

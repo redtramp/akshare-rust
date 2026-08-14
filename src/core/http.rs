@@ -383,6 +383,62 @@ impl HttpClient {
         Err(last_err.unwrap_or_else(|| AkshareError::Blocked("POST 请求重试耗尽，未知错误".into())))
     }
 
+    /// 带重试的 POST（JSON 请求体 + 自定义请求头），返回解析后的 JSON。
+    ///
+    /// 对应 akshare `requests.post(url, json=payload)`：东方财富 `emappdata.eastmoney.com`
+    /// 等人气榜/资金流接口要求 JSON 体（而非 query 参数）。重试策略与 GET 一致：
+    /// 仅对 5xx 与连接错误重试，4xx 立即返回。
+    pub fn post_json_body(
+        &self,
+        url: &str,
+        body: &Value,
+        headers: &[(&str, &str)],
+    ) -> Result<Value> {
+        let mut last_err: Option<AkshareError> = None;
+
+        for attempt in 0..self.max_retries {
+            let mut req = self.inner.post(url).json(body);
+            for (k, v) in headers {
+                if let Ok(hv) = HeaderValue::from_str(v) {
+                    req = req.header(*k, hv);
+                }
+            }
+
+            match req.send() {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        let bytes = resp.bytes().map_err(AkshareError::from)?;
+                        let text = decode_body(&bytes);
+                        detect_block_or_auth(url, &text)?;
+                        return serde_json::from_str(&text)
+                            .map_err(|e| AkshareError::json(url, e.to_string()));
+                    }
+                    let err = AkshareError::Status {
+                        status: status.as_u16(),
+                        url: url.to_string(),
+                    };
+                    if status.is_client_error() {
+                        return Err(err);
+                    }
+                    last_err = Some(err);
+                }
+                Err(e) => last_err = Some(AkshareError::Http(e)),
+            }
+
+            if attempt + 1 < self.max_retries {
+                let jitter: f64 =
+                    rand::random_range(self.random_delay_range.0..self.random_delay_range.1);
+                let delay = self.base_delay_secs * (2u32.pow(attempt)) as f64 + jitter;
+                std::thread::sleep(Duration::from_secs_f64(delay));
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| {
+            AkshareError::Blocked("POST(JSON) 请求重试耗尽，未知错误".into())
+        }))
+    }
+
     /// 带重试的 POST（application/x-www-form-urlencoded 表单体 + 自定义请求头），返回解析后的 JSON。
     ///
     /// 对应 akshare `requests.post(url, data=payload, headers=...)`：
