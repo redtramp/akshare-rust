@@ -11,9 +11,12 @@ use crate::sources::eastmoney::{
     a_share_market_code, board_name_pairs, fetch_clist, fetch_datacenter_pages,
     fetch_securities_pages, fetch_kline, fetch_kline_ext, fetch_kline_min, fetch_trends,
     finalize_board_cons, finalize_board_name, finalize_fflow, finalize_hsgt, finalize_report,
-    finalize_zt_pool, json_value_to_string, kline_to_df, min_kline_to_df, push2_urls,
-    require_kline_data,
-    BOARD_HIST_SELECT, KLINE_COLS, KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_SELECT,
+    finalize_zt_pool, finalize_zt_pool_dtgc, finalize_zt_pool_previous, finalize_zt_pool_strong,
+    finalize_zt_pool_sub_new, finalize_zt_pool_zbgc, json_value_to_string, kline_to_df,
+    min_kline_to_df, push2_urls, require_kline_data,
+    BOARD_HIST_SELECT, KLINE_COLS, KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_DTGC_SELECT,
+    ZT_POOL_PREVIOUS_SELECT, ZT_POOL_SELECT, ZT_POOL_STRONG_SELECT, ZT_POOL_SUB_NEW_SELECT,
+    ZT_POOL_ZBGC_SELECT,
 };
 use crate::stock_feature::{datacenter, report_extra};
 use serde_json::{json, Map, Value};
@@ -676,6 +679,133 @@ pub fn stock_zt_pool_em(date: &str) -> Result<Df> {
         None => Err(AkshareError::empty(format!("{date} 无涨停池数据"))),
         Some(pool) if pool.is_empty() => Df::from_string_rows(&ZT_POOL_SELECT, &[]),
         Some(pool) => finalize_zt_pool(pool),
+    }
+}
+
+/// 涨停板行情系列共用拉取（对应 akshare `stock_zt_pool_*` 的 `push2ex` GET）。
+///
+/// 返回响应 `data.pool` 数组；`data` 为 `null` 或 `pool` 缺失时返回 `None`
+/// （由调用方按 akshare 语义报错），`pool` 为空数组时返回 `Some(空)`。
+fn fetch_zt_topic_pool(url: &str, date: &str, sort: &str, pagesize: &str) -> Result<Option<Vec<Value>>> {
+    let http = HttpClient::default();
+    let params = json!({
+        "ut": UT_KLINE,
+        "dpt": "wz.ztzt",
+        "Pageindex": "0",
+        "pagesize": pagesize,
+        "sort": sort,
+        "date": date,
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let value = http.get_json(url, &params, None)?;
+    match value.get("data").and_then(|d| d.get("pool")).and_then(Value::as_array) {
+        None => Ok(None),
+        Some(pool) => Ok(Some(pool.clone())),
+    }
+}
+
+/// 昨日涨停股池（对应 akshare [`akshare.stock_zt_pool_previous_em`]）。
+///
+/// `date`: 交易日 `YYYYMMDD`。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 涨跌幅, 最新价, 涨停价, 成交额, 流通市值, 总市值, 换手率,
+/// 涨速, 振幅, 昨日封板时间, 昨日连板数, 涨停统计, 所属行业`
+pub fn stock_zt_pool_previous_em(date: &str) -> Result<Df> {
+    let pool = fetch_zt_topic_pool(
+        "https://push2ex.eastmoney.com/getYesterdayZTPool",
+        date,
+        "zs:desc",
+        "5000",
+    )?;
+    match pool {
+        None => Err(AkshareError::empty(format!("{date} 无昨日涨停池数据"))),
+        Some(pool) if pool.is_empty() => Df::from_string_rows(&ZT_POOL_PREVIOUS_SELECT, &[]),
+        Some(pool) => finalize_zt_pool_previous(&pool),
+    }
+}
+
+/// 强势股池（对应 akshare [`akshare.stock_zt_pool_strong_em`]）。
+///
+/// `date`: 交易日 `YYYYMMDD`。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 涨跌幅, 最新价, 涨停价, 成交额, 流通市值, 总市值, 换手率,
+/// 涨速, 是否新高, 量比, 涨停统计, 入选理由, 所属行业`
+pub fn stock_zt_pool_strong_em(date: &str) -> Result<Df> {
+    let pool = fetch_zt_topic_pool(
+        "https://push2ex.eastmoney.com/getTopicQSPool",
+        date,
+        "zdp:desc",
+        "5000",
+    )?;
+    match pool {
+        None => Err(AkshareError::empty(format!("{date} 无强势股池数据"))),
+        Some(pool) if pool.is_empty() => Df::from_string_rows(&ZT_POOL_STRONG_SELECT, &[]),
+        Some(pool) => finalize_zt_pool_strong(&pool),
+    }
+}
+
+/// 次新股池（对应 akshare [`akshare.stock_zt_pool_sub_new_em`]）。
+///
+/// `date`: 交易日 `YYYYMMDD`。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 涨跌幅, 最新价, 涨停价, 成交额, 流通市值, 总市值, 转手率,
+/// 开板几日, 开板日期, 上市日期, 是否新高, 涨停统计, 所属行业`
+pub fn stock_zt_pool_sub_new_em(date: &str) -> Result<Df> {
+    let pool = fetch_zt_topic_pool(
+        "https://push2ex.eastmoney.com/getTopicCXPooll",
+        date,
+        "ods:asc",
+        "5000",
+    )?;
+    match pool {
+        None => Err(AkshareError::empty(format!("{date} 无次新股池数据"))),
+        Some(pool) if pool.is_empty() => Df::from_string_rows(&ZT_POOL_SUB_NEW_SELECT, &[]),
+        Some(pool) => finalize_zt_pool_sub_new(&pool),
+    }
+}
+
+/// 炸板股池（对应 akshare [`akshare.stock_zt_pool_zbgc_em`]）。
+///
+/// `date`: 交易日 `YYYYMMDD`（akshare 限定最近 30 个交易日，本实现交由接口返回空处理）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 涨跌幅, 最新价, 涨停价, 成交额, 流通市值, 总市值, 换手率,
+/// 涨速, 首次封板时间, 炸板次数, 涨停统计, 振幅, 所属行业`
+pub fn stock_zt_pool_zbgc_em(date: &str) -> Result<Df> {
+    let pool = fetch_zt_topic_pool(
+        "https://push2ex.eastmoney.com/getTopicZBPool",
+        date,
+        "fbt:asc",
+        "5000",
+    )?;
+    match pool {
+        None => Err(AkshareError::empty(format!("{date} 无炸板股池数据"))),
+        Some(pool) if pool.is_empty() => Df::from_string_rows(&ZT_POOL_ZBGC_SELECT, &[]),
+        Some(pool) => finalize_zt_pool_zbgc(&pool),
+    }
+}
+
+/// 跌停股池（对应 akshare [`akshare.stock_zt_pool_dtgc_em`]）。
+///
+/// `date`: 交易日 `YYYYMMDD`（akshare 限定最近 30 个交易日，本实现交由接口返回空处理）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 涨跌幅, 最新价, 成交额, 流通市值, 总市值, 动态市盈率, 换手率,
+/// 封单资金, 最后封板时间, 板上成交额, 连续跌停, 开板次数, 所属行业`
+pub fn stock_zt_pool_dtgc_em(date: &str) -> Result<Df> {
+    let pool = fetch_zt_topic_pool(
+        "https://push2ex.eastmoney.com/getTopicDTPool",
+        date,
+        "fund:asc",
+        "10000",
+    )?;
+    match pool {
+        None => Err(AkshareError::empty(format!("{date} 无跌停股池数据"))),
+        Some(pool) if pool.is_empty() => Df::from_string_rows(&ZT_POOL_DTGC_SELECT, &[]),
+        Some(pool) => finalize_zt_pool_dtgc(&pool),
     }
 }
 

@@ -567,6 +567,106 @@ pub(crate) const ZT_POOL_SELECT: [&str; 16] = [
     "所属行业",
 ];
 
+/// 昨日涨停股池列契约（对应 akshare `stock_zt_pool_previous_em`）。
+pub(crate) const ZT_POOL_PREVIOUS_SELECT: [&str; 16] = [
+    "序号",
+    "代码",
+    "名称",
+    "涨跌幅",
+    "最新价",
+    "涨停价",
+    "成交额",
+    "流通市值",
+    "总市值",
+    "换手率",
+    "涨速",
+    "振幅",
+    "昨日封板时间",
+    "昨日连板数",
+    "涨停统计",
+    "所属行业",
+];
+
+/// 强势股池列契约（对应 akshare `stock_zt_pool_strong_em`）。
+pub(crate) const ZT_POOL_STRONG_SELECT: [&str; 16] = [
+    "序号",
+    "代码",
+    "名称",
+    "涨跌幅",
+    "最新价",
+    "涨停价",
+    "成交额",
+    "流通市值",
+    "总市值",
+    "换手率",
+    "涨速",
+    "是否新高",
+    "量比",
+    "涨停统计",
+    "入选理由",
+    "所属行业",
+];
+
+/// 次新股池列契约（对应 akshare `stock_zt_pool_sub_new_em`）。
+pub(crate) const ZT_POOL_SUB_NEW_SELECT: [&str; 16] = [
+    "序号",
+    "代码",
+    "名称",
+    "涨跌幅",
+    "最新价",
+    "涨停价",
+    "成交额",
+    "流通市值",
+    "总市值",
+    "转手率",
+    "开板几日",
+    "开板日期",
+    "上市日期",
+    "是否新高",
+    "涨停统计",
+    "所属行业",
+];
+
+/// 炸板股池列契约（对应 akshare `stock_zt_pool_zbgc_em`）。
+pub(crate) const ZT_POOL_ZBGC_SELECT: [&str; 16] = [
+    "序号",
+    "代码",
+    "名称",
+    "涨跌幅",
+    "最新价",
+    "涨停价",
+    "成交额",
+    "流通市值",
+    "总市值",
+    "换手率",
+    "涨速",
+    "首次封板时间",
+    "炸板次数",
+    "涨停统计",
+    "振幅",
+    "所属行业",
+];
+
+/// 跌停股池列契约（对应 akshare `stock_zt_pool_dtgc_em`）。
+pub(crate) const ZT_POOL_DTGC_SELECT: [&str; 16] = [
+    "序号",
+    "代码",
+    "名称",
+    "涨跌幅",
+    "最新价",
+    "成交额",
+    "流通市值",
+    "总市值",
+    "动态市盈率",
+    "换手率",
+    "封单资金",
+    "最后封板时间",
+    "板上成交额",
+    "连续跌停",
+    "开板次数",
+    "所属行业",
+];
+
 /// 个股资金流列契约（对应 akshare `stock_individual_fund_flow` 的最终 select）。
 pub(crate) const FFLOW_SELECT: [&str; 13] = [
     "日期",
@@ -933,6 +1033,264 @@ pub(crate) fn finalize_zt_pool(pool: &[Value]) -> Result<Df> {
     Ok(df)
 }
 
+/// 涨停价：`raw / 1000`；东财对未知涨停价返回极大值（`> 1e5`）时按 akshare 置空。
+fn zt_pool_ztp_price(v: &Value) -> Option<String> {
+    let raw = v.as_f64()?;
+    if raw > 100_000.0 {
+        None
+    } else {
+        Some((raw / 1000.0).to_string())
+    }
+}
+
+/// `YYYYMMDD` 整数 → `YYYY-MM-DD`；`0` 表示无日期，按 akshare 置空。
+fn zt_pool_ymd_date(v: &Value) -> Option<String> {
+    let raw = v.as_i64()?;
+    if raw == 0 {
+        return None;
+    }
+    let s = raw.to_string();
+    if s.len() == 8 {
+        Some(format!("{}-{}-{}", &s[0..4], &s[4..6], &s[6..8]))
+    } else {
+        Some(s)
+    }
+}
+
+/// 涨停板行情系列共用：行 → DataFrame（序号后置插入，数值列数值化）。
+fn build_zt_df(
+    rows: Vec<Vec<Option<String>>>,
+    select: &[&str],
+    numeric: &[&str],
+) -> Result<Df> {
+    let mut df = Df::from_string_rows(&select[1..], &rows)?;
+    df.cast_numeric(numeric)?;
+    insert_index_col(&mut df, "序号")?;
+    Ok(df)
+}
+
+/// 昨日涨停股池加工（对应 akshare `stock_zt_pool_previous_em`）。
+pub(crate) fn finalize_zt_pool_previous(pool: &[Value]) -> Result<Df> {
+    let mut rows = Vec::with_capacity(pool.len());
+    for item in pool {
+        let f = |k: &str| item.get(k).and_then(json_value_to_string);
+        rows.push(vec![
+            f("c"),
+            f("n"),
+            f("zdp"),
+            item.get("p").and_then(|v| num_div(v, 1000.0)),
+            item.get("ztp").and_then(|v| num_div(v, 1000.0)),
+            f("amount"),
+            f("ltsz"),
+            f("tshare"),
+            f("hs"),
+            f("zs"),
+            f("zf"),
+            f("yfbt").map(|s| zfill6(&s)),
+            f("ylbc"),
+            item.get("zttj").and_then(zttj_str),
+            f("hybk"),
+        ]);
+    }
+    build_zt_df(
+        rows,
+        &ZT_POOL_PREVIOUS_SELECT,
+        &[
+            "涨跌幅",
+            "最新价",
+            "涨停价",
+            "成交额",
+            "流通市值",
+            "总市值",
+            "换手率",
+            "涨速",
+            "振幅",
+            "昨日连板数",
+        ],
+    )
+}
+
+/// 强势股池加工（对应 akshare `stock_zt_pool_strong_em`：`是否新高` 1→是、其余→否；
+/// `入选理由` 1/2/3 → 文案）。
+pub(crate) fn finalize_zt_pool_strong(pool: &[Value]) -> Result<Df> {
+    let mut rows = Vec::with_capacity(pool.len());
+    for item in pool {
+        let f = |k: &str| item.get(k).and_then(json_value_to_string);
+        let nh = item
+            .get("nh")
+            .and_then(Value::as_i64)
+            .map(|x| if x == 1 { "是" } else { "否" }.to_string());
+        let cc = item.get("cc").and_then(Value::as_i64).map(|x| {
+            match x {
+                1 => "60日新高",
+                2 => "近期多次涨停",
+                3 => "60日新高且近期多次涨停",
+                _ => "",
+            }
+            .to_string()
+        });
+        rows.push(vec![
+            f("c"),
+            f("n"),
+            f("zdp"),
+            item.get("p").and_then(|v| num_div(v, 1000.0)),
+            item.get("ztp").and_then(|v| num_div(v, 1000.0)),
+            f("amount"),
+            f("ltsz"),
+            f("tshare"),
+            f("hs"),
+            f("zs"),
+            nh,
+            f("lb"),
+            item.get("zttj").and_then(zttj_str),
+            cc,
+            f("hybk"),
+        ]);
+    }
+    build_zt_df(
+        rows,
+        &ZT_POOL_STRONG_SELECT,
+        &[
+            "涨跌幅",
+            "最新价",
+            "涨停价",
+            "成交额",
+            "流通市值",
+            "总市值",
+            "换手率",
+            "涨速",
+            "量比",
+        ],
+    )
+}
+
+/// 次新股池加工（对应 akshare `stock_zt_pool_sub_new_em`：涨停价未知置空、
+/// `开板日期`/`上市日期` 由 `YYYYMMDD` 转 `YYYY-MM-DD`，`是否新高` 1→是）。
+pub(crate) fn finalize_zt_pool_sub_new(pool: &[Value]) -> Result<Df> {
+    let mut rows = Vec::with_capacity(pool.len());
+    for item in pool {
+        let f = |k: &str| item.get(k).and_then(json_value_to_string);
+        let nh = item
+            .get("nh")
+            .and_then(Value::as_i64)
+            .map(|x| if x == 1 { "是" } else { "否" }.to_string());
+        rows.push(vec![
+            f("c"),
+            f("n"),
+            f("zdp"),
+            item.get("p").and_then(|v| num_div(v, 1000.0)),
+            item.get("ztp").and_then(zt_pool_ztp_price),
+            f("amount"),
+            f("ltsz"),
+            f("tshare"),
+            f("hs"),
+            f("ods"),
+            item.get("od").and_then(zt_pool_ymd_date),
+            item.get("ipod").and_then(zt_pool_ymd_date),
+            nh,
+            item.get("zttj").and_then(zttj_str),
+            f("hybk"),
+        ]);
+    }
+    build_zt_df(
+        rows,
+        &ZT_POOL_SUB_NEW_SELECT,
+        &[
+            "涨跌幅",
+            "最新价",
+            "涨停价",
+            "成交额",
+            "流通市值",
+            "总市值",
+            "转手率",
+            "开板几日",
+        ],
+    )
+}
+
+/// 炸板股池加工（对应 akshare `stock_zt_pool_zbgc_em`）。
+pub(crate) fn finalize_zt_pool_zbgc(pool: &[Value]) -> Result<Df> {
+    let mut rows = Vec::with_capacity(pool.len());
+    for item in pool {
+        let f = |k: &str| item.get(k).and_then(json_value_to_string);
+        rows.push(vec![
+            f("c"),
+            f("n"),
+            f("zdp"),
+            item.get("p").and_then(|v| num_div(v, 1000.0)),
+            item.get("ztp").and_then(|v| num_div(v, 1000.0)),
+            f("amount"),
+            f("ltsz"),
+            f("tshare"),
+            f("hs"),
+            f("zs"),
+            f("fbt").map(|s| zfill6(&s)),
+            f("zbc"),
+            item.get("zttj").and_then(zttj_str),
+            f("zf"),
+            f("hybk"),
+        ]);
+    }
+    build_zt_df(
+        rows,
+        &ZT_POOL_ZBGC_SELECT,
+        &[
+            "涨跌幅",
+            "最新价",
+            "涨停价",
+            "成交额",
+            "流通市值",
+            "总市值",
+            "换手率",
+            "涨速",
+            "炸板次数",
+            "振幅",
+        ],
+    )
+}
+
+/// 跌停股池加工（对应 akshare `stock_zt_pool_dtgc_em`）。
+pub(crate) fn finalize_zt_pool_dtgc(pool: &[Value]) -> Result<Df> {
+    let mut rows = Vec::with_capacity(pool.len());
+    for item in pool {
+        let f = |k: &str| item.get(k).and_then(json_value_to_string);
+        rows.push(vec![
+            f("c"),
+            f("n"),
+            f("zdp"),
+            item.get("p").and_then(|v| num_div(v, 1000.0)),
+            f("amount"),
+            f("ltsz"),
+            f("tshare"),
+            f("pe"),
+            f("hs"),
+            f("fund"),
+            f("lbt").map(|s| zfill6(&s)),
+            f("fba"),
+            f("days"),
+            f("oc"),
+            f("hybk"),
+        ]);
+    }
+    build_zt_df(
+        rows,
+        &ZT_POOL_DTGC_SELECT,
+        &[
+            "涨跌幅",
+            "最新价",
+            "成交额",
+            "流通市值",
+            "总市值",
+            "动态市盈率",
+            "换手率",
+            "封单资金",
+            "板上成交额",
+            "连续跌停",
+            "开板次数",
+        ],
+    )
+}
+
 /// 个股资金流加工（15 字段 klines 行 → 13 列，日期截断，数值化）。
 pub(crate) fn finalize_fflow(klines: &[Value]) -> Result<Df> {
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(klines.len());
@@ -1270,5 +1628,126 @@ mod tests_b3 {
         assert_eq!(code.get(0), Some("000001"));
         let pb = df.inner().column("市净率").unwrap().f64().unwrap();
         assert_eq!(pb.get(0), Some(0.9));
+    }
+
+    /// 离线验证昨日涨停股池列契约 + 数值化 + 封板时间补零 + 涨停价÷1000。
+    #[test]
+    fn zt_pool_previous_offline() {
+        let pool = json!([{
+            "c": "688693", "n": "锴威特", "zdp": 19.9948, "p": 93380, "ztp": 93380,
+            "amount": 67890902, "ltsz": 3632894179.0, "tshare": 6880631623.0, "hs": 1.868,
+            "zs": 0.0, "zf": 0.0, "yfbt": 92503, "ylbc": 1,
+            "zttj": {"days": 2, "ct": 2}, "hybk": "半导体"
+        }])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = finalize_zt_pool_previous(&pool).unwrap();
+        assert_eq!(df.column_names(), ZT_POOL_PREVIOUS_SELECT);
+        assert_eq!(df.height(), 1);
+        // 最新价 = 93380 / 1000
+        let px = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(93.38));
+        // 涨停价 = 93380 / 1000
+        let ztp = df.inner().column("涨停价").unwrap().f64().unwrap();
+        assert_eq!(ztp.get(0), Some(93.38));
+        // 昨日封板时间 补零到 6 位
+        let t = df.inner().column("昨日封板时间").unwrap().str().unwrap();
+        assert_eq!(t.get(0), Some("092503"));
+        // 涨停统计 days/ct
+        let zttj = df.inner().column("涨停统计").unwrap().str().unwrap();
+        assert_eq!(zttj.get(0), Some("2/2"));
+    }
+
+    /// 离线验证强势股池列契约 + 枚举映射（是否新高 / 入选理由）。
+    #[test]
+    fn zt_pool_strong_offline() {
+        let pool = json!([{
+            "c": "300363", "n": "博腾股份", "zdp": 20.0234, "p": 20440, "ztp": 20440,
+            "amount": 1383423824, "ltsz": 10129129401.0, "tshare": 11107958077.0, "hs": 14.765,
+            "zs": 0.0, "nh": 1, "lb": 2.682, "zttj": {"days": 1, "ct": 1}, "cc": 1,
+            "hybk": "医疗服务"
+        }])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = finalize_zt_pool_strong(&pool).unwrap();
+        assert_eq!(df.column_names(), ZT_POOL_STRONG_SELECT);
+        assert_eq!(df.height(), 1);
+        let nh = df.inner().column("是否新高").unwrap().str().unwrap();
+        assert_eq!(nh.get(0), Some("是"));
+        let reason = df.inner().column("入选理由").unwrap().str().unwrap();
+        assert_eq!(reason.get(0), Some("60日新高"));
+        let px = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(20.44));
+    }
+
+    /// 离线验证次新股池列契约 + 涨停价未知置空 + 日期 YYYYMMDD→YYYY-MM-DD + 是否新高。
+    #[test]
+    fn zt_pool_sub_new_offline() {
+        let pool = json!([{
+            "c": "301707", "n": "N展芯", "zdp": 396.886, "p": 116520, "ztp": 1000000000,
+            "amount": 2501530176i64, "ltsz": 3152164757.0, "tshare": 47911851342.0, "hs": 79.391,
+            "ods": 1, "od": 20260807, "ipod": 20260807, "nh": 0,
+            "zttj": {"days": 0, "ct": 0}, "hybk": "半导体"
+        }])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = finalize_zt_pool_sub_new(&pool).unwrap();
+        assert_eq!(df.column_names(), ZT_POOL_SUB_NEW_SELECT);
+        assert_eq!(df.height(), 1);
+        // 涨停价 未知（raw > 1e5）→ 空（数值列，值为 null）
+        let ztp = df.inner().column("涨停价").unwrap().f64().unwrap();
+        assert_eq!(ztp.get(0), None);
+        // 开板日期 / 上市日期 转换
+        let od = df.inner().column("开板日期").unwrap().str().unwrap();
+        assert_eq!(od.get(0), Some("2026-08-07"));
+        let nh = df.inner().column("是否新高").unwrap().str().unwrap();
+        assert_eq!(nh.get(0), Some("否"));
+    }
+
+    /// 离线验证炸板股池列契约 + 首次封板时间补零 + 涨停价÷1000。
+    #[test]
+    fn zt_pool_zbgc_offline() {
+        let pool = json!([{
+            "c": "002721", "n": "金一文化", "zdp": 4.7619, "p": 3080, "ztp": 3230,
+            "amount": 1541652240, "ltsz": 8190886134.0, "tshare": 8190886112.0, "hs": 18.487,
+            "zs": 0.0, "fbt": 92500, "zbc": 3, "zttj": {"days": 3, "ct": 2}, "zf": 9.863,
+            "hybk": "饰品"
+        }])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = finalize_zt_pool_zbgc(&pool).unwrap();
+        assert_eq!(df.column_names(), ZT_POOL_ZBGC_SELECT);
+        assert_eq!(df.height(), 1);
+        let t = df.inner().column("首次封板时间").unwrap().str().unwrap();
+        assert_eq!(t.get(0), Some("092500"));
+        let px = df.inner().column("涨停价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(3.23));
+    }
+
+    /// 离线验证跌停股池列契约 + 最后封板时间补零 + 最新价÷1000 + 动态市盈率等数值化。
+    #[test]
+    fn zt_pool_dtgc_offline() {
+        let pool = json!([{
+            "c": "603106", "n": "恒银科技", "zdp": -9.9601, "p": 9040, "amount": 649054656,
+            "ltsz": 4705500800.0, "tshare": 4705500800.0, "pe": 413.325, "hs": 13.689,
+            "fund": 46957376, "lbt": 130414, "fba": 394235030, "days": 1, "oc": 9,
+            "hybk": "计算机设"
+        }])
+        .as_array()
+        .unwrap()
+        .clone();
+        let df = finalize_zt_pool_dtgc(&pool).unwrap();
+        assert_eq!(df.column_names(), ZT_POOL_DTGC_SELECT);
+        assert_eq!(df.height(), 1);
+        let t = df.inner().column("最后封板时间").unwrap().str().unwrap();
+        assert_eq!(t.get(0), Some("130414"));
+        let px = df.inner().column("最新价").unwrap().f64().unwrap();
+        assert_eq!(px.get(0), Some(9.04));
+        let pe = df.inner().column("动态市盈率").unwrap().f64().unwrap();
+        assert_eq!(pe.get(0), Some(413.325));
     }
 }

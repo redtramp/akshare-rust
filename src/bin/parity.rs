@@ -182,7 +182,9 @@ use akshare_rust::stock::{
     stock_board_concept_name_em, stock_board_industry_cons_em, stock_board_industry_hist_em,
     stock_board_industry_name_em, stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow,
     stock_individual_info_em, stock_sh_a_spot_em, stock_sz_a_spot_em, stock_zh_a_hist,
-    stock_zh_a_hist_min_em, stock_zh_a_spot_em, stock_zt_pool_em,
+    stock_zh_a_hist_min_em, stock_zh_a_spot_em, stock_zt_pool_dtgc_em, stock_zt_pool_em,
+    stock_zt_pool_previous_em, stock_zt_pool_strong_em, stock_zt_pool_sub_new_em,
+    stock_zt_pool_zbgc_em,
     // === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter） ===
     stock_zh_growth_comparison_em, stock_zh_dupont_comparison_em, stock_zh_scale_comparison_em,
     stock_hk_growth_comparison_em, stock_hk_scale_comparison_em,
@@ -370,6 +372,26 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_zt_pool_em" => {
             let [d] = take1(func, args)?;
             Ok(stock_zt_pool_em(d)?)
+        }
+        "stock_zt_pool_previous_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_zt_pool_previous_em(d)?)
+        }
+        "stock_zt_pool_strong_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_zt_pool_strong_em(d)?)
+        }
+        "stock_zt_pool_sub_new_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_zt_pool_sub_new_em(d)?)
+        }
+        "stock_zt_pool_zbgc_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_zt_pool_zbgc_em(d)?)
+        }
+        "stock_zt_pool_dtgc_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_zt_pool_dtgc_em(d)?)
         }
         // === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter） ===
         "stock_zh_growth_comparison_em" => {
