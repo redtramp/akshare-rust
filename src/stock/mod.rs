@@ -2111,6 +2111,180 @@ pub fn stock_report_fund_hold(symbol: &str, date: &str) -> Result<Df> {
     Ok(df)
 }
 
+/// 科创板报告（对应 akshare [`akshare.stock_zh_kcb_report_em`]）。
+///
+/// `from_page`/`to_page`：起止页码（默认 `1`/`100`）。走
+/// `np-anotice-stock.eastmoney.com/api/security/ann`（`ann_type=KCB`）。每行取
+/// `codes[0]` 的 代码/名称 与 `columns[0]` 的公告类型，取 `art_code` 为 `公告代码`，
+/// `公告日期` 归一 `YYYY-MM-DD`。
+///
+/// # 返回列
+/// `代码, 名称, 公告标题, 公告类型, 公告日期, 公告代码`
+pub fn stock_zh_kcb_report_em(from_page: &str, to_page: &str) -> Result<Df> {
+    let from: i64 = from_page
+        .parse()
+        .map_err(|_| AkshareError::Param(format!("无效 from_page: {from_page}")))?;
+    let mut to: i64 = to_page
+        .parse()
+        .map_err(|_| AkshareError::Param(format!("无效 to_page: {to_page}")))?;
+    let http = HttpClient::default();
+    let mut params = Map::new();
+    params.insert("sr".to_string(), json!("-1"));
+    params.insert("page_size".to_string(), json!("100"));
+    params.insert("ann_type".to_string(), json!("KCB"));
+    params.insert("client_source".to_string(), json!("web"));
+    params.insert("f_node".to_string(), json!("0"));
+    params.insert("s_node".to_string(), json!("0"));
+
+    params.insert("page_index".to_string(), json!(1));
+    let first = http.get_json(NOTICE_KCB_URL, &params, None)?;
+    let data = match first.get("data") {
+        Some(d) => d,
+        None => return build_kcb_df(&[]),
+    };
+    let total_hits = data.get("total_hits").and_then(Value::as_u64).unwrap_or(0);
+    let page_size = data.get("page_size").and_then(Value::as_u64).unwrap_or(100).max(1);
+    let total_page = (total_hits / page_size) as i64;
+    if to > total_page {
+        to = total_page;
+    }
+    if to < from {
+        to = from;
+    }
+
+    let mut items: Vec<Value> = Vec::new();
+    if let Some(list) = data.get("list").and_then(Value::as_array) {
+        items.extend(list.iter().cloned());
+    }
+    for page in (from.max(2))..=to {
+        params.insert("page_index".to_string(), json!(page));
+        match http.get_json(NOTICE_KCB_URL, &params, None) {
+            Ok(v) => {
+                if let Some(list) = v
+                    .get("data")
+                    .and_then(|d| d.get("list"))
+                    .and_then(Value::as_array)
+                {
+                    items.extend(list.iter().cloned());
+                } else {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+        std::thread::sleep(std::time::Duration::from_millis(120));
+    }
+    build_kcb_df(&items)
+}
+
+/// 科创板报告端点。
+const NOTICE_KCB_URL: &str = "https://np-anotice-stock.eastmoney.com/api/security/ann";
+
+/// 由已抓取的科创板公告列表数组构建 DataFrame（与网络解耦，便于离线测试）。
+fn build_kcb_df(items: &[Value]) -> Result<Df> {
+    let col_names: &[&str] = &[
+        "代码",
+        "名称",
+        "公告标题",
+        "公告类型",
+        "公告日期",
+        "公告代码",
+    ];
+    let mut data: Vec<Vec<Option<String>>> = Vec::with_capacity(items.len());
+    for item in items {
+        let code = item
+            .get("codes")
+            .and_then(Value::as_array)
+            .and_then(|c| c.first())
+            .and_then(|c| c.get("stock_code"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let name = item
+            .get("codes")
+            .and_then(Value::as_array)
+            .and_then(|c| c.first())
+            .and_then(|c| c.get("short_name"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let title = item
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let notice_date = item
+            .get("notice_date")
+            .and_then(Value::as_str)
+            .map(|s| {
+                if s.len() >= 10 && (s.as_bytes()[4] == b'-' || s.as_bytes()[4] == b'/') {
+                    s[0..10].to_string()
+                } else {
+                    s.to_string()
+                }
+            })
+            .unwrap_or_default();
+        let column_name = item
+            .get("columns")
+            .and_then(Value::as_array)
+            .and_then(|c| c.first())
+            .and_then(|c| c.get("column_name"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let art_code = item
+            .get("art_code")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        data.push(vec![
+            Some(code),
+            Some(name),
+            Some(title),
+            Some(column_name),
+            Some(notice_date),
+            Some(art_code),
+        ]);
+    }
+    let mut df = Df::from_string_rows(col_names, &data)?;
+    df.cast_date(&["公告日期"])?;
+    Ok(df)
+}
+
+#[cfg(test)]
+mod kcb_report_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn kcb_build_offline() {
+        let raw = json!([{
+            "art_code": "AN202608141827988685",
+            "title": "长盈通:股票交易异常波动公告",
+            "notice_date": "2026-08-15 00:00:00",
+            "codes": [{"ann_type": "A,KCB,SHA", "stock_code": "688143", "short_name": "长盈通"}],
+            "columns": [{"column_code": "001002004007", "column_name": "股票交易异常波动"}]
+        }]);
+        let df = build_kcb_df(raw.as_array().unwrap()).unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec!["代码", "名称", "公告标题", "公告类型", "公告日期", "公告代码"]
+        );
+        assert_eq!(
+            df.inner().column("代码").unwrap().str().unwrap().get(0),
+            Some("688143")
+        );
+        assert_eq!(
+            df.inner().column("公告代码").unwrap().str().unwrap().get(0),
+            Some("AN202608141827988685")
+        );
+        assert_eq!(
+            df.inner().column("公告日期").unwrap().str().unwrap().get(0),
+            Some("2026-08-15")
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

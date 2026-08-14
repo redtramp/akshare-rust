@@ -2101,6 +2101,12 @@ pub use finance_em::{
     stock_financial_us_analysis_indicator_em, stock_sy_em, stock_zh_a_gbjg_em,
 };
 
+/// 东方财富-公告大全 / 主营构成（emweb F10 + np-anotice-stock，批次27）。
+mod announce_em;
+pub use announce_em::{
+    stock_individual_notice_report, stock_notice_report, stock_zygc_em,
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -183,8 +183,10 @@ use akshare_rust::stock::{
     stock_board_industry_name_em, stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow,
     stock_individual_info_em, stock_sh_a_spot_em, stock_sz_a_spot_em, stock_zh_a_hist,
     stock_zh_a_hist_min_em, stock_zh_a_spot_em, stock_zt_pool_dtgc_em, stock_zt_pool_em,
-    stock_zt_pool_previous_em, stock_zt_pool_strong_em, stock_zt_pool_sub_new_em,
+    stock_zt_pool_previous_em, stock_zt_pool_strong_em,     stock_zt_pool_sub_new_em,
     stock_zt_pool_zbgc_em,
+    // === BATCH27 科创板报告（np-anotice-stock，ann_type=KCB） ===
+    stock_zh_kcb_report_em,
     // === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter） ===
     stock_zh_growth_comparison_em, stock_zh_dupont_comparison_em, stock_zh_scale_comparison_em,
     stock_hk_growth_comparison_em, stock_hk_scale_comparison_em,
@@ -262,6 +264,8 @@ use akshare_rust::stock_fundamental::{
     stock_ipo_declare_em, stock_ipo_review_em, stock_ipo_tutor_em,
     // === BATCH10 盈利预测（RPT_WEB_RESPREDICT，动态 YEAR 列头） ===
     stock_profit_forecast_em,
+    // === BATCH27 东财公告大全 / 主营构成（emweb F10 + np-anotice-stock） ===
+    stock_individual_notice_report, stock_notice_report, stock_zygc_em,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use akshare_rust::bond::{
@@ -397,6 +401,11 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_zt_pool_zbgc_em" => {
             let [d] = take1(func, args)?;
             Ok(stock_zt_pool_zbgc_em(d)?)
+        }
+        // === BATCH27 科创板报告（np-anotice-stock，ann_type=KCB） ===
+        "stock_zh_kcb_report_em" => {
+            let [f, t] = take2(func, args)?;
+            Ok(stock_zh_kcb_report_em(f, t)?)
         }
         "stock_zt_pool_dtgc_em" => {
             let [d] = take1(func, args)?;
@@ -1047,6 +1056,19 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_profit_forecast_em" => {
             let [s] = take1(func, args)?;
             Ok(stock_profit_forecast_em(s)?)
+        }
+        // === BATCH27 东财公告大全 / 主营构成（emweb F10 + np-anotice-stock） ===
+        "stock_zygc_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zygc_em(s)?)
+        }
+        "stock_notice_report" => {
+            let [s, d] = take2(func, args)?;
+            Ok(stock_notice_report(s, d)?)
+        }
+        "stock_individual_notice_report" => {
+            let [sec, s, d0, d1] = take4(func, args)?;
+            Ok(stock_individual_notice_report(sec, s, d0, d1)?)
         }
         // 批次3 阶段3f 东财 datacenter-web 宏观
         "macro_china_hk_cpi" => Ok(macro_china_hk_cpi()?),

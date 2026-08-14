@@ -128,6 +128,11 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_financial_analysis_indicator_em", ["301389.SZ", "按单季度"], "loose", "东财A股财务分析主要指标-单季度"),
     ("stock_financial_hk_analysis_indicator_em", ["00700", "年度"], "loose", "东财港股财务分析主要指标"),
     ("stock_financial_us_analysis_indicator_em", ["TSLA", "年报"], "loose", "东财美股财务分析主要指标"),
+    # === BATCH27 东财公告大全 / 主营构成（emweb F10 + np-anotice-stock，loose 比列契约） ===
+    ("stock_zygc_em", ["SH688041"], "loose", "东财主营构成"),
+    ("stock_notice_report", ["全部", "20220511"], "loose", "东财公告大全-按日期"),
+    ("stock_individual_notice_report", ["300237", "全部", "20250101", "20260101"], "loose", "东财个股公告"),
+    ("stock_zh_kcb_report_em", ["1", "1"], "loose", "科创板报告"),
     # stock_feature 东财系（Batch 1 Stage 1a）
     ("stock_cy_a_spot_em", [], "loose", "创业板实时行情"),
     ("stock_kc_a_spot_em", [], "loose", "科创板实时行情"),
