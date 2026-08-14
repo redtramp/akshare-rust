@@ -251,6 +251,9 @@ use akshare_rust::stock_fundamental::{
     stock_restricted_release_detail_em, stock_restricted_release_queue_em,
     stock_restricted_release_queue_sina, stock_restricted_release_stockholder_em,
     stock_restricted_release_summary_em,
+    // === BATCH26 东财 F10 股本结构/商誉/财务分析主要指标 ===
+    stock_financial_analysis_indicator_em, stock_financial_hk_analysis_indicator_em,
+    stock_financial_us_analysis_indicator_em, stock_sy_em, stock_zh_a_gbjg_em,
     stock_shareholder_change_ths,
     // === BATCH8 注册制 IPO 审核信息（RPT_IPO_INFOALLNEW 系列） ===
     stock_register_all_em, stock_register_db, stock_register_kcb, stock_register_cyb,
@@ -864,6 +867,27 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_restricted_release_stockholder_em" => {
             let [s, d] = take2(func, args)?;
             Ok(stock_restricted_release_stockholder_em(s, d)?)
+        }
+        // BATCH26 东财 F10 股本结构/商誉/财务分析主要指标
+        "stock_zh_a_gbjg_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_a_gbjg_em(s)?)
+        }
+        "stock_sy_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_sy_em(d)?)
+        }
+        "stock_financial_analysis_indicator_em" => {
+            let [s, ind] = take2(func, args)?;
+            Ok(stock_financial_analysis_indicator_em(s, ind)?)
+        }
+        "stock_financial_hk_analysis_indicator_em" => {
+            let [s, ind] = take2(func, args)?;
+            Ok(stock_financial_hk_analysis_indicator_em(s, ind)?)
+        }
+        "stock_financial_us_analysis_indicator_em" => {
+            let [s, ind] = take2(func, args)?;
+            Ok(stock_financial_us_analysis_indicator_em(s, ind)?)
         }
         "stock_financial_abstract_ths" => {
             let [s, i] = take2(func, args)?;

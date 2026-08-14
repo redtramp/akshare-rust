@@ -949,6 +949,63 @@ pub(crate) fn fetch_datacenter_pages(
     )
 }
 
+/// `datacenter.eastmoney.com/securities/api/data/get`（注意：非 `/v1/get`）分页数据。
+///
+/// 用于 A 股财务分析「按报告期」（`RPT_F10_FINANCE_MAINFINADATA`），该报表走
+/// `type`/`sty`/`p`/`ps` 参数而非 `reportName`/`columns`/`pageNumber`/`pageSize`，
+/// 与 [`fetch_securities_pages`] 的 `/v1/get` 协议不同。`source`/`client` 由调用方透传。
+pub(crate) fn fetch_securities_data_get(
+    http: &HttpClient,
+    report_type: &str,
+    sty: &str,
+    extra: &Map<String, Value>,
+    page_size: &str,
+    source: &str,
+    client: &str,
+) -> Result<Vec<Value>> {
+    let mut all: Vec<Value> = Vec::new();
+    let mut page: i64 = 1;
+    let paginate = page_size != "0";
+    loop {
+        let mut params = extra.clone();
+        params.insert("type".into(), Value::String(report_type.into()));
+        params.insert("sty".into(), Value::String(sty.into()));
+        if paginate {
+            params.insert("p".into(), Value::from(page));
+            params.insert("ps".into(), Value::String(page_size.into()));
+        }
+        params.insert("source".into(), Value::String(source.into()));
+        params.insert("client".into(), Value::String(client.into()));
+        let text = http.get_text(
+            "https://datacenter.eastmoney.com/securities/api/data/get",
+            &params,
+            None,
+        )?;
+        let value = parse_datacenter_response(&text, "securities/api/data/get")?;
+        let data = value
+            .get("result")
+            .and_then(|r| r.get("data"))
+            .and_then(Value::as_array);
+        let Some(data) = data else {
+            break;
+        };
+        if data.is_empty() {
+            break;
+        }
+        let pages = value
+            .get("result")
+            .and_then(|r| r.get("pages"))
+            .and_then(Value::as_i64)
+            .unwrap_or(1);
+        all.extend(data.iter().cloned());
+        if !paginate || page >= pages {
+            break;
+        }
+        page += 1;
+    }
+    Ok(all)
+}
+
 /// 日期截断：`"2026-08-05 00:00:00"` → `"2026-08-05"`（对应 akshare `dt.date`）。
 pub(crate) fn date_only(s: &str) -> &str {
     if s.len() >= 10 {

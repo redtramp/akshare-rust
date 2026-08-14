@@ -122,6 +122,12 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_fund_flow_concept", ["即时"], "loose", "同花顺概念资金流-即时"),
     ("stock_fund_flow_industry", ["即时"], "loose", "同花顺行业资金流-即时"),
     ("stock_fund_flow_big_deal", [], "loose", "同花顺大单追踪"),
+    # === BATCH26 东财 F10 股本结构/商誉/财务分析主要指标（datacenter securities/web，loose 比列契约） ===
+    ("stock_zh_a_gbjg_em", ["603392.SH"], "loose", "东财股本结构"),
+    ("stock_sy_em", ["20231231"], "loose", "东财个股商誉明细"),
+    ("stock_financial_analysis_indicator_em", ["301389.SZ", "按单季度"], "loose", "东财A股财务分析主要指标-单季度"),
+    ("stock_financial_hk_analysis_indicator_em", ["00700", "年度"], "loose", "东财港股财务分析主要指标"),
+    ("stock_financial_us_analysis_indicator_em", ["TSLA", "年报"], "loose", "东财美股财务分析主要指标"),
     # stock_feature 东财系（Batch 1 Stage 1a）
     ("stock_cy_a_spot_em", [], "loose", "创业板实时行情"),
     ("stock_kc_a_spot_em", [], "loose", "科创板实时行情"),

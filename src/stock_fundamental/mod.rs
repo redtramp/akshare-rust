@@ -2094,6 +2094,13 @@ fn build_xq_df(data: &Value) -> Result<Df> {
     Df::from_string_rows(&["item", "value"], &rows)
 }
 
+/// 东方财富-基本面 F10：股本结构 / 商誉明细 / A·港·美 财务分析主要指标（批次26）。
+mod finance_em;
+pub use finance_em::{
+    stock_financial_analysis_indicator_em, stock_financial_hk_analysis_indicator_em,
+    stock_financial_us_analysis_indicator_em, stock_sy_em, stock_zh_a_gbjg_em,
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
