@@ -43,5 +43,7 @@ md-5 = "0.10"
 # 重试抖动/随机延迟（对应 akshare random.uniform(0.5, 1.5)）
 rand = "0.10"
 scraper = "0.27.0"
+# xls/xlsx 解析（郑商所仓单/期转现/交割 xls 源，对应 akshare pd.read_excel）
+calamine = "0.26.1"
 
 [dev-dependencies]

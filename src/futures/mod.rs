@@ -33,6 +33,10 @@ pub use em_global::*;
 pub mod sina;
 pub use sina::*;
 
+// 批次 29 子组 C：交易所官方数据（合约信息 / 仓单 / 交割 / 期转现 / 历史行情）
+pub mod exchange;
+pub use exchange::*;
+
 /// 将「请求失败」映射为 akshare 语义的结果：
 /// 非 2xx（页面不存在/数据未发布）→ 空表（akshare `if status != 200: return pd.DataFrame()`）；
 /// 传输/反爬/登录态错误 → 如实上报（akshare 对连接异常直接抛错，项目 §2.1.4 要求拦截时明确失败）。

@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "合约代码",
+      "dtype": "str"
+    },
+    {
+      "name": "合约数量",
+      "dtype": "int64"
+    }
+  ],
+  "height": 1,
+  "head": [
+    [
+      "PX510",
+      "2000"
+    ]
+  ]
+}

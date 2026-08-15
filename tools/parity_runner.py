@@ -274,6 +274,28 @@ CASES: list[tuple[str, list[str], str, str]] = [
     # futures_foreign_commodity_subscribe_exchange_symbol 上游返回 list（非 DataFrame），不注册 parity
     ("futures_foreign_detail", ["ZSD"], "loose", "外盘合约详情"),
     ("futures_foreign_hist", ["ZSD"], "loose", "外盘历史日线"),
+    # 批次 29 子组 C：交易所官方数据-合约信息（中金所 XML / 郑商所 XML / 大商所 JSON / 广期所 JSON / 上期能源 JSON / 上期所 JSON）
+    ("futures_contract_info_cffex", ["20240228"], "loose", "中金所-合约信息"),
+    ("futures_contract_info_czce", ["20240228"], "loose", "郑商所-合约信息"),
+    ("futures_contract_info_dce", [], "loose", "大商所-合约信息"),
+    ("futures_contract_info_gfex", [], "loose", "广期所-合约信息"),
+    ("futures_contract_info_ine", ["20241129"], "loose", "上期能源-合约信息"),
+    ("futures_contract_info_shfe", ["20240513"], "loose", "上期所-合约信息"),
+    # 批次 29 子组 C：交易所官方数据-仓单 / 交割 / 期转现 / 历史行情
+    # 注：大商所 publicweb 接口反爬（412）、上期所 tsite.shfe.com.cn 本环境无法解析，
+    # 这些用例无 golden（--generate 阶段 akshare 同样失败）→ --check 自动跳过。
+    ("futures_warehouse_receipt_czce", ["20251014"], "loose", "郑商所-仓单日报"),
+    ("futures_warehouse_receipt_dce", ["20251027"], "loose", "大商所-仓单日报"),
+    ("futures_shfe_warehouse_receipt", ["20251014"], "loose", "上期所-仓单日报"),
+    ("futures_gfex_warehouse_receipt", ["20240122"], "loose", "广期所-仓单日报"),
+    ("futures_to_spot_shfe", ["202312"], "loose", "上期所-期转现"),
+    ("futures_delivery_dce", ["202312"], "loose", "大商所-交割统计"),
+    ("futures_to_spot_dce", ["202312"], "loose", "大商所-期转现"),
+    ("futures_delivery_match_dce", ["a"], "loose", "大商所-交割配对"),
+    ("futures_to_spot_czce", ["20251014"], "loose", "郑商所-期转现"),
+    ("futures_delivery_czce", ["20210112"], "loose", "郑商所-月度交割"),
+    ("futures_delivery_shfe", ["202312"], "loose", "上期所-交割情况"),
+    ("futures_hist_daily_cffex", ["20260302"], "loose", "中金所-历史日线"),
     # 批次20 利率：银行间拆借利率（东财 RPT_IMP_INTRESTRATEN）
     ("rate_interbank", ["上海银行同业拆借市场", "Shibor人民币", "3月"], "loose", "Shibor-3月"),
     ("rate_interbank", ["伦敦银行同业拆借市场", "Libor美元", "1月"], "loose", "Libor美元-1月"),

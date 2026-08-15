@@ -159,7 +159,12 @@ use akshare_rust::futures::{
     futures_inventory_em, futures_settle, futures_settle_cffex, futures_settle_czce,
     futures_settle_gfex, futures_settle_ine, futures_settle_shfe, futures_symbol_mark,
     futures_zh_daily_sina, futures_zh_minute_sina, futures_zh_realtime, futures_zh_spot,
-    futures_hq_subscribe_exchange_symbol,
+    futures_hq_subscribe_exchange_symbol,     futures_contract_info_cffex, futures_contract_info_czce,
+    futures_contract_info_dce, futures_contract_info_gfex, futures_contract_info_ine,
+    futures_contract_info_shfe, futures_warehouse_receipt_czce, futures_warehouse_receipt_dce,
+    futures_shfe_warehouse_receipt, futures_gfex_warehouse_receipt, futures_to_spot_shfe,
+    futures_delivery_dce, futures_to_spot_dce, futures_delivery_match_dce, futures_to_spot_czce,
+    futures_delivery_czce, futures_delivery_shfe, futures_hist_daily_cffex,
 };
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::interest_rate::{rate_interbank};
@@ -1053,6 +1058,74 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_foreign_hist" => {
             let [s] = take1(func, args)?;
             Ok(futures_foreign_hist(s)?)
+        }
+        // 批次 29 子组 C：交易所官方数据（合约信息）
+        "futures_contract_info_cffex" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_contract_info_cffex(s)?)
+        }
+        "futures_contract_info_czce" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_contract_info_czce(s)?)
+        }
+        "futures_contract_info_dce" => Ok(futures_contract_info_dce()?),
+        "futures_contract_info_gfex" => Ok(futures_contract_info_gfex()?),
+        "futures_contract_info_ine" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_contract_info_ine(s)?)
+        }
+        "futures_contract_info_shfe" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_contract_info_shfe(s)?)
+        }
+        // 批次 29 子组 C：交易所官方数据-仓单 / 交割 / 期转现 / 历史行情
+        "futures_warehouse_receipt_czce" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_warehouse_receipt_czce(s)?)
+        }
+        "futures_warehouse_receipt_dce" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_warehouse_receipt_dce(s)?)
+        }
+        "futures_shfe_warehouse_receipt" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_shfe_warehouse_receipt(s)?)
+        }
+        "futures_gfex_warehouse_receipt" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_gfex_warehouse_receipt(s)?)
+        }
+        "futures_to_spot_shfe" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_to_spot_shfe(s)?)
+        }
+        "futures_delivery_dce" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_delivery_dce(s)?)
+        }
+        "futures_to_spot_dce" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_to_spot_dce(s)?)
+        }
+        "futures_delivery_match_dce" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_delivery_match_dce(s)?)
+        }
+        "futures_to_spot_czce" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_to_spot_czce(s)?)
+        }
+        "futures_delivery_czce" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_delivery_czce(s)?)
+        }
+        "futures_delivery_shfe" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_delivery_shfe(s)?)
+        }
+        "futures_hist_daily_cffex" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_hist_daily_cffex(s)?)
         }
         "rate_interbank" => {
             let [m, s, ind] = take3(func, args)?;
