@@ -316,6 +316,12 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("futures_stock_shfe_js", ["20240419"], "loose", "金十-上期所库存周报"),
     ("futures_spot_sys", ["铜", "市场价格"], "loose", "生意社-现期图"),
     ("futures_contract_detail_em", ["v2602F"], "loose", "东财-期货合约详情"),
+    # 批次 29 子组 F：新浪主力/连续/持仓
+    # 注：futures_display_main_sina 遍历五大交易所全部品种节点（~86 次 getHQFuturesData 请求）
+    # 取主力连续合约，loose 仅比列契约；网络受限或节点部分超时时 --check 自动跳过。
+    ("futures_display_main_sina", [], "loose", "新浪主力连续合约一览"),
+    ("futures_main_sina", ["V0", "20240101", "20240201"], "loose", "新浪主力连续日线"),
+    ("futures_hold_pos_sina", ["成交量", "OI2501", "20241016"], "loose", "新浪成交持仓-成交量"),
     # 批次20 利率：银行间拆借利率（东财 RPT_IMP_INTRESTRATEN）
     ("rate_interbank", ["上海银行同业拆借市场", "Shibor人民币", "3月"], "loose", "Shibor-3月"),
     ("rate_interbank", ["伦敦银行同业拆借市场", "Libor美元", "1月"], "loose", "Libor美元-1月"),

@@ -159,6 +159,7 @@ use akshare_rust::futures::{
     futures_inventory_em, futures_settle, futures_settle_cffex, futures_settle_czce,
     futures_settle_gfex, futures_settle_ine, futures_settle_shfe, futures_symbol_mark,
     futures_zh_daily_sina, futures_zh_minute_sina, futures_zh_realtime, futures_zh_spot,
+    futures_display_main_sina, futures_main_sina, futures_hold_pos_sina,
     futures_hq_subscribe_exchange_symbol,     futures_contract_info_cffex, futures_contract_info_czce,
     futures_contract_info_dce, futures_contract_info_gfex, futures_contract_info_ine,
     futures_contract_info_shfe, futures_warehouse_receipt_czce, futures_warehouse_receipt_dce,
@@ -1062,6 +1063,16 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_foreign_hist" => {
             let [s] = take1(func, args)?;
             Ok(futures_foreign_hist(s)?)
+        }
+        // 批次 29 子组 F：新浪主力/连续/持仓
+        "futures_display_main_sina" => Ok(futures_display_main_sina()?),
+        "futures_main_sina" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(futures_main_sina(s, d0, d1)?)
+        }
+        "futures_hold_pos_sina" => {
+            let [s, c, d] = take3(func, args)?;
+            Ok(futures_hold_pos_sina(s, c, d)?)
         }
         // 批次 29 子组 C：交易所官方数据（合约信息）
         "futures_contract_info_cffex" => {

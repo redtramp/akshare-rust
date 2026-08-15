@@ -4,6 +4,15 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-15] 批次 29-F · futures 新浪主力/连续/持仓（子组 F）
+
+- **新增公开函数**：**528 → 531**（净 +3）。在 `src/futures/sina.rs`（对应 akshare `futures_derivative/futures_index_sina.py` 与 `futures_cot_sina.py`）落地 3 个新浪主力/连续/持仓函数（均位于 `futures_derivative` 子包下、但可经 `ak.futures_*` 调用，计入 1094 目标）：`futures_display_main_sina`（五大交易所主力连续合约一览，遍历 `futures_symbol_mark` 的 `mark` 节点码逐品种查询 `Market_Center.getHQFuturesData`，筛选 `name` 含「连续」且 `symbol` 首数字为 `0` 的合约，取 `[symbol,exchange,name]`）、`futures_main_sina`（主力连续日线，`InnerFuturesNewService.getDailyKLine` JSONP，短键 `d/o/h/l/c/v/p/s`→中文列名，日期参数固定 `2021_08_17`，按 `start_date`/`end_date` 闭区间过滤）、`futures_hold_pos_sina`（成交持仓，`vFutures_Positions_cjcc.php`，`read_html_tables` 取第 3/4/5 表，丢弃表头与末行合计，列 `[名次,会员简称,<度量>,比上交易增减]` 数值化）。
+- **实现覆盖率**：**≈ 48.5%**（531 / 1094 公开 API）；golden 差分验证 **447 fixture / ≈432 去重函数 ≈ 39.5%**，parity 注册用例 507 / 499 唯一函数；futures 大类 **75.7% → 80.0%**（53 → 56 / 70）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(229) 全绿。
+- **parity 验证（子组 F 3 用例）**：**3 PASS / 0 SKIP / 0 FAIL**。`--check` 比对「列名（有序）+ dtype 类」：全部通过（`display_main_sina` 3列×82行、`main_sina` 8列×23行、`hold_pos_sina` 4列×20行），列名/dtype 与 akshare 一致。注 `display_main_sina` 单次调用约 86 次 `getHQFuturesData` 请求（与 akshare 逐节点查询 `match_main_contract` 同口径），用时与 akshare 相当，`--check` 单用例在 120s 超时内。
+- **关键实现点（对齐 akshare）**：① `futures_display_main_sina` 复用 `futures_symbol_mark` 的 `mark` 节点码（如 `pvc_qh`）而非 `qihuohangqing.js` 的第三元组；`symbol` 是否连续用 `([\w])(\d)` 正则语义（取首字母+数字片段的数字位是否为 `0`）；② `futures_main_sina` 严格复刻 JSONP（剥离外壳取首尾数组括号、参数 `symbol`/`_` 透传、日期闭区间字典序过滤）；③ `futures_hold_pos_sina` 复刻 `vFutures_Positions_cjcc.php`（`read_html_tables` 第 3/4/5 表 → `销量/多单/空单持仓`），`date` 归一化为 `YYYY-MM-DD`，末行合计按 akshare `.iloc[:-1,:]` 丢弃。
+- **范围说明**：`futures_derivative` 虽是 akshare 子包，但其下 `futures_display_main_sina`/`futures_main_sina`/`futures_hold_pos_sina` 均为可经 `ak.futures_*` 调用的公开函数，已计入 1094 目标（区别于批次 29-E 中「`futures_derivative` 模块本身不可调用」的说明，详见 PLAN.md 批次 29-F）。
+
 ## [2026-08-15] 批次 29-E · futures 期货杂项/独立数据源（子组 E）
 
 - **新增公开函数**：**518 → 528**（净 +10）。新建 `src/futures/misc.rs`（对应 akshare `futures/` 下分散杂项函数）落地 10 个期货杂项/独立数据源函数：`futures_comm_info`（九期网手续费，`read_html_tables` 六交易所切片 + 合约「名称(代码)」/涨跌停「x/y」/手续费「万分之|元」拆分）、`futures_comm_js`（金十手续费，`mp-api.jin10.com`，列序 开仓/平今/平昨/每手跳数）、`futures_fees_info`（openctp 费用表，`infer_numeric` 列推断）、`futures_rule`（国泰君安交易日历，`header=1` 取表头 + `--`/空缺失→`infer_numeric`）、`futures_news_shmet`（上海金属网快讯，POST + `ms→Asia/Shanghai` 时间换算）、`futures_inventory_99`（99 期货库存，`__NEXT_DATA__` 品种映射 + `fx168api`）、`futures_spot_stock`（东财现货与股票上下游，日期列数据存于 item `v1`..`v5`、仅前 4 日期列 + 最新价格 + 近半年涨跌幅 数值化）、`futures_stock_shfe_js`（金十上期所库存周报）、`futures_spot_sys`（生意社现期图，表转置）、`futures_contract_detail_em`（东财期货合约详情）。
