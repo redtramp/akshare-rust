@@ -4,6 +4,13 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-15] 批次 29-D · futures 东财期货行情（子组 D）
+
+- **新增公开函数**：**515 → 518**（净 +3）。`src/futures/em.rs`（对应 akshare `futures/futures_hist_em.py`）落地 3 个东财期货行情函数：`futures_hist_table_em`（交易所品种对照表，`futsse-static.eastmoney.com/redis` 多级 `msgid` 展开）、`futures_hist_em`（期货行情 kline，`push2his.eastmoney.com/api/qt/stock/kline/get`，symbol→secid 经四张品种映射表解析，14 字段 kline CSV 取 10 列 `时间/开盘/最高/最低/收盘/涨跌/涨跌幅/成交量/成交额/持仓量`，按 `start_date`/`end_date` 区间过滤并数值化）、`futures_settlement_price_sgx`（新加坡交易所历史结算价，`links.sgx.com` `FUTURE.zip` ZIP 解析，序号经 `push2his` 的 `100.STI` kline 末行索引 +791 推算）。
+- **实现覆盖率**：**≈ 47.3%**（518 / 1094 公开 API）；golden 差分验证 **443 fixture / ≈428 去重函数 ≈ 39.1%**，parity 注册用例 503 / 495 唯一函数；futures 大类 **57.1% → 61.4%**（40 → 43 / 70）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(222) 全绿；新增 `zip = "0.6"` 依赖（SGX ZIP 解析）。
+- **parity 验证（子组 D 3 用例）**：**1 通过 / 2 跳过 / 0 失败**。`futures_hist_table_em` loose 比对通过（3 列 × 1061 行）。`futures_hist_em` 与 `futures_settlement_price_sgx` 均依赖 `push2his.eastmoney.com`（当前环境 TCP 层断连，直连 akshare 同错，属 §1.2.1 #10 EM push2 阻断），无法生成 golden，`--check` 自动跳过，非回归。
+
 ## [2026-08-15] 批次 29-C · futures 交易所官方数据（子组 C）
 
 - **新增公开函数**：**497 → 515**（净 +18）。`src/futures/exchange.rs` 落地 18 个交易所官方数据函数，分三组：① 合约信息 `futures_contract_info_*`（中金所 `cffex` / 郑商所 `czce` / 大商所 `dce` / 广期所 `gfex` / 上期能源 `ine` / 上期所 `shfe`，6）——中金所/郑商所用内置扁平 XML 提取器（`xml_records`/`unescape_xml`/`fmt_ymd`）逐 `product` 切片合并，大商所/广期所走 JSON（`dce` 反爬 412 不可实时校验），上期能源/上期所用西甲所 `dailystat` 数据；② 仓单日报 `futures_warehouse_receipt_*`（`czce`/`dce`）与 `futures_shfe_warehouse_receipt`/`futures_gfex_warehouse_receipt`（4）——郑商所/广期所用 `calamine` 解析 `.xls`（BIFF8）/ form POST，上期所用 `dailystock.dat` 的 `o_cursor` 按 `品种` 列合并；③ 交割/期转现/历史行情 `futures_to_spot_shfe`/`futures_delivery_dce`/`futures_to_spot_dce`/`futures_delivery_match_dce`/`futures_to_spot_czce`/`futures_delivery_czce`/`futures_delivery_shfe`/`futures_hist_daily_cffex`（8）——大商所 `publicweb` 走 `read_html_tables` 取首表按列名定位并过滤「小计/总计」，郑商所用 calamine 解析 `.xls`（`skiprows=1`），中金所用 GBK 解码 CSV 按位置映射 12 列。

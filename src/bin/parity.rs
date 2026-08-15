@@ -165,6 +165,7 @@ use akshare_rust::futures::{
     futures_shfe_warehouse_receipt, futures_gfex_warehouse_receipt, futures_to_spot_shfe,
     futures_delivery_dce, futures_to_spot_dce, futures_delivery_match_dce, futures_to_spot_czce,
     futures_delivery_czce, futures_delivery_shfe, futures_hist_daily_cffex,
+    futures_hist_table_em, futures_hist_em, futures_settlement_price_sgx,
 };
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::interest_rate::{rate_interbank};
@@ -1126,6 +1127,15 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_hist_daily_cffex" => {
             let [s] = take1(func, args)?;
             Ok(futures_hist_daily_cffex(s)?)
+        }
+        "futures_hist_table_em" => Ok(futures_hist_table_em()?),
+        "futures_hist_em" => {
+            let [symbol, period, start, end] = take4(func, args)?;
+            Ok(futures_hist_em(symbol, period, start, end)?)
+        }
+        "futures_settlement_price_sgx" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_settlement_price_sgx(s)?)
         }
         "rate_interbank" => {
             let [m, s, ind] = take3(func, args)?;

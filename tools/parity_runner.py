@@ -296,6 +296,13 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("futures_delivery_czce", ["20210112"], "loose", "郑商所-月度交割"),
     ("futures_delivery_shfe", ["202312"], "loose", "上期所-交割情况"),
     ("futures_hist_daily_cffex", ["20260302"], "loose", "中金所-历史日线"),
+    # 批次 29 子组 D：东财期货行情（品种对照表 / kline / SGX 结算价）
+    # 注：futures_hist_em 与 futures_settlement_price_sgx 依赖 push2his.eastmoney.com
+    # （当前环境 TCP 断连，直连 akshare 同错），无法生成 golden，--check 自动跳过；
+    # futures_hist_table_em 走 futsse-static.eastmoney.com/redis 可读端点，正常对账。
+    ("futures_hist_table_em", [], "loose", "东财-期货品种对照表"),
+    ("futures_hist_em", ["热卷主连", "daily", "20240101", "20241231"], "loose", "东财-期货行情 kline"),
+    ("futures_settlement_price_sgx", ["20231107"], "loose", "SGX-历史结算价"),
     # 批次20 利率：银行间拆借利率（东财 RPT_IMP_INTRESTRATEN）
     ("rate_interbank", ["上海银行同业拆借市场", "Shibor人民币", "3月"], "loose", "Shibor-3月"),
     ("rate_interbank", ["伦敦银行同业拆借市场", "Libor美元", "1月"], "loose", "Libor美元-1月"),
