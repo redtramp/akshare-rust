@@ -262,16 +262,26 @@
 - 按 §4 E1 既有规划推进，按「同源模板复用」逐个站点落地：搜猪网（spot 生猪 15）、air/movie（C3 的 JS 解密）、energy（碳交易 8）、currency（7）、article（7）、news（6）、fx（6）、fortune（5）、cal（3）、qdii（3）、reits（3）、event/forex/crypto/rate/nlp/utils（各 2）、tool/hf/interest_rate/bank/pro（各 1）。
 - 每分类对照 `akshare/__init__.py` 建**覆盖率登记表**（函数名 → done/todo/skip + 原因），明确 skip 项须记录理由（如 `nlp_answer` 需外部 AI 服务）。
 
-#### 1.3.6 需新增的 Rust 源模块清单（当前缺口）
+#### 1.3.6 需新增的 Rust 源模块清单（当前缺口 · 2026-08-15 实测刷新）
+
+> 此前本表误将 `jin10`/`chinamoney`/`jisilu`/`soozhu`/能源系/新闻系标为「未建」——实际均已随批次 2–5 集成落地，本次按 `src/sources/*.rs` 实际文件校正。
 
 | 模块 | 服务大类 | 对应 PLAN 步骤 | 当前状态 |
 |---|---|---|---|
-| `sources/jin10.rs` | economic | B4 | **未建** |
-| `sources/ths.rs`（从 `fund/mod.rs` 抽出独立） | stock_feature / stock_fundamental | C2 | ✅ 已独立（批次 1 阶段 1m，2026-08-11） |
-| `sources/futures_exchange.rs`（B3 扩展，含 5 家期货交易所 + 期权） | futures / option | B3 | 🟡 部分（`futures/mod.rs` 已落地 5 家结算参数，尚未抽独立源模块；期权未建） |
-| `sources/chinamoney.rs` | bond | 新增（批次 4） | **未建** |
-| `sources/jisilu.rs` | bond | D2 | **未建** |
-| `sources/{air,movie,soozhu,energy,...}.rs` | 长尾 | C3 / E1 | **未建** |
+| `sources/jin10.rs` | economic(金十) | B4 | ✅ 已建（批次 3）；但 jin10 上游当前返回 502（§1.2.1 #8），USA 宏观暂缓 |
+| `sources/ths.rs` | stock_feature / stock_fundamental | C2 | ✅ 已独立（批次 1 阶段 1m，2026-08-11） |
+| `sources/futures_exchange.rs` | futures / option | B3 | 🟡 部分（`futures/mod.rs` 已落地 5 家结算参数 + 合约；期权未抽独立模块） |
+| `sources/chinamoney.rs` | bond | 批次 4 | ✅ 已建（批次 4） |
+| `sources/jisilu.rs` | bond | D2 | ✅ 已建（批次 4） |
+| `sources/soozhu.rs` | 长尾(spot 生猪) | E1 | ✅ 已建 |
+| `sources/{carbon,oil,sge}.rs` | 长尾(energy) | E1 | ✅ 已建（能源/碳/金交所） |
+| `sources/news_cctv.rs` / `news_baidu.rs` | 长尾(news) | E1 | ✅ 已建 |
+| `sources/currency_boc.rs` | 长尾(currency) | E1 | ✅ 已建（BOC 即期；历史汇率 Excel 仍缺 calamine，§1.2.1 #6） |
+| `sources/hurun.rs` | 长尾(fortune) | E1 | ✅ 已建 |
+| `sources/spot_qh.rs` / `spot_goods.rs` | 长尾(spot) | E1 | ✅ 已建 |
+| `sources/air.rs`（crypto.js 解密） | 长尾(air) | C3 | 🔴 未建（§1.2.1 #2 暂缓） |
+| `sources/movie.rs`（jm.js 解密） | 长尾(movie) | C3 | 🔴 未建（§1.2.1 #1 暂缓） |
+| 长尾 `{fx,crypto,rate,reits,qdii,cal,event,forex,nlp,tool,hf,interest_rate,bank,pro,article}` | 长尾 24 类 | E1 | 🔴 未建（按同源模板逐个推进） |
 
 **推进原则（与 §0 决策一致）**：按「反爬风险从低到高」+「基础设施杠杆」双重排序；同源模板批量生成优先于零散补函数；每批落地后同步刷新 §1.2 覆盖率快照与 E1 登记表。
 
