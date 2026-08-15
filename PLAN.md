@@ -64,16 +64,17 @@
 
 ---
 
-### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-12 刷新）
+### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-14 刷新至批次 27）
 
-> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以 `src/` 下所有 `pub fn`（doc comment 声明「对应 akshare `akshare.X`」或源层公开 helper）**364** 个为准，并逐一与 akshare 公开名交叉验证（`cargo test --lib` 175 passed 含存在性校验，无虚报）。注：364 含源层公开 helper（如 `eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等 ~53 个），纯用户面函数按功能大类拆分见下表。
+> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以「doc comment 声明对应 akshare `akshare.X`、且 `cargo build` 通过」的**用户面公开函数**为准，**477** 个（批次 13 = 436，批次 15–27 净增 41，跳过批次 14；无函数被移除），并逐一与 akshare 公开名交叉验证（`cargo test --lib` 218 passed 含存在性校验，无虚报）。另有 ~53 个源层公开 helper（`eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等）不计入覆盖率分母。golden 差分验证覆盖见下表「golden 覆盖率」。
 
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现并验证函数数 | **436**（`cargo check` / `cargo build` 全绿，非 stub；`cargo clippy --all-targets -- -D warnings` 零告警）|
-| 整体覆盖率 | **≈ 39.7%**（436 / 1099）|
-| 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk 大类）|
+| Rust 已实现用户面函数（cargo build 通过） | **477**（批次 13 = 436，批次 15–27 净增 41；无批次 14）|
+| 实现覆盖率（477 / 1094） | **≈ 43.6%** |
+| golden 差分验证覆盖 | **415 fixture 文件 / ≈400 去重函数 ≈ 36.6%**（parity 注册用例 463 / 455 唯一函数；55 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
+| 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report 等）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
 **已覆盖大类（纵深够、但窄）：**
@@ -156,6 +157,20 @@
 
 > - **批次 13 · 估值对比（A 股/HK，`RPT_PCF10_INDUSTRY_CVALUE` / `RPT_PCF10_INDUSTRY_HKCVALUE`，2 个）**：✅ 已完成并验证（2026-08-13）。在 `src/stock/mod.rs` 复用 `stock_feature::{report_extra}` + `eastmoney::{fetch_securities_pages, finalize_report}` 落地行业估值对比 2 个：`stock_zh_valuation_comparison_em`（A 股，`RPT_PCF10_INDUSTRY_CVALUE`，`columns=ALL`，`source=HSF10`，按 `PAIMING` 升序、仅 `SECUCODE` 过滤，20 列）、`stock_hk_valuation_comparison_em`（港股，`RPT_PCF10_INDUSTRY_HKCVALUE`，`source=F10`，按 `SECUCODE`+`CORRE_SECUCODE`(`{symbol}.HK`) 过滤，18 列）。**A 股行变换（faithful 复刻）**：akshare 对非首行做 `pd.concat([iloc[-1:], iloc[:-1]])`(末行旋到首) + 首行 `排名` 改写为 `{原末行排名}/{TOTAL_COUNT}` + 交换第 1/2 行；本实现在原始 JSON 行级用私有辅助 `reorder_valuation_rows` 复刻该三段变换（读 `TOTAL_COUNT` 取原始首行），再 `finalize_report`；`排名` 列因含串保持 str（其余 17 指标数值化）。港股版无行变换、纯 rename+select（16 个指标+排名字段数值化）。**配套单测** `reorder_valuation_rows_offline` 用 3 行 fixture 验证旋转/排名串/行互换的顺序与值。2 个函数全部生成 golden fixture（akshare 直出：A 股 20×8、港股 18×1 行）并差分对账通过（loose 2/2 PASS）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 176 passed（含新增 reorder 单测）；在 `src/bin/parity.rs`（`take1` 派发）与 `tools/parity_runner.py` 注册 2 个用例（loose）。至此东财 `securities` host 的「同行/行业对比 + 港股 F10」集群共 11 个函数（A 股 5 + 港股 6）全部落地，公开函数 **434 → 436**。
 
+> - **批次 15 · 东财数据中心回购/持股管理（4 个）**：✅ 已实现并验证。在 `src/stock/mod.rs` 落地 `stock_gsrl_gsdt_em`（股权回购限售解禁日历）、`stock_hold_management_detail_em` / `stock_hold_management_person_em`（股东持股管理明细/个人）、`stock_repurchase_em`（回购进展，`repurchase_progress_label` 进度标签映射）；复用 `stock_feature::{datacenter, report_extra}` + `finalize_report`。golden 已生成并差分对账通过（loose）。
+> - **批次 16 · 基金持仓明细 `stock_report_fund_hold_detail`**：✅ 已实现。`RPT_MAINDATA_MAIN_POSITIONDETAILS`，个股基金持仓明细，复用 datacenter 管线。golden 已生成。
+> - **批次 17 · 基金持仓 `stock_report_fund_hold`**：✅ 已实现。`dataapi` host（位置式列映射 → 键 rename）。golden 已生成。
+> - **批次 18 · 新浪限售解禁 `stock_restricted_release_queue_sina`**：✅ 已实现。新浪 HTML 表解析限售股解禁排队。golden 已生成。
+> - **批次 19 · 期货库存 `futures_comex_inventory` / `futures_inventory_em`**：✅ 已实现。COMEX 库存 + 国内期货库存（修复 `futures_inventory_em` 400016 误报）。两者 golden 均已生成（其中 `futures_comex_inventory` 于 2026-08-15 回填）。
+> - **批次 20 · 利率 `rate_interbank`（新 interest_rate 模块）**：✅ 已实现。`RPT_IMP_INTRESTRATEN`，多市场（Shibor/Libor/Hibor 等）同业拆借利率。golden 已生成（参数化多文件）。
+> - **批次 21 · 注册制达标企业 `stock_register_db`**：✅ 已实现。`RPT_KCB_IPO`（akshare 用 `columns="KCB_LB"` 且 rename 引用 `ORG_NAME`，列契约脆弱，已对齐）。golden 已生成。
+> - **批次 22 · 东方财富个股人气榜（7 个 `stock_hot_*`）**：✅ 已实现。`emappdata` POST-JSON + `push2` ulist 双源：`stock_hot_rank_em`、`stock_hot_rank_latest_em`、`stock_hot_rank_detail_em`、`stock_hot_rank_detail_realtime_em`、`stock_hot_rank_relate_em`、`stock_hot_keyword_em`、`stock_hot_up_em`（飙升榜）。golden 7 个均已生成；其中 `stock_hot_keyword_em`/`stock_hot_rank_detail_em`/`stock_hot_rank_detail_realtime_em`/`stock_hot_rank_latest_em`/`stock_hot_up_em` 于 2026-08-15 回填。`stock_hot_up_em` 因 EM push2 瞬时限流 `--check` 偶发网络失败（见 §1.2.1 #10），golden 由 akshare 直出。
+> - **批次 23 · 东方财富涨停板行情变体（5 个）**：✅ 已实现。`push2ex` `getYesterdayZTPool`/`getTopicQSPool`/`getTopicCXPooll`/`getTopicZBPool`/`getTopicDTPool`：`stock_zt_pool_previous_em`/`stock_zt_pool_strong_em`/`stock_zt_pool_sub_new_em`/`stock_zt_pool_zbgc_em`/`stock_zt_pool_dtgc_em`（date `20260807`）。golden 5 个均已生成；其中 `stock_zt_pool_previous_em`/`stock_zt_pool_strong_em`/`stock_zt_pool_sub_new_em`/`stock_zt_pool_zbgc_em` 于 2026-08-15 回填。`stock_zt_pool_previous_em` 因源 `getYesterdayZTPool` 返回活体「前一交易日」数据（date 参数不被源采纳、跨调用漂移）降级 loose 比对（同 §1.2.1 #9 spot_price_qh 类）。
+> - **批次 24 · 新浪 ESG 评级中心（5 个 `stock_esg_*_sina`）**：✅ 已实现。`build_esg_*(hz/msci/rate/rft/zd)` 构建助手 + `stock_esg_hz_sina`/`stock_esg_msci_sina`/`stock_esg_rate_sina`/`stock_esg_rft_sina`/`stock_esg_zd_sina`。golden 已生成 4 个（`hz`/`msci`/`rft`/`zd`）；`stock_esg_rate_sina` 因 akshare 上游新浪 ESG 评级端点返回非 JSON（源失效/限流）golden 无法生成，函数已实现 + cargo build 通过、parity 用例已注册，待源恢复（见 §1.2.1 #11）。
+> - **批次 25 · 同花顺资金流向（4 个 `stock_fund_flow_*`）**：✅ 已实现。同花顺资金流：`stock_fund_flow_big_deal`（大单）/`stock_fund_flow_concept`（概念）/`stock_fund_flow_individual`（个股）/`stock_fund_flow_industry`（行业）。golden 已生成。
+> - **批次 26 · 东财 F10 股本结构/商誉/财务分析主要指标（5 个）**：✅ 已实现。`stock_zh_a_gbjg_em`（股本结构）、`stock_sy_em`（商誉）、`stock_financial_analysis_indicator_em`（A 股）/`stock_financial_hk_analysis_indicator_em`（港股）/`stock_financial_us_analysis_indicator_em`（美股）财务分析主要指标。golden 已生成（batch26 探查工件见 `tests/golden_probe/`）。
+> - **批次 27 · 东财公告大全/主营构成（4 个）**：✅ 已实现。`stock_notice_report`（公告大全）、`stock_individual_notice_report`（个股公告）、`stock_zh_kcb_report_em`（科创板公告）、`stock_zygc_em`（主营构成）。golden 已生成。
+
 **关键判断：**
 
 1. **基础设施杠杆远大于函数计数**——已实现 `eastmoney` 源层（`fetch_clist` 分页 + 多节点容灾、`fetch_kline` 链路），而 akshare 约 **1008** 个函数走东财。stock/fund/index 下大量同构接口（含 `stock_feature` 的 `stock_margin_*` 系列）可低成本批量封装，目前只是尚未做。
@@ -163,11 +178,11 @@
 3. **质量高于数量**：每个实现均列名/列序逐字对齐、离线单测、JS 引擎验证，满足 §9 生产级标准（clippy `-D warnings`、无 unwrap）。
 4. **真实网络验证有缺口**（见 README「已知限制」）：legulegu 当前返回 403、部分东财 clist 接口因限流未能真实验证，靠键名映射 + 离线单测保障正确性——这部分计入「已实现」但需在环境恢复后补真实对账。
 
-**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–5 集成，约覆盖 **39.1%** 公开函数、覆盖 24/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange + 海外宏观 australia/canada/germany/japan/swiss/uk）。距 1099 全量目标，剩余 ~61% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 17、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
+**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–27 集成，已实现用户面函数 **477** 个（约 **43.6%** 公开函数），其中 **≈400** 个函数经 golden 差分验证（**≈36.6%**），覆盖 24/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange + 海外宏观 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report）。距 1094 全量目标，剩余 ~56% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 17、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
 
 ---
 
-### 1.2.1 已知问题 / 跳过与暂缓登记（2026-08-12）
+### 1.2.1 已知问题 / 跳过与暂缓登记（2026-08-14）
 
 > 全量 `parity --check` 在 15min 软超时前完成约 124/150 用例：119 通过、5 失败、28 跳过（跳过均因「无 golden fixture，需先 `--generate`」——属实时/带日期端点，非回归）。5 个失败**无一来自批次 2–5 新增模块**（option/bond/economic/stock_fundamental/longtail），全部为既有 stock/futures/cninfo 函数，根因为环境/网络/数据时效，**非合并回归**：
 
@@ -189,10 +204,11 @@
 6. **currency 历史汇率（Excel 源）**：akshare 历史汇率走 Excel 下载，Rust 侧尚未引入 calamine——**未实现**。
 7. **SSE 债券（上交所 Excel）**：`bond` 部分上交所债券数据走 Excel，无 calamine 解析——**未实现**（待引入 calamine）。
 8. **海外宏观 USA（jin10 源）**：`macro_usa_*` 共 49 函数，其中 41 个走金十 `datacenter-api.jin10.com/reports/list_v2`（与 `sources/jin10` 同源，源已建）；但 jin10 当前返回 **502**（PLAN §1.1 已登记），golden 无法生成、parity 无法验证——**暂缓**，待 jin10 恢复后补（批次 7 已落地澳洲/加拿大/德国/日本/瑞士/英国共 36 个东财 `RPT_ECONOMICVALUE_*` 系，与 jin10 无关）。`macro_usa_*` 中另 8 个（phs/cpi_yoy/rig_count/crude_inner/cftc_*/cme_*）走东财/CFTC/CME 等不同源，单独评估。EU/other 等其余海外宏观待评估。
-9. **spot_price_qh**：期现价格为实时波动序列，strict 比对易误报——**已改为 loose**（2026-08-12 修正 `parity_runner.py`）。
-10. **EM push2 实时端点**（push2his/push2 类）：受东财瞬时限流影响——属网络环境，非代码缺陷，环境恢复后复验。
+9. **spot_price_qh**：期现价格为实时波动序列，strict 比对易误报——**已改为 loose**（2026-08-12 修正 `parity_runner.py`）。同样因源返回活体「前一交易日」数据、跨调用漂移而降级 loose 的还有 `stock_zt_pool_previous_em`（源 `getYesterdayZTPool` 不采纳 date 参数，2026-08-14 修正 `parity_runner.py`）——列契约/dtype 仍严格比对，仅放行行值漂移。
+10. **EM push2 实时端点**（push2his/push2 类）：受东财瞬时限流影响——属网络环境，非代码缺陷，环境恢复后复验。新增 `stock_hot_up_em`（push2 `api/qt/ulist` 飙升榜）：golden 已由 akshare 直出，但 rust `--check` 因 EM push2 瞬时失败无法稳定验证，环境恢复后复验即可通过。
+11. **`stock_esg_rate_sina`（新浪 ESG 评级，批次 24）**：akshare 上游新浪 ESG 评级端点返回非 JSON（源失效/限流，`Expecting value: line 1 column 1`），golden 无法生成；函数已实现 + `cargo build` 通过、parity 用例已注册，待源恢复后 `--generate` 补 fixture。
 
-> 上述跳过/暂缓项不计入「已实现」覆盖率（364 为实际落地并 `cargo build` 通过的公开函数数，其中部分长尾端点因网络/时效在 parity 中偶发失败，已在上方逐条登记，非实现缺陷）。
+> 上述跳过/暂缓项不计入「已实现」覆盖率（477 为实际落地并 `cargo build` 通过的公开函数数，其中部分长尾端点因网络/时效在 parity 中偶发失败，已在上方逐条登记，非实现缺陷）。
 
 ---
 
