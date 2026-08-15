@@ -25,6 +25,10 @@ use polars::prelude::*;
 use scraper::{Html, Selector};
 use serde_json::{Map, Value};
 
+// 批次 29 子组 A：东方财富国际期货 + 中证商品指数 + 东财期货规则
+pub mod em_global;
+pub use em_global::*;
+
 /// 将「请求失败」映射为 akshare 语义的结果：
 /// 非 2xx（页面不存在/数据未发布）→ 空表（akshare `if status != 200: return pd.DataFrame()`）；
 /// 传输/反爬/登录态错误 → 如实上报（akshare 对连接异常直接抛错，项目 §2.1.4 要求拦截时明确失败）。

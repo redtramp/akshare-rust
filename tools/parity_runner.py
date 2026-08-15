@@ -258,6 +258,11 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("futures_comex_inventory", ["黄金"], "loose", "COMEX黄金库存"),
     ("futures_comex_inventory", ["白银"], "loose", "COMEX白银库存"),
     ("futures_inventory_em", ["a"], "loose", "期货库存-豆一"),
+    # 批次29 子组A 东财国际期货 + 中证商品指数 + 东财期货规则
+    ("futures_index_ccidx", ["中证商品期货指数"], "loose", "中证商品期货指数"),
+    ("futures_index_ccidx", ["中证商品期货价格指数"], "loose", "中证商品期货价格指数"),
+    ("futures_global_spot_em", [], "loose", "国际期货实时行情"),
+    ("futures_global_hist_em", ["HG00Y"], "loose", "国际期货历史行情-铜"),
     # 批次20 利率：银行间拆借利率（东财 RPT_IMP_INTRESTRATEN）
     ("rate_interbank", ["上海银行同业拆借市场", "Shibor人民币", "3月"], "loose", "Shibor-3月"),
     ("rate_interbank", ["伦敦银行同业拆借市场", "Libor美元", "1月"], "loose", "Libor美元-1月"),

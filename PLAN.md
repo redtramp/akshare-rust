@@ -64,16 +64,16 @@
 
 ---
 
-### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-15 刷新至批次 28）
+### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-15 刷新至批次 29-A）
 
-> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以「doc comment 声明对应 akshare `akshare.X`、且 `cargo build` 通过」的**用户面公开函数**为准，**484** 个（批次 13 = 436，批次 15–28 净增 48，跳过批次 14；无函数被移除），并逐一与 akshare 公开名交叉验证（`cargo test --lib` 218 passed 含存在性校验，无虚报）。另有 ~53 个源层公开 helper（`eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等）不计入覆盖率分母。golden 差分验证覆盖见下表「golden 覆盖率」。
+> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以「doc comment 声明对应 akshare `akshare.X`、且 `cargo build` 通过」的**用户面公开函数**为准，**487** 个（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3；跳过批次 14；无函数被移除），并逐一与 akshare 公开名交叉验证（`cargo test --lib` 218 passed 含存在性校验，无虚报）。另有 ~53 个源层公开 helper（`eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等）不计入覆盖率分母。golden 差分验证覆盖见下表「golden 覆盖率」。
 
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现用户面函数（cargo build 通过） | **484**（批次 13 = 436，批次 15–28 净增 48；无批次 14）|
-| 实现覆盖率（484 / 1094） | **≈ 44.2%** |
-| golden 差分验证覆盖 | **422 fixture 文件 / ≈407 去重函数 ≈ 37.2%**（parity 注册用例 470 / 462 唯一函数；55 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
+| Rust 已实现用户面函数（cargo build 通过） | **487**（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3；无批次 14）|
+| 实现覆盖率（487 / 1094） | **≈ 44.5%** |
+| golden 差分验证覆盖 | **425 fixture 文件 / ≈410 去重函数 ≈ 37.5%**（parity 注册用例 473 / 465 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report 等）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -87,7 +87,7 @@
 | stock_feature | 95 | 211 | 45.0% |
 | stock_fundamental | 28 | 57 | 49.1% |
 | economic | 31 | 226 | 13.7% |
-| futures | 7 | 70 | 10.0% |
+| futures | 12 | 70 | 17.1% |
 | option | 46 | 47 | 97.9% |
 | bond | 36 | 46 | 78.3% |
 | currency | 2 | ~数十 | 长尾 |
@@ -109,7 +109,7 @@
 - **stock_feature（48 · 批次 1 阶段 1a + 1b + 1c + 1d + 1e + 1f + 1g）**：`stock_cy_a_spot_em`、`stock_kc_a_spot_em`、`stock_zh_b_spot_em`、`stock_new_a_spot_em`、`stock_hk_main_board_spot_em`、`stock_hk_ggt_components_em`、`stock_zh_a_gdhs`（阶段 1a，7 个）；`stock_margin_account_info`、`stock_gdfx_free_holding_detail_em`、`stock_gdfx_holding_detail_em`、`stock_gdfx_free_holding_analyse_em`、`stock_gdfx_holding_analyse_em`、`stock_qsjy_em`、`stock_gpzy_profile_em`、`stock_gpzy_pledge_ratio_em`、`stock_gpzy_industry_data_em`、`stock_value_em`、`stock_gddh_em`、`stock_zdhtmx_em`、`stock_dxsyl_em`、`stock_sy_profile_em`（阶段 1b，14 个；其中 `stock_gpzy_profile_em` 由 `stock` 模块迁入，非净新增）；`stock_gpzy_pledge_ratio_detail_em`、`stock_gpzy_individual_pledge_ratio_detail_em`、`stock_ggcg_em`（阶段 1c，3 个）；`stock_jgdy_tj_em`、`stock_jgdy_detail_em`、`stock_fhps_em`、`stock_fhps_detail_em`、`stock_tfp_em`、`stock_qbzf_em`、`stock_pg_em`、`stock_account_statistics_em`（阶段 1d，8 个）；`stock_yjbb_em`、`stock_yjkb_em`、`stock_yjyg_em`、`stock_yysj_em`（阶段 1e，4 个）；`stock_comment_em`、`stock_lhb_stock_statistic_em`、`stock_lhb_jgmmtj_em`、`stock_gdfx_free_holding_statistics_em`、`stock_gdfx_holding_statistics_em`、`stock_gdfx_free_holding_change_em`、`stock_gdfx_holding_change_em`（阶段 1f，7 个）；`stock_comment_detail_zlkp_jgcyd_em`、`stock_comment_detail_zhpj_lspf_em`、`stock_hsgt_stock_statistics_em`、`stock_sy_yq_em`、`stock_sy_jz_em`（阶段 1g，5 个）；`stock_zcfz_em`、`stock_zcfz_bj_em`、`stock_lrb_em`、`stock_xjll_em`（阶段 1h，4 个）；`stock_gpzy_distribute_statistics_company_em`、`stock_gpzy_distribute_statistics_bank_em`、`stock_zh_a_gdhs_detail_em`、`stock_gdfx_free_holding_teamwork_em`、`stock_gdfx_holding_teamwork_em`、`stock_comment_detail_scrd_focus_em`、`stock_comment_detail_scrd_desire_em`、`stock_sy_hy_em`（阶段 1i，8 个）；`stock_lhb_detail_em`（由 `stock` 模块迁入，阶段 1j）、`stock_lhb_jgstatistic_em`、`stock_lhb_hyyyb_em`、`stock_lhb_yybph_em`、`stock_lhb_traderstatistic_em`、`stock_lhb_stock_detail_date_em`、`stock_lhb_stock_detail_em`、`stock_lhb_yyb_detail_em`（阶段 1j，龙虎榜 8 个，其中 detail_em 为迁入）；`stock_hsgt_hold_stock_em`、`stock_hsgt_institution_statistics_em`、`stock_hsgt_hist_em`、`stock_hsgt_board_rank_em`、`stock_hsgt_individual_em`、`stock_hsgt_individual_detail_em`（阶段 1k，沪深港通 6 个）；`stock_xgsglb_em`、`stock_analyst_rank_em`、`stock_analyst_detail_em`（阶段 1l，新股申购/分析师 3 个）；`stock_rank_cxg_ths`、`stock_rank_cxd_ths`、`stock_rank_lxsz_ths`、`stock_rank_lxxd_ths`、`stock_rank_cxfl_ths`、`stock_rank_cxsl_ths`、`stock_rank_ljqd_ths`、`stock_rank_ljqs_ths`、`stock_rank_xstp_ths`、`stock_rank_xxtp_ths`、`stock_rank_xzjp_ths`（阶段 1m，同花顺技术选股 11 个）
 - **fund（5）**：`fund_etf_hist_em`、`fund_etf_spot_em`、`fund_lof_spot_em`、`fund_etf_category_ths`、`fund_etf_spot_ths`
 - **index（3）**：`index_code_id_map_em`、`index_zh_a_hist`、`index_zh_a_hist_min_em`
-- **futures（7 · 批次 2 阶段 2a+2b）**：`futures_settle_cffex`、`futures_settle_czce`、`futures_settle_gfex`、`futures_settle_shfe`、`futures_settle_ine`（阶段 2a）；`futures_settle`（统一入口，`market` 分派）、`futures_contract_detail`（阶段 2b，新浪合约详情）
+- **futures（12 · 批次 2 阶段 2a+2b + 批次 29-A 子组 A）**：`futures_settle_cffex`、`futures_settle_czce`、`futures_settle_gfex`、`futures_settle_shfe`、`futures_settle_ine`（阶段 2a）；`futures_settle`（统一入口，`market` 分派）、`futures_contract_detail`（阶段 2b，新浪合约详情）；`futures_index_ccidx`（中证商品指数 CCIDX）、`futures_global_spot_em`（东财国际期货实时）、`futures_global_hist_em`（东财国际期货历史 kline）
 - **stock_fundamental（12 · 批次 3 阶段 3a+3b）**：`stock_restricted_release_summary_em`、`stock_restricted_release_detail_em`、`stock_restricted_release_queue_em`、`stock_restricted_release_stockholder_em`（阶段 3a）；`stock_financial_abstract_ths`、`stock_financial_debt_ths`、`stock_financial_benefit_ths`、`stock_financial_cash_ths`、`stock_financial_abstract_new_ths`、`stock_financial_debt_new_ths`、`stock_financial_benefit_new_ths`、`stock_financial_cash_new_ths`（阶段 3b，同花顺财务指标 8 个）
 - **economic（14 · 批次 3 阶段 3c）**：`macro_china_gdp_yearly`、`macro_china_cpi_yearly`、`macro_china_cpi_monthly`、`macro_china_ppi_yearly`、`macro_china_exports_yoy`、`macro_china_imports_yoy`、`macro_china_trade_balance`、`macro_china_industrial_production_yoy`、`macro_china_pmi_yearly`、`macro_china_cx_pmi_yearly`、`macro_china_cx_services_pmi_yearly`、`macro_china_non_man_pmi`、`macro_china_fx_reserves_yearly`、`macro_china_m2_yearly`（金十数据中心-中国宏观，attr_id 56–77）
 - **stock_feature / stock_fundamental（批次 3 阶段 3d 同花顺板块/新股/公司大事，10 个）**：`stock_board_industry_name_ths`、`stock_board_industry_info_ths`、`stock_board_concept_name_ths`、`stock_board_concept_info_ths`（板块名称/简介，`cate_inner` 链接 + `board-infos` dt/dd 解析）；`stock_ipo_ths`、`stock_ipo_hk_ths`（新股申购，`table#maintable` thead/tbody）；`stock_fhps_detail_ths`（分红详情，GBK 页）；`stock_profit_forecast_ths`（盈利预测，多表 thead 两级表头 colspan 展开）；`stock_management_change_ths`、`stock_shareholder_change_ths`（公司大事 event.html，精确 class 选择器区分两张同构表）
@@ -206,11 +206,11 @@
 7. **SSE 债券（上交所 Excel）**：`bond` 部分上交所债券数据走 Excel，无 calamine 解析——**未实现**（待引入 calamine）。
 8. **海外宏观 USA（jin10 源）**：`macro_usa_*` 共 49 函数，其中 41 个走金十 `datacenter-api.jin10.com/reports/list_v2`（与 `sources/jin10` 同源，源已建）；但 jin10 当前返回 **502**（PLAN §1.1 已登记），golden 无法生成、parity 无法验证——**暂缓**，待 jin10 恢复后补（批次 7 已落地澳洲/加拿大/德国/日本/瑞士/英国共 36 个东财 `RPT_ECONOMICVALUE_*` 系，与 jin10 无关）。`macro_usa_*` 中另 8 个（phs/cpi_yoy/rig_count/crude_inner/cftc_*/cme_*）走东财/CFTC/CME 等不同源，单独评估。EU/other 等其余海外宏观待评估。
 9. **spot_price_qh**：期现价格为实时波动序列，strict 比对易误报——**已改为 loose**（2026-08-12 修正 `parity_runner.py`）。同样因源返回活体「前一交易日」数据、跨调用漂移而降级 loose 的还有 `stock_zt_pool_previous_em`（源 `getYesterdayZTPool` 不采纳 date 参数，2026-08-14 修正 `parity_runner.py`）——列契约/dtype 仍严格比对，仅放行行值漂移。
-10. **EM push2 实时端点**（push2his/push2 类）：受东财瞬时限流影响——属网络环境，非代码缺陷，环境恢复后复验。新增 `stock_hot_up_em`（push2 `api/qt/ulist` 飙升榜）：golden 已由 akshare 直出，但 rust `--check` 因 EM push2 瞬时失败无法稳定验证，环境恢复后复验即可通过。
+10. **EM push2 实时端点**（push2his/push2 类）：受东财瞬时限流影响——属网络环境，非代码缺陷，环境恢复后复验。新增 `stock_hot_up_em`（push2 `api/qt/ulist` 飙升榜）：golden 已由 akshare 直出，但 rust `--check` 因 EM push2 瞬时失败无法稳定验证，环境恢复后复验即可通过。批次 29-A 的 `futures_global_hist_em`（push2his `api/qt/stock/kline/get`，国际期货日线 kline）同样因 push2his TCP 层断连（`('Connection aborted.', RemoteDisconnected(...))`，直连 akshare 同错）无法生成 golden，parity `--check` 自动跳过，非回归。
 11. **`stock_esg_rate_sina`（新浪 ESG 评级，批次 24）**：**已确认结构性源侧失效**——akshare 1.18.83 自身 `stock_esg_sina.py:176` 在 `r.json()` 抛 `JSONDecodeError`（`Expecting value: line 1 column 1`），新浪 ESG 评级端点返回非 JSON（页面改版/被拦截），连 akshare 原版都取不到数据，故 golden 无法生成（非 Rust 实现问题、非偶发抖动）。函数已实现 + `cargo build` 通过、parity 用例已注册；轮询 loop 已于 2026-08-15 停止，待新浪恢复该端点或 akshare 修复后 `python3 tools/parity_runner.py --generate --only stock_esg_rate_sina` 补 fixture。
 12. **`bond_debt_nafmii`（银行间市场交易商协会债务融资工具，批次 28）**：**已确认结构性源侧失效**——akshare 1.18.83 自身 `bond/bond_nafmii.py` 在 `r.json()` 抛 `JSONDecodeError`（`Expecting value: line 1 column 1`），`zhuce.nafmii.org.cn` 返回 **403**（WAF/anti-bot 登录页，非 JSON），连 akshare 原版都取不到数据。故**不实现、不入 parity 用例**（属 §1.2.1 登记的跳过项，与 #11 同类）。bond 子模块其余批次 28 函数（中债指数 6 + 同花顺可转债 1）均正常实现并差分对账通过；待 nafmii 源恢复或 akshare 修复后单独评估补实现。
 
-> 上述跳过/暂缓项不计入「已实现」覆盖率（477 为实际落地并 `cargo build` 通过的公开函数数，其中部分长尾端点因网络/时效在 parity 中偶发失败，已在上方逐条登记，非实现缺陷）。
+> 上述跳过/暂缓项不计入「已实现」覆盖率（487 为实际落地并 `cargo build` 通过的公开函数数，其中部分长尾端点因网络/时效在 parity 中偶发失败，已在上方逐条登记，非实现缺陷）。
 
 ---
 
@@ -685,6 +685,7 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 | 批次25 | `stock_fund_flow`（同花顺 数据中心 HTML 表，`data.10jqka.com.cn/funds`） | `stock_fund_flow_individual`, `stock_fund_flow_concept`, `stock_fund_flow_industry`, `stock_fund_flow_big_deal`（4） | `data.10jqka.com.cn/funds/{ggzjl,gnzjl,hyzjl,ddzz}`（`fetch_ths_rank` 携带 `Cookie: v={hexin-v}` 令牌 + 自动分页 → `parse_ths_table` 提取 `table.m-table.J-ajax-table` 每行 `td`；`build_fund_flow` 与 I/O 分离：`with_seq` 丢弃页面序号并以 1 基 `序号` 重排、`big_deal` 丢弃末列 `详细`；列名沿用 akshare 硬编码重命名数组，`cast_numeric` 按 `pd.read_html` 推断，`gnzjl/hyzjl`「即时」`行业-涨跌幅`/`领涨股-涨跌幅` 先 `strip_suffix("%")` 再数值化；`symbol` 即时/3日/5日/10日/20日排行 → `board/{n}` 路径段） | 4/4 ✓ |
 | 批次26 | `stock_fundamental`（东财 F10：股本结构/商誉/财务分析主要指标 A·港·美） | `stock_zh_a_gbjg_em`, `stock_sy_em`, `stock_financial_analysis_indicator_em`, `stock_financial_hk_analysis_indicator_em`, `stock_financial_us_analysis_indicator_em`（5） | 东财 datacenter：`gbjg`/`fin分析按单季度`/`hk`/`us` 走 `securities/api/data/v1/get`（`fetch_securities_pages`，`source=HSF10/F10/SECURITIES`）；`fin分析按报告期` 走 `securities/api/data/get`（非 `/v1`，新增 `fetch_securities_data_get`，141 列）；`sy_em` 走 datacenter-web `api/data/v1/get`（`fetch_datacenter_pages` + `token`）。列契约与 akshare 逐字对齐：财务分析三市场返回原生英文键（identity rename），`gbjg`/`sy_em` 按 akshare 硬编码重命名数组还原；`sy_em` 的 `交易市场` 枚举映射（`shzb→沪市主板` 等）；日期列保持字符串；`us` 先经 `RPT_USF10_INFO_ORGPROFILE` 市场查询得 `SECUCODE` 再拉主要指标 | 5/5 ✓ |
 | 批次27 | `stock_fundamental` + `stock`（东财 emweb F10 / np-anotice-stock） | `stock_zygc_em`, `stock_notice_report`, `stock_individual_notice_report`（stock_fundamental）, `stock_zh_kcb_report_em`（stock）（4） | 东财个股 F10 主营构成 `emweb.securities.eastmoney.com/PC_HSF10/BusinessAnalysis/PageAjax`（`zygcfx` 数组，`分类类型` 枚举映射 `1→按行业分类` 等，收入/成本/利润/毛利率数值化）；东财公告大全 `np-anotice-stock.eastmoney.com/api/security/ann`（`ann_type=A/KCB`，`codes`/`columns[0]` 嵌套数组分别取 代码/名称 与 公告类型，按报告类型 `f_node` 映射与日期/个股分页，`网址` 由 代码+art_code 拼接；`codes` 多证券时按 `ann_type` 以 `A` 开头者优先）；`stock_zh_kcb_report_em` 走 `ann_type=KCB`，返回 `公告代码` 列 | 4/4 ✓ |
+| 批次29-A | `futures`（东财国际期货 + 中证商品指数，子组 A） | `futures_index_ccidx`, `futures_global_spot_em`, `futures_global_hist_em`（3） | 中证商品指数 `ccidx.com/CCI-ZZZS/index/getDateLine`（`pd.DataFrame(dateLineJson)` 全 24 列，仅 6 字段中文化 rename，其余原样；`日期/createTime/指数代码` 三列保留 str，余下 cast_numeric）；东财国际期货实时 `futsseapi.eastmoney.com/list`（复用 `option_current_em` 模板，14 列，`序号` 1 基数值化）；东财国际期货历史 `push2his.eastmoney.com/api/qt/stock/kline/get`（klt=101 日线，`日增` 还原 2^32 回卷）。规划 4 函数，`futures_rule_em` 因非公开 API（`akshare` 无此属性）移除，子组 A 实落 3 函数 | 3/3 ✓（其中 `futures_global_hist_em` 因 push2his TCP 断连无 golden，parity 跳过，非回归）|
 
 **累计新增（批次11–27）：59 个函数（28 个数据中心函数 含 1 个非标准 dataapi host、1 个新浪 HTML 表解析、2 个期货库存 datacenter、1 个利率 datacenter 新模块、1 个注册制达标企业 + 7 个东财个股人气榜 POST-JSON 函数 + 5 个东财涨停板行情变体 + 5 个新浪 ESG 评级 JSON 函数 + 4 个同花顺资金流向 HTML 表函数 + 5 个东财 F10 股本/商誉/财务分析主要指标函数 + 4 个东财公告大全/主营构成函数（emweb F10 + np-anotice-stock））。**
 > 批次22 的 7 个 `stock_hot_*` 函数已实现并通过离线单测（5 个 `hot_*_offline` 用例，覆盖列契约/数值化/涨跌额=最新价×涨跌幅/100/粉丝占比÷100/按时间升序）+ `cargo clippy --all-targets -D warnings` + 全量 `cargo test --lib`（190 passed）。parity 跨语言对照（`tools/parity_runner.py --generate/--check`，loose 比列契约）7/7 全部通过：golden 已生成（`tests/golden/stock_hot_*.json`），Rust 输出列名与 akshare 一致。
@@ -696,6 +697,7 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > 原 §9.1 标注的 finicky 项 `stock_register_db` 已落地：验证确认东财忽略 `columns=KCB_LB` 限制、返回完整行（含 `ORG_NAME`），故 rename 以 `ORG_NAME→企业名称` 为准，无实际列名不一致。注册制审核整族（`stock_register_all_em/kcb/cyb/bj/sh/sz/db`，BATCH8 + 批次21）至此全部落地。
 > 附带修复：核心 `detect_block_or_auth` 的 `400016` 登录态判据原为裸子串匹配，会误伤含该数字子串的大响应体（如 COMEX 白银库存报表），改为仅匹配雪球错误信封 `"error_code":400016`，并新增回归单测 `detect_400016_not_in_data`。
 > 限售股解禁整族（`stock_restricted_release_*`）至此全部落地：4 个东财 `_em` 函数（`summary_em` / `detail_em` / `queue_em` / `stockholder_em`，批次 10 已提交）+ 1 个新浪 `queue_sina`（批次 18）。
+> 批次29-A 的 3 个期货国际/指数函数（`futures_index_ccidx`/`futures_global_spot_em`/`futures_global_hist_em`）已实现并通过 `cargo build` + `cargo clippy --all-targets -D warnings` + 全量 `cargo test --lib`（218 passed）。parity 跨语言对照（loose 比列契约+dtype）：`futures_index_ccidx`（24 列×970 行，2 个 symbol 用例）、`futures_global_spot_em`（14 列×620 行）均通过；`futures_global_hist_em` 因东财 `push2his` 实时端点 TCP 层断连（直连 akshare 同错，属 §1.2.1 #10 EM push2 阻断，非代码缺陷）暂无 golden，`--check` 自动跳过。子组 A 由规划 4 函数（含 `futures_rule_em`）降为 3 函数：`futures_rule_em` 经 `dir(ak)` 确认非公开 API（`akshare.futures_rule_em` 不存在，仅有 `futures_rule` 国泰君安 HTML 表，源 `futures_rule.py`），已移出子组 A。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在

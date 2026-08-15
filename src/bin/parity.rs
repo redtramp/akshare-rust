@@ -153,7 +153,8 @@ use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
 };
 use akshare_rust::futures::{
-    futures_comex_inventory, futures_contract_detail, futures_inventory_em, futures_settle,
+    futures_comex_inventory, futures_contract_detail, futures_global_hist_em, futures_global_spot_em,
+    futures_index_ccidx, futures_inventory_em, futures_settle,
     futures_settle_cffex, futures_settle_czce, futures_settle_gfex, futures_settle_ine,
     futures_settle_shfe,
 };
@@ -1006,6 +1007,15 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_inventory_em" => {
             let [s] = take1(func, args)?;
             Ok(futures_inventory_em(s)?)
+        }
+        "futures_index_ccidx" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_index_ccidx(s)?)
+        }
+        "futures_global_spot_em" => Ok(futures_global_spot_em()?),
+        "futures_global_hist_em" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_global_hist_em(s)?)
         }
         "rate_interbank" => {
             let [m, s, ind] = take3(func, args)?;

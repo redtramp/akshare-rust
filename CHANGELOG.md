@@ -4,6 +4,14 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-15] 批次 29-A · futures 国际/指数（子组 A）
+
+- **新增公开函数**：**484 → 487**（净 +3）。`src/futures/em_global.rs` 落地 3 个国际期货/商品指数函数：中证商品指数 `futures_index_ccidx`（CCIDX `getDateLine`，全 24 列仅 6 字段中文化、余原样，三字符串列保留 str）+ 东财国际期货实时 `futures_global_spot_em`（`futsseapi.eastmoney.com/list`，复用 `option_current_em` 模板，14 列，`序号` 1 基数值化）+ 东财国际期货历史 `futures_global_hist_em`（push2his kline 日线，`日增` 还原 2^32 回卷）。
+- **实现覆盖率**：**≈ 44.5%**（487 / 1094 公开 API）；golden 差分验证 **425 fixture / ≈410 去重函数 ≈ 37.5%**，parity 注册用例 473 / 465 唯一函数；futures 大类 **10.0% → 17.1%**（7 → 12 / 70）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(218) 全绿。
+- **parity 验证**：`futures_index_ccidx`（24 列×970 行，2 个 symbol 用例）、`futures_global_spot_em`（14 列×620 行）loose 比对（列名+dtype）全部通过；`futures_global_hist_em` 因东财 push2his TCP 断连（直连 akshare 同错，属 §1.2.1 #10 EM push2 阻断）暂无 golden，`--check` 自动跳过，非回归。
+- **范围调整**：子组 A 原规划 4 函数（含 `futures_rule_em`），经 `dir(ak)` 确认 `futures_rule_em` 非公开 API（`akshare` 仅含 `futures_rule` 国泰君安 HTML 表），已移除，实落 3 函数。
+
 ## [2026-08-15] 批次 28 · bond g_calc 中债指数/同花顺可转债/国债收益率
 
 - **新增公开函数**：**477 → 484**（净 +7）。`src/bond/g_calc.rs` 落地 7 个纯计算/索引类债券函数：中债指数族系 6（`bond_available_index_cbond`、`bond_index_general_cbond`、`bond_treasury_index_cbond`、`bond_new_composite_index_cbond`、`bond_composite_index_cbond`、`bond_china_yield`）+ 同花顺可转债 1（`bond_zh_cov_info_ths`）。

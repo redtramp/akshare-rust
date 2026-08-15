@@ -1,0 +1,234 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "preSettlePrice",
+      "dtype": "float64"
+    },
+    {
+      "name": "settlePriceNorm",
+      "dtype": "float64"
+    },
+    {
+      "name": "dailyIncreaseAndDecreasePercentageClose",
+      "dtype": "float64"
+    },
+    {
+      "name": "结算点位",
+      "dtype": "float64"
+    },
+    {
+      "name": "日期",
+      "dtype": "str"
+    },
+    {
+      "name": "oneYearAnnualizedReturnPercentage",
+      "dtype": "float64"
+    },
+    {
+      "name": "openingPrice",
+      "dtype": "float64"
+    },
+    {
+      "name": "dailyIncreaseAndDecreaseClose",
+      "dtype": "float64"
+    },
+    {
+      "name": "lowPrice",
+      "dtype": "float64"
+    },
+    {
+      "name": "threeMonthChangePercentage",
+      "dtype": "float64"
+    },
+    {
+      "name": "createTime",
+      "dtype": "str"
+    },
+    {
+      "name": "highPrice",
+      "dtype": "float64"
+    },
+    {
+      "name": "tenYearAnnualizedReturnPercentage",
+      "dtype": "float64"
+    },
+    {
+      "name": "指数代码",
+      "dtype": "str"
+    },
+    {
+      "name": "收盘点位",
+      "dtype": "float64"
+    },
+    {
+      "name": "涨跌",
+      "dtype": "float64"
+    },
+    {
+      "name": "closingPriceNorm",
+      "dtype": "float64"
+    },
+    {
+      "name": "preClosingPrice",
+      "dtype": "float64"
+    },
+    {
+      "name": "fiveYearAnnualizedReturnPercentage",
+      "dtype": "float64"
+    },
+    {
+      "name": "yearToDateChangePercentage",
+      "dtype": "float64"
+    },
+    {
+      "name": "sixMonthChangePercentage",
+      "dtype": "float64"
+    },
+    {
+      "name": "oneMonthChangePercentage",
+      "dtype": "float64"
+    },
+    {
+      "name": "涨跌幅",
+      "dtype": "float64"
+    },
+    {
+      "name": "threeYearAnnualizedReturnPercentage",
+      "dtype": "float64"
+    }
+  ],
+  "height": 970,
+  "head": [
+    [
+      "1368.42",
+      "1000.0",
+      "-1.61",
+      "1360.83",
+      "2022-08-15",
+      "1.94",
+      "1363.13",
+      "-22.11",
+      "1347.18",
+      "-9.37",
+      "{'date': {'month': 10, 'year': 2025, 'day': 30}, 'time': {'hour': 17, 'nano': 763000000, 'minute': 41, 'second': 9}}",
+      "1371.74",
+      "2.51",
+      "000001.CCI",
+      "1351.06",
+      "-7.59",
+      "1000.0",
+      "1373.17",
+      "6.42",
+      "3.71",
+      "-3.98",
+      "9.73",
+      "-0.55",
+      "10.18"
+    ],
+    [
+      "1360.83",
+      "985.55",
+      "-0.24",
+      "1341.16",
+      "2022-08-16",
+      "-0.31",
+      "1331.61",
+      "-3.27",
+      "1327.62",
+      "-11.52",
+      "{'date': {'month': 10, 'year': 2025, 'day': 30}, 'time': {'hour': 17, 'nano': 785000000, 'minute': 41, 'second': 9}}",
+      "1353.81",
+      "2.34",
+      "000001.CCI",
+      "1347.79",
+      "-19.67",
+      "997.58",
+      "1351.06",
+      "6.15",
+      "2.21",
+      "-4.84",
+      "8.14",
+      "-1.45",
+      "9.69"
+    ],
+    [
+      "1341.16",
+      "983.41",
+      "-1.6",
+      "1338.25",
+      "2022-08-17",
+      "-0.35",
+      "1346.67",
+      "-21.5",
+      "1325.87",
+      "-12.47",
+      "{'date': {'month': 10, 'year': 2025, 'day': 30}, 'time': {'hour': 17, 'nano': 808000000, 'minute': 41, 'second': 9}}",
+      "1349.89",
+      "2.31",
+      "000001.CCI",
+      "1326.29",
+      "-2.91",
+      "981.67",
+      "1347.79",
+      "5.71",
+      "1.99",
+      "-5.13",
+      "7.91",
+      "-0.22",
+      "9.6"
+    ],
+    [
+      "1338.25",
+      "967.99",
+      "-1.31",
+      "1317.27",
+      "2022-08-18",
+      "-1.12",
+      "1319.52",
+      "-17.34",
+      "1308.41",
+      "-13.31",
+      "{'date': {'month': 10, 'year': 2025, 'day': 30}, 'time': {'hour': 17, 'nano': 831000000, 'minute': 41, 'second': 9}}",
+      "1325.25",
+      "2.15",
+      "000001.CCI",
+      "1308.95",
+      "-20.98",
+      "968.83",
+      "1326.29",
+      "5.29",
+      "0.39",
+      "-7.17",
+      "5.12",
+      "-1.57",
+      "9.02"
+    ],
+    [
+      "1317.27",
+      "964.54",
+      "-0.1",
+      "1312.57",
+      "2022-08-19",
+      "0.36",
+      "1318.55",
+      "-1.29",
+      "1305.76",
+      "-12.65",
+      "{'date': {'month': 10, 'year': 2025, 'day': 30}, 'time': {'hour': 17, 'nano': 853000000, 'minute': 41, 'second': 9}}",
+      "1319.61",
+      "2.11",
+      "000001.CCI",
+      "1307.66",
+      "-4.7",
+      "967.88",
+      "1308.95",
+      "5.21",
+      "0.03",
+      "-7.51",
+      "2.62",
+      "-0.36",
+      "8.92"
+    ]
+  ]
+}
