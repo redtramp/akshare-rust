@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "item",
+      "dtype": "str"
+    },
+    {
+      "name": "value",
+      "dtype": "str"
+    }
+  ],
+  "height": 10,
+  "head": [
+    [
+      "marketType",
+      "000001"
+    ],
+    [
+      "marketAllCount",
+      "5543"
+    ],
+    [
+      "calcTime",
+      "2026-08-15 11:14:00"
+    ],
+    [
+      "innerCode",
+      "000665"
+    ],
+    [
+      "srcSecurityCode",
+      "SZ000665"
+    ]
+  ]
+}

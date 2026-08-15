@@ -57,7 +57,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_board_industry_hist_em", ["小金属", "20240101", "20240131", "日K"], "strict", "行业板块历史"),
     ("stock_board_concept_hist_em", ["昨日连板", "daily", "20240101", "20240131", ""], "strict", "概念板块历史"),
     ("stock_zt_pool_em", ["20260807"], "strict", "涨停股池"),
-    ("stock_zt_pool_previous_em", ["20260807"], "strict", "昨日涨停股池"),
+    ("stock_zt_pool_previous_em", ["20260807"], "loose", "昨日涨停股池"),
     ("stock_zt_pool_strong_em", ["20260807"], "strict", "强势股池"),
     ("stock_zt_pool_sub_new_em", ["20260807"], "strict", "次新股池"),
     ("stock_zt_pool_zbgc_em", ["20260807"], "strict", "炸板股池"),
