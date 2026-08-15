@@ -1,0 +1,62 @@
+FUNCTION: stock_financial_us_analysis_indicator_em
+SHAPE: (20, 49)
+
+COLUMNS:
+['SECUCODE', 'SECURITY_CODE', 'SECURITY_NAME_ABBR', 'ORG_CODE', 'SECURITY_INNER_CODE', 'ACCOUNTING_STANDARDS', 'NOTICE_DATE', 'START_DATE', 'REPORT_DATE', 'FINANCIAL_DATE', 'STD_REPORT_DATE', 'CURRENCY', 'DATE_TYPE', 'DATE_TYPE_CODE', 'REPORT_TYPE', 'REPORT_DATA_TYPE', 'ORGTYPE', 'OPERATE_INCOME', 'OPERATE_INCOME_YOY', 'GROSS_PROFIT', 'GROSS_PROFIT_YOY', 'PARENT_HOLDER_NETPROFIT', 'PARENT_HOLDER_NETPROFIT_YOY', 'BASIC_EPS', 'DILUTED_EPS', 'GROSS_PROFIT_RATIO', 'NET_PROFIT_RATIO', 'ACCOUNTS_RECE_TR', 'INVENTORY_TR', 'TOTAL_ASSETS_TR', 'ACCOUNTS_RECE_TDAYS', 'INVENTORY_TDAYS', 'TOTAL_ASSETS_TDAYS', 'ROE_AVG', 'ROA', 'CURRENT_RATIO', 'SPEED_RATIO', 'OCF_LIQDEBT', 'DEBT_ASSET_RATIO', 'EQUITY_RATIO', 'BASIC_EPS_YOY', 'GROSS_PROFIT_RATIO_YOY', 'NET_PROFIT_RATIO_YOY', 'ROE_AVG_YOY', 'ROA_YOY', 'DEBT_ASSET_RATIO_YOY', 'CURRENT_RATIO_YOY', 'SPEED_RATIO_YOY', 'CURRENCY_ABBR']
+
+DTYPES:
+SECUCODE                           str
+SECURITY_CODE                      str
+SECURITY_NAME_ABBR                 str
+ORG_CODE                           str
+SECURITY_INNER_CODE                str
+ACCOUNTING_STANDARDS               str
+NOTICE_DATE                        str
+START_DATE                         str
+REPORT_DATE                        str
+FINANCIAL_DATE                     str
+STD_REPORT_DATE                    str
+CURRENCY                           str
+DATE_TYPE                          str
+DATE_TYPE_CODE                     str
+REPORT_TYPE                        str
+REPORT_DATA_TYPE                   str
+ORGTYPE                            str
+OPERATE_INCOME                 float64
+OPERATE_INCOME_YOY             float64
+GROSS_PROFIT                   float64
+GROSS_PROFIT_YOY               float64
+PARENT_HOLDER_NETPROFIT          int64
+PARENT_HOLDER_NETPROFIT_YOY    float64
+BASIC_EPS                      float64
+DILUTED_EPS                    float64
+GROSS_PROFIT_RATIO             float64
+NET_PROFIT_RATIO               float64
+ACCOUNTS_RECE_TR               float64
+INVENTORY_TR                   float64
+TOTAL_ASSETS_TR                float64
+ACCOUNTS_RECE_TDAYS            float64
+INVENTORY_TDAYS                float64
+TOTAL_ASSETS_TDAYS             float64
+ROE_AVG                        float64
+ROA                            float64
+CURRENT_RATIO                  float64
+SPEED_RATIO                    float64
+OCF_LIQDEBT                    float64
+DEBT_ASSET_RATIO               float64
+EQUITY_RATIO                   float64
+BASIC_EPS_YOY                  float64
+GROSS_PROFIT_RATIO_YOY         float64
+NET_PROFIT_RATIO_YOY           float64
+ROE_AVG_YOY                    float64
+ROA_YOY                        float64
+DEBT_ASSET_RATIO_YOY           float64
+CURRENT_RATIO_YOY              float64
+SPEED_RATIO_YOY                float64
+CURRENCY_ABBR                      str
+
+FIRST 3 ROWS:
+  SECUCODE SECURITY_CODE SECURITY_NAME_ABBR  ORG_CODE SECURITY_INNER_CODE ACCOUNTING_STANDARDS          NOTICE_DATE           START_DATE          REPORT_DATE FINANCIAL_DATE      STD_REPORT_DATE CURRENCY DATE_TYPE DATE_TYPE_CODE REPORT_TYPE REPORT_DATA_TYPE ORGTYPE  OPERATE_INCOME  OPERATE_INCOME_YOY  GROSS_PROFIT  GROSS_PROFIT_YOY  PARENT_HOLDER_NETPROFIT  PARENT_HOLDER_NETPROFIT_YOY  BASIC_EPS  DILUTED_EPS  GROSS_PROFIT_RATIO  NET_PROFIT_RATIO  ACCOUNTS_RECE_TR  INVENTORY_TR  TOTAL_ASSETS_TR  ACCOUNTS_RECE_TDAYS  INVENTORY_TDAYS  TOTAL_ASSETS_TDAYS    ROE_AVG        ROA  CURRENT_RATIO  SPEED_RATIO  OCF_LIQDEBT  DEBT_ASSET_RATIO  EQUITY_RATIO  BASIC_EPS_YOY  GROSS_PROFIT_RATIO_YOY  NET_PROFIT_RATIO_YOY  ROE_AVG_YOY    ROA_YOY  DEBT_ASSET_RATIO_YOY  CURRENT_RATIO_YOY  SPEED_RATIO_YOY CURRENCY_ABBR
+0   TSLA.O          TSLA                特斯拉  10266819          1000195568               美国会计准则  2026-01-29 00:00:00  2025-01-01 00:00:00  2025-12-31 00:00:00          12-31  2025-12-31 00:00:00       美元        年报            001     2025/FY         2025年 年报    一般企业    9.482700e+10           -2.930699  1.709400e+10         -2.040115               3794000000                   -46.495558       1.18         1.08           18.026511          4.065298         21.086724      6.369208         0.729787            17.072353        56.521940          493.294948   4.893905   2.919854       2.164407     1.773665     0.465000         39.868366     66.301816     -47.085202                0.917473            -44.479387   -53.225626 -52.916684              0.573081           6.888915        10.305307           USD
+1   TSLA.O          TSLA                特斯拉  10266819          1000195568               美国会计准则  2026-01-29 00:00:00  2024-01-01 00:00:00  2024-12-31 00:00:00          12-31  2024-12-31 00:00:00       美元        年报            001     2024/FY         2024年 年报    一般企业    9.769000e+10            0.947578  1.745000e+10         -1.189128               7091000000                   -52.717210       2.23         2.04           17.862627          7.322141         24.650517      6.258238         0.854352            14.604156        57.524177          421.372095  10.462792   6.201462       2.024912     1.607959     0.517782         39.641189     65.675896     -52.854123               -2.116649            -52.678937   -62.557341 -60.932070             -1.730700          17.325422        28.440175           USD
+2   TSLA.O          TSLA                特斯拉  10266819          1000195568               美国会计准则  2026-01-29 00:00:00  2023-01-01 00:00:00  2023-12-31 00:00:00          12-31  2023-12-31 00:00:00       美元        年报            001     2023/FY         2023年 年报    一般企业    9.677300e+10           18.795267  1.766000e+10        -15.311946              14997000000                    19.440905       4.73         4.30           18.248892         15.473324         29.960681      5.978689         1.024291            12.015748        60.213871          351.462495  27.943506  15.873537       1.725894     1.251913     0.461110         40.339342     67.614646      17.661692              -28.710918              0.142046   -16.662434  -8.679756             -8.851241          12.659536        19.087360           USD
