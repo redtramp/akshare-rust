@@ -541,6 +541,14 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("bond_zh_hs_cov_spot", [], "loose", "沪深可转债实时行情"),
     ("bond_cb_profile_sina", ["sz128039"], "loose", "可转债详情资料"),
     ("bond_cb_summary_sina", ["sh155255"], "loose", "可转债债券概况"),
+    # 阶段6: BATCH28 bond g_calc（chinabond 中债指数 / 同花顺可转债 / 国债收益率）
+    ("bond_available_index_cbond", [], "loose", "中债可选项中债指数列表"),
+    ("bond_zh_cov_info_ths", [], "loose", "同花顺可转债行情"),
+    ("bond_china_yield", ["20240101", "20240201"], "loose", "国债收益率曲线"),
+    ("bond_index_general_cbond", ["新综合指数", "全价", "总值"], "loose", "中债指数-通用"),
+    ("bond_treasury_index_cbond", ["财富", "5Y"], "loose", "中债-国债指数"),
+    ("bond_new_composite_index_cbond", ["财富", "总值"], "loose", "中债-新综合指数"),
+    ("bond_composite_index_cbond", ["财富", "总值"], "loose", "中债-综合指数"),
     # === BATCH5 LONGTAIL (spot/energy/currency/news/fx/fortune) ===
     ("fx_spot_quote", [], "loose", "外汇即期报价"),
     ("fx_swap_quote", [], "loose", "外汇远掉报价"),

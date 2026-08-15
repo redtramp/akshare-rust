@@ -17,6 +17,7 @@ pub mod g_sina;
 pub(crate) mod util;
 
 // 各子模块按实现阶段逐步 re-export；当前阶段1（chinamoney）+ 阶段2（jisilu）就绪，em/sina 等后续阶段追加。
+pub use g_calc::*;
 pub use g_cm::*;
 pub use g_em::*;
 pub use g_jsl::*;

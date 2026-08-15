@@ -64,16 +64,16 @@
 
 ---
 
-### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-14 刷新至批次 27）
+### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-15 刷新至批次 28）
 
-> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以「doc comment 声明对应 akshare `akshare.X`、且 `cargo build` 通过」的**用户面公开函数**为准，**477** 个（批次 13 = 436，批次 15–27 净增 41，跳过批次 14；无函数被移除），并逐一与 akshare 公开名交叉验证（`cargo test --lib` 218 passed 含存在性校验，无虚报）。另有 ~53 个源层公开 helper（`eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等）不计入覆盖率分母。golden 差分验证覆盖见下表「golden 覆盖率」。
+> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以「doc comment 声明对应 akshare `akshare.X`、且 `cargo build` 通过」的**用户面公开函数**为准，**484** 个（批次 13 = 436，批次 15–28 净增 48，跳过批次 14；无函数被移除），并逐一与 akshare 公开名交叉验证（`cargo test --lib` 218 passed 含存在性校验，无虚报）。另有 ~53 个源层公开 helper（`eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等）不计入覆盖率分母。golden 差分验证覆盖见下表「golden 覆盖率」。
 
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现用户面函数（cargo build 通过） | **477**（批次 13 = 436，批次 15–27 净增 41；无批次 14）|
-| 实现覆盖率（477 / 1094） | **≈ 43.6%** |
-| golden 差分验证覆盖 | **415 fixture 文件 / ≈400 去重函数 ≈ 36.6%**（parity 注册用例 463 / 455 唯一函数；55 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
+| Rust 已实现用户面函数（cargo build 通过） | **484**（批次 13 = 436，批次 15–28 净增 48；无批次 14）|
+| 实现覆盖率（484 / 1094） | **≈ 44.2%** |
+| golden 差分验证覆盖 | **422 fixture 文件 / ≈407 去重函数 ≈ 37.2%**（parity 注册用例 470 / 462 唯一函数；55 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report 等）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -89,7 +89,7 @@
 | economic | 31 | 226 | 13.7% |
 | futures | 7 | 70 | 10.0% |
 | option | 46 | 47 | 97.9% |
-| bond | 29 | 46 | 63.0% |
+| bond | 36 | 46 | 78.3% |
 | currency | 2 | ~数十 | 长尾 |
 | energy | 7 | ~数十 | 长尾 |
 | news | 5 | ~数十 | 长尾 |
@@ -170,6 +170,7 @@
 > - **批次 25 · 同花顺资金流向（4 个 `stock_fund_flow_*`）**：✅ 已实现。同花顺资金流：`stock_fund_flow_big_deal`（大单）/`stock_fund_flow_concept`（概念）/`stock_fund_flow_individual`（个股）/`stock_fund_flow_industry`（行业）。golden 已生成。
 > - **批次 26 · 东财 F10 股本结构/商誉/财务分析主要指标（5 个）**：✅ 已实现。`stock_zh_a_gbjg_em`（股本结构）、`stock_sy_em`（商誉）、`stock_financial_analysis_indicator_em`（A 股）/`stock_financial_hk_analysis_indicator_em`（港股）/`stock_financial_us_analysis_indicator_em`（美股）财务分析主要指标。golden 已生成（batch26 探查工件见 `tests/golden_probe/`）。
 > - **批次 27 · 东财公告大全/主营构成（4 个）**：✅ 已实现。`stock_notice_report`（公告大全）、`stock_individual_notice_report`（个股公告）、`stock_zh_kcb_report_em`（科创板公告）、`stock_zygc_em`（主营构成）。golden 已生成。
+> - **批次 28 · bond g_calc 中债指数/同花顺可转债/国债收益率（7 个）**：✅ 已完成并验证（2026-08-15）。在 `src/bond/g_calc.rs`（对应 akshare `bond/bond_cbond.py` / `bond/bond_cb_ths.py` / `bond/bond_china.py`）落地 7 个函数，复用 `src/core/http.rs`（POST query 参数 / GET 文本 / GET 自定义头）+ `src/core/html.rs::read_html` + `src/core/df.rs`（cast_date/cast_numeric/sort_by/select）：**中债指数族系 6 个**——`bond_available_index_cbond`（返回 313 项指数名列表）、`bond_index_general_cbond(index_category, indicator, period)`（POST `singleIndexQueryResult`，用 `INDEX_MAPPING`/`PERIOD_MAPPING`/`INDICATOR_MAPPING` 查 code）、`bond_treasury_index_cbond(indicator, period)`（POST `singleIndexQueryResult`，用 `TREASURY_INDEX_ID` + `INDICATOR_MAPPING`）、`bond_new_composite_index_cbond(indicator, period)`（POST `singleIndexQuery`，固定新综合指数 indexid）、`bond_composite_index_cbond(indicator, period)`（POST `singleIndexQuery`，固定综合指数 indexid）、`bond_china_yield(start_date, end_date)`（GET `historyQuery` → `replace("&nbsp","")` → `read_html` 取第 2 张表 → 日期升序）；**同花顺可转债 1 个**——`bond_zh_cov_info_ths`（GET `data.10jqka.com.cn/ipo/kzz/` 自定义 UA，19 源字段映射为 16 目标列，日期列归一化 + 数量列数值化）。313 项 `INDEX_MAPPING` / 13 项 `PERIOD_MAPPING` / 17 项 `INDICATOR_MAPPING` / 13 项 `TREASURY_INDEX_ID` 均由 Python 脚本直读 akshare 常量生成字面量（零转录错误）。中债指数 UTC 毫秒时间戳经 `+8h` 偏移 + Howard Hinnant 历法算法换算为上海日期（避免引入 chrono）。7 个函数全部差分对账通过（loose 7/7 PASS：available 2×313、zh_cov_info 16×956、china_yield 10×69、index_general 2×6157、treasury 2×4654、new_composite 2×6157、composite 2×6157）；`cargo clippy --all-targets -- -D warnings` 零告警、`cargo test --lib` 218 passed 无回归；在 `src/bin/parity.rs` 与 `tools/parity_runner.py` 注册 7 个用例（loose 模式）。公开函数 **477 → 484**（bond 29 → 36）。**注意 `bond_zh_cov_info_ths` 列构建**：akshare 把 `issue_price`/`market_id`/`stock_market_id` 重命名为 `"-"` 后 `select` 丢弃，pandas 容忍重名列但 polars 不允许，故直接构建 16 个目标列、不引入 `"-"` 列。`bond_debt_nafmii`（nafmii 源）已确认结构性源侧失效（zhuce.nafmii.org.cn 返回 403 WAF/anti-bot，连 akshare 原版都 `JSONDecodeError`），不实现、不入 parity 用例（见 §1.2.1 #12）。
 
 **关键判断：**
 
@@ -178,7 +179,7 @@
 3. **质量高于数量**：每个实现均列名/列序逐字对齐、离线单测、JS 引擎验证，满足 §9 生产级标准（clippy `-D warnings`、无 unwrap）。
 4. **真实网络验证有缺口**（见 README「已知限制」）：legulegu 当前返回 403、部分东财 clist 接口因限流未能真实验证，靠键名映射 + 离线单测保障正确性——这部分计入「已实现」但需在环境恢复后补真实对账。
 
-**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–27 集成，已实现用户面函数 **477** 个（约 **43.6%** 公开函数），其中 **≈400** 个函数经 golden 差分验证（**≈36.6%**），覆盖 24/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange + 海外宏观 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report）。距 1094 全量目标，剩余 ~56% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 17、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
+**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–28 集成，已实现用户面函数 **484** 个（约 **44.2%** 公开函数），其中 **≈407** 个函数经 golden 差分验证（**≈37.2%**），覆盖 24/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange + 海外宏观 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report）。距 1094 全量目标，剩余 ~56% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 10、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
 
 ---
 
@@ -207,6 +208,7 @@
 9. **spot_price_qh**：期现价格为实时波动序列，strict 比对易误报——**已改为 loose**（2026-08-12 修正 `parity_runner.py`）。同样因源返回活体「前一交易日」数据、跨调用漂移而降级 loose 的还有 `stock_zt_pool_previous_em`（源 `getYesterdayZTPool` 不采纳 date 参数，2026-08-14 修正 `parity_runner.py`）——列契约/dtype 仍严格比对，仅放行行值漂移。
 10. **EM push2 实时端点**（push2his/push2 类）：受东财瞬时限流影响——属网络环境，非代码缺陷，环境恢复后复验。新增 `stock_hot_up_em`（push2 `api/qt/ulist` 飙升榜）：golden 已由 akshare 直出，但 rust `--check` 因 EM push2 瞬时失败无法稳定验证，环境恢复后复验即可通过。
 11. **`stock_esg_rate_sina`（新浪 ESG 评级，批次 24）**：**已确认结构性源侧失效**——akshare 1.18.83 自身 `stock_esg_sina.py:176` 在 `r.json()` 抛 `JSONDecodeError`（`Expecting value: line 1 column 1`），新浪 ESG 评级端点返回非 JSON（页面改版/被拦截），连 akshare 原版都取不到数据，故 golden 无法生成（非 Rust 实现问题、非偶发抖动）。函数已实现 + `cargo build` 通过、parity 用例已注册；轮询 loop 已于 2026-08-15 停止，待新浪恢复该端点或 akshare 修复后 `python3 tools/parity_runner.py --generate --only stock_esg_rate_sina` 补 fixture。
+12. **`bond_debt_nafmii`（银行间市场交易商协会债务融资工具，批次 28）**：**已确认结构性源侧失效**——akshare 1.18.83 自身 `bond/bond_nafmii.py` 在 `r.json()` 抛 `JSONDecodeError`（`Expecting value: line 1 column 1`），`zhuce.nafmii.org.cn` 返回 **403**（WAF/anti-bot 登录页，非 JSON），连 akshare 原版都取不到数据。故**不实现、不入 parity 用例**（属 §1.2.1 登记的跳过项，与 #11 同类）。bond 子模块其余批次 28 函数（中债指数 6 + 同花顺可转债 1）均正常实现并差分对账通过；待 nafmii 源恢复或 akshare 修复后单独评估补实现。
 
 > 上述跳过/暂缓项不计入「已实现」覆盖率（477 为实际落地并 `cargo build` 通过的公开函数数，其中部分长尾端点因网络/时效在 parity 中偶发失败，已在上方逐条登记，非实现缺陷）。
 

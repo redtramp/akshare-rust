@@ -276,6 +276,9 @@ use akshare_rust::bond::{
     bond_spot_deal, bond_spot_quote, bond_sz_buy_back_em, bond_zh_cov, bond_zh_cov_info,
     bond_zh_cov_value_analysis, bond_zh_hs_cov_daily, bond_zh_hs_cov_min, bond_zh_hs_cov_spot,
     bond_zh_hs_cov_pre_min, bond_zh_hs_daily, bond_zh_hs_spot, bond_zh_us_rate,
+    bond_available_index_cbond, bond_china_yield, bond_composite_index_cbond,
+    bond_index_general_cbond, bond_new_composite_index_cbond, bond_treasury_index_cbond,
+    bond_zh_cov_info_ths,
 };
 use akshare_rust::currency::{currency_boc_safe, currency_boc_sina};
 use akshare_rust::energy::{energy_carbon_gz, energy_carbon_hb, energy_oil_detail, energy_oil_hist};
@@ -1425,6 +1428,29 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "bond_zh_us_rate" => {
             let [s] = take1(func, args)?;
             Ok(bond_zh_us_rate(s)?)
+        }
+        // 阶段6: BATCH28 bond g_calc（chinabond 中债指数 / 同花顺可转债 / 国债收益率）
+        "bond_available_index_cbond" => Ok(bond_available_index_cbond()?),
+        "bond_zh_cov_info_ths" => Ok(bond_zh_cov_info_ths()?),
+        "bond_china_yield" => {
+            let [d0, d1] = take2(func, args)?;
+            Ok(bond_china_yield(d0, d1)?)
+        }
+        "bond_index_general_cbond" => {
+            let [a, b, c] = take3(func, args)?;
+            Ok(bond_index_general_cbond(a, b, c)?)
+        }
+        "bond_treasury_index_cbond" => {
+            let [a, b] = take2(func, args)?;
+            Ok(bond_treasury_index_cbond(a, b)?)
+        }
+        "bond_new_composite_index_cbond" => {
+            let [a, b] = take2(func, args)?;
+            Ok(bond_new_composite_index_cbond(a, b)?)
+        }
+        "bond_composite_index_cbond" => {
+            let [a, b] = take2(func, args)?;
+            Ok(bond_composite_index_cbond(a, b)?)
         }
         // 阶段5: 新浪 sina 债券
         "bond_gb_zh_sina" => {
