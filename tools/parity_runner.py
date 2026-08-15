@@ -303,6 +303,19 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("futures_hist_table_em", [], "loose", "东财-期货品种对照表"),
     ("futures_hist_em", ["热卷主连", "daily", "20240101", "20241231"], "loose", "东财-期货行情 kline"),
     ("futures_settlement_price_sgx", ["20231107"], "loose", "SGX-历史结算价"),
+    # 批次 29 子组 E：期货杂项 / 独立数据源集群
+    # 多源（9qihuo / gtjaqh / 100ppi / 99qh / shmet / openctp / jin10 / 东财现货）存在反爬或
+    # DNS 限制，无 golden 的用例 --check 自动跳过；可达源正常对账。
+    ("futures_comm_info", ["所有"], "loose", "九期网-期货手续费"),
+    ("futures_comm_js", ["20250213"], "loose", "金十-期货手续费"),
+    ("futures_fees_info", [], "loose", "openctp-期货交易费用"),
+    ("futures_rule", ["20231205"], "loose", "国泰君安-交易日历"),
+    ("futures_news_shmet", ["全部"], "loose", "上海金属网-快讯"),
+    ("futures_inventory_99", ["豆一"], "loose", "99期货-大宗商品库存"),
+    ("futures_spot_stock", ["能源"], "loose", "东财-现货与股票上下游"),
+    ("futures_stock_shfe_js", ["20240419"], "loose", "金十-上期所库存周报"),
+    ("futures_spot_sys", ["铜", "市场价格"], "loose", "生意社-现期图"),
+    ("futures_contract_detail_em", ["v2602F"], "loose", "东财-期货合约详情"),
     # 批次20 利率：银行间拆借利率（东财 RPT_IMP_INTRESTRATEN）
     ("rate_interbank", ["上海银行同业拆借市场", "Shibor人民币", "3月"], "loose", "Shibor-3月"),
     ("rate_interbank", ["伦敦银行同业拆借市场", "Libor美元", "1月"], "loose", "Libor美元-1月"),

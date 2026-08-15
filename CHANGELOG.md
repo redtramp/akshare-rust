@@ -4,6 +4,16 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-15] 批次 29-E · futures 期货杂项/独立数据源（子组 E）
+
+- **新增公开函数**：**518 → 528**（净 +10）。新建 `src/futures/misc.rs`（对应 akshare `futures/` 下分散杂项函数）落地 10 个期货杂项/独立数据源函数：`futures_comm_info`（九期网手续费，`read_html_tables` 六交易所切片 + 合约「名称(代码)」/涨跌停「x/y」/手续费「万分之|元」拆分）、`futures_comm_js`（金十手续费，`mp-api.jin10.com`，列序 开仓/平今/平昨/每手跳数）、`futures_fees_info`（openctp 费用表，`infer_numeric` 列推断）、`futures_rule`（国泰君安交易日历，`header=1` 取表头 + `--`/空缺失→`infer_numeric`）、`futures_news_shmet`（上海金属网快讯，POST + `ms→Asia/Shanghai` 时间换算）、`futures_inventory_99`（99 期货库存，`__NEXT_DATA__` 品种映射 + `fx168api`）、`futures_spot_stock`（东财现货与股票上下游，日期列数据存于 item `v1`..`v5`、仅前 4 日期列 + 最新价格 + 近半年涨跌幅 数值化）、`futures_stock_shfe_js`（金十上期所库存周报）、`futures_spot_sys`（生意社现期图，表转置）、`futures_contract_detail_em`（东财期货合约详情）。
+- **实现覆盖率**：**≈ 48.3%**（528 / 1094 公开 API）；golden 差分验证 **444 fixture / ≈429 去重函数 ≈ 39.2%**，parity 注册用例 504 / 496 唯一函数；futures 大类 **61.4% → 75.7%**（43 → 53 / 70）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(229) 全绿。
+- **parity 验证（子组 E 10 用例）**：**8 PASS / 2 SKIP / 0 FAIL**。`--check` 比对「列名（有序）+ dtype 类」（不比行数/head 值）：8 个有 golden 者全部通过（`comm_info` 21列×828行、`comm_js` 18列×78行、`fees_info` 38列×862行、`rule` 10列×122行、`news_shmet` 2列×10行、`inventory_99` 3列×4349行、`spot_stock` 10列×5行、`stock_shfe_js` 0列×0行）；2 个无 golden 者 `--check` 自动跳过（`spot_sys`/`contract_detail_em` 上游 akshare 抛 `NoneType` 异常无法产出 golden，直连 akshare 同错，非代码缺陷）。
+- **关键修复（对齐 akshare dtype）**：① `Df::infer_numeric` 空/纯空白单元格视为缺失（对齐 akshare `pd.read_html`/`pd.to_numeric(errors="coerce")`，修复 `futures_rule` 含 `--`/空单元格的列误判为 str）；② `futures_spot_stock` 日期列数值取自 item `v1`..`v5`（非 MM-DD 标签），且仅前 4 日期列 + 最新价格 + 近半年涨跌幅 转 float64、末日期列保持 str（对齐 akshare 源码只 `to_numeric` 前 4 个日期列）；③ `futures_comm_js` 列序修正为 开仓/平今/平昨/每手跳数。
+- **基础设施（影响全工程）**：`Cargo.toml` 引入 `chrono = "0.4"`（`futures_news_shmet` 毫秒时间戳→`Asia/Shanghai`，离线可用 0.4.45）；`Df` 新增 `infer_numeric`（空单元格视为缺失、整列可解析为数值才转 Float64）。
+- **范围说明**：`futures_derivative` 在 akshare 中是子包（模块）而非可调用函数，不在 1094 公开函数目标内，故本子组不含该函数（详见 PLAN.md 批次 29-E）。
+
 ## [2026-08-15] 批次 29-D · futures 东财期货行情（子组 D）
 
 - **新增公开函数**：**515 → 518**（净 +3）。`src/futures/em.rs`（对应 akshare `futures/futures_hist_em.py`）落地 3 个东财期货行情函数：`futures_hist_table_em`（交易所品种对照表，`futsse-static.eastmoney.com/redis` 多级 `msgid` 展开）、`futures_hist_em`（期货行情 kline，`push2his.eastmoney.com/api/qt/stock/kline/get`，symbol→secid 经四张品种映射表解析，14 字段 kline CSV 取 10 列 `时间/开盘/最高/最低/收盘/涨跌/涨跌幅/成交量/成交额/持仓量`，按 `start_date`/`end_date` 区间过滤并数值化）、`futures_settlement_price_sgx`（新加坡交易所历史结算价，`links.sgx.com` `FUTURE.zip` ZIP 解析，序号经 `push2his` 的 `100.STI` kline 末行索引 +791 推算）。

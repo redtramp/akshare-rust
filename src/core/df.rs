@@ -427,6 +427,51 @@ impl Df {
         Ok(self)
     }
 
+    /// 按列自动推断数值类型（对应 pandas `read_html` / `read_csv` 的 `dtype` 推断）。
+    ///
+    /// 对每列字符串：若其**全部**非空单元格都能解析为浮点数，则整体转 `Float64`；
+    /// 否则保持字符串（`object`）。空单元格（null 或纯空白串）不参与判定（对应
+    /// pandas `pd.to_numeric(errors="coerce")` 把缺失/非数值统一转 `NaN` 后整列
+    /// 推断为浮点）。这与 akshare 上游 `pd.read_html` 的列类型推断语义一致，是
+    /// loose 差分对账 dtype 对齐的关键。
+    ///
+    /// 注意：本工程 `read_html_tables` 默认产出全字符串列，需显式调用本方法才能得到
+    /// 与 akshare 相同的数值列 dtype。
+    pub fn infer_numeric(&mut self) -> Result<&mut Self> {
+        let names: Vec<String> = self
+            .inner
+            .get_column_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        for name in &names {
+            if let Ok(series) = self.inner.column(name) {
+                if let Ok(ca) = series.str() {
+                    let n = ca.len();
+                    let mut all_numeric = true;
+                    for i in 0..n {
+                        match ca.get(i) {
+                            // 纯空白串视为缺失，不参与整列数值判定
+                            Some(s) if s.trim().is_empty() => {}
+                            Some(s) if s.trim().parse::<f64>().is_ok() => {}
+                            Some(_) => {
+                                all_numeric = false;
+                                break;
+                            }
+                            None => {}
+                        }
+                    }
+                    if all_numeric {
+                        if let Ok(casted) = series.cast(&DataType::Float64) {
+                            let _ = self.inner.replace(name, casted);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(self)
+    }
+
     /// 指定列除以缩放因子（对应 akshare `df[col] = df[col] / N`）。
     ///
     /// 列先转 f64，逐元素除以 `factor`；列不存在或非数值时忽略。

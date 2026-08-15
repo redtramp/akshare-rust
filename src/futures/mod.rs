@@ -41,6 +41,10 @@ pub use exchange::*;
 pub mod em;
 pub use em::*;
 
+// 批次 29 子组 E：期货杂项 / 独立数据源集群（手续费 / 库存 / 现货 / 合约详情）
+pub mod misc;
+pub use misc::*;
+
 /// 将「请求失败」映射为 akshare 语义的结果：
 /// 非 2xx（页面不存在/数据未发布）→ 空表（akshare `if status != 200: return pd.DataFrame()`）；
 /// 传输/反爬/登录态错误 → 如实上报（akshare 对连接异常直接抛错，项目 §2.1.4 要求拦截时明确失败）。

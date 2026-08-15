@@ -166,6 +166,9 @@ use akshare_rust::futures::{
     futures_delivery_dce, futures_to_spot_dce, futures_delivery_match_dce, futures_to_spot_czce,
     futures_delivery_czce, futures_delivery_shfe, futures_hist_daily_cffex,
     futures_hist_table_em, futures_hist_em, futures_settlement_price_sgx,
+    futures_comm_info, futures_comm_js, futures_fees_info, futures_rule,
+    futures_news_shmet, futures_inventory_99, futures_spot_stock, futures_stock_shfe_js,
+    futures_spot_sys, futures_contract_detail_em,
 };
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::interest_rate::{rate_interbank};
@@ -1136,6 +1139,44 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_settlement_price_sgx" => {
             let [s] = take1(func, args)?;
             Ok(futures_settlement_price_sgx(s)?)
+        }
+        // 批次 29 子组 E：期货杂项 / 独立数据源集群
+        "futures_comm_info" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_comm_info(s)?)
+        }
+        "futures_comm_js" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_comm_js(s)?)
+        }
+        "futures_fees_info" => Ok(futures_fees_info()?),
+        "futures_rule" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_rule(s)?)
+        }
+        "futures_news_shmet" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_news_shmet(s)?)
+        }
+        "futures_inventory_99" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_inventory_99(s)?)
+        }
+        "futures_spot_stock" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_spot_stock(s)?)
+        }
+        "futures_stock_shfe_js" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_stock_shfe_js(s)?)
+        }
+        "futures_spot_sys" => {
+            let [s1, s2] = take2(func, args)?;
+            Ok(futures_spot_sys(s1, s2)?)
+        }
+        "futures_contract_detail_em" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_contract_detail_em(s)?)
         }
         "rate_interbank" => {
             let [m, s, ind] = take3(func, args)?;

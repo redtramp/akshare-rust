@@ -43,6 +43,8 @@ md-5 = "0.10"
 # 重试抖动/随机延迟（对应 akshare random.uniform(0.5, 1.5)）
 rand = "0.10"
 scraper = "0.27.0"
+# 时间换算（上海金属网快讯 ms 时间戳 → Asia/Shanghai 本地时间）
+chrono = "0.4"
 # xls/xlsx 解析（郑商所仓单/期转现/交割 xls 源，对应 akshare pd.read_excel）
 calamine = "0.26.1"
 # ZIP 解析（新加坡交易所 SGX 历史结算价 FUTURE.zip，对应 akshare zipfile）
