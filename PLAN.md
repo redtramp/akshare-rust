@@ -206,7 +206,7 @@
 8. **海外宏观 USA（jin10 源）**：`macro_usa_*` 共 49 函数，其中 41 个走金十 `datacenter-api.jin10.com/reports/list_v2`（与 `sources/jin10` 同源，源已建）；但 jin10 当前返回 **502**（PLAN §1.1 已登记），golden 无法生成、parity 无法验证——**暂缓**，待 jin10 恢复后补（批次 7 已落地澳洲/加拿大/德国/日本/瑞士/英国共 36 个东财 `RPT_ECONOMICVALUE_*` 系，与 jin10 无关）。`macro_usa_*` 中另 8 个（phs/cpi_yoy/rig_count/crude_inner/cftc_*/cme_*）走东财/CFTC/CME 等不同源，单独评估。EU/other 等其余海外宏观待评估。
 9. **spot_price_qh**：期现价格为实时波动序列，strict 比对易误报——**已改为 loose**（2026-08-12 修正 `parity_runner.py`）。同样因源返回活体「前一交易日」数据、跨调用漂移而降级 loose 的还有 `stock_zt_pool_previous_em`（源 `getYesterdayZTPool` 不采纳 date 参数，2026-08-14 修正 `parity_runner.py`）——列契约/dtype 仍严格比对，仅放行行值漂移。
 10. **EM push2 实时端点**（push2his/push2 类）：受东财瞬时限流影响——属网络环境，非代码缺陷，环境恢复后复验。新增 `stock_hot_up_em`（push2 `api/qt/ulist` 飙升榜）：golden 已由 akshare 直出，但 rust `--check` 因 EM push2 瞬时失败无法稳定验证，环境恢复后复验即可通过。
-11. **`stock_esg_rate_sina`（新浪 ESG 评级，批次 24）**：akshare 上游新浪 ESG 评级端点返回非 JSON（源失效/限流，`Expecting value: line 1 column 1`），golden 无法生成；函数已实现 + `cargo build` 通过、parity 用例已注册，待源恢复后 `--generate` 补 fixture。
+11. **`stock_esg_rate_sina`（新浪 ESG 评级，批次 24）**：**已确认结构性源侧失效**——akshare 1.18.83 自身 `stock_esg_sina.py:176` 在 `r.json()` 抛 `JSONDecodeError`（`Expecting value: line 1 column 1`），新浪 ESG 评级端点返回非 JSON（页面改版/被拦截），连 akshare 原版都取不到数据，故 golden 无法生成（非 Rust 实现问题、非偶发抖动）。函数已实现 + `cargo build` 通过、parity 用例已注册；轮询 loop 已于 2026-08-15 停止，待新浪恢复该端点或 akshare 修复后 `python3 tools/parity_runner.py --generate --only stock_esg_rate_sina` 补 fixture。
 
 > 上述跳过/暂缓项不计入「已实现」覆盖率（477 为实际落地并 `cargo build` 通过的公开函数数，其中部分长尾端点因网络/时效在 parity 中偶发失败，已在上方逐条登记，非实现缺陷）。
 
