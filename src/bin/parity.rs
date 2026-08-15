@@ -153,10 +153,13 @@ use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
 };
 use akshare_rust::futures::{
-    futures_comex_inventory, futures_contract_detail, futures_global_hist_em, futures_global_spot_em,
-    futures_index_ccidx, futures_inventory_em, futures_settle,
-    futures_settle_cffex, futures_settle_czce, futures_settle_gfex, futures_settle_ine,
-    futures_settle_shfe,
+    futures_comex_inventory, futures_contract_detail, futures_foreign_commodity_realtime,
+    futures_foreign_commodity_subscribe_exchange_symbol, futures_foreign_detail,
+    futures_foreign_hist, futures_global_hist_em, futures_global_spot_em, futures_index_ccidx,
+    futures_inventory_em, futures_settle, futures_settle_cffex, futures_settle_czce,
+    futures_settle_gfex, futures_settle_ine, futures_settle_shfe, futures_symbol_mark,
+    futures_zh_daily_sina, futures_zh_minute_sina, futures_zh_realtime, futures_zh_spot,
+    futures_hq_subscribe_exchange_symbol,
 };
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::interest_rate::{rate_interbank};
@@ -1016,6 +1019,40 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "futures_global_hist_em" => {
             let [s] = take1(func, args)?;
             Ok(futures_global_hist_em(s)?)
+        }
+        // 批次 29 子组 B：新浪期货集群
+        "futures_symbol_mark" => Ok(futures_symbol_mark()?),
+        "futures_zh_realtime" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_zh_realtime(s)?)
+        }
+        "futures_zh_spot" => {
+            let [s, m, a] = take3(func, args)?;
+            Ok(futures_zh_spot(s, m, a)?)
+        }
+        "futures_zh_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_zh_daily_sina(s)?)
+        }
+        "futures_zh_minute_sina" => {
+            let [s, p] = take2(func, args)?;
+            Ok(futures_zh_minute_sina(s, p)?)
+        }
+        "futures_hq_subscribe_exchange_symbol" => Ok(futures_hq_subscribe_exchange_symbol()?),
+        "futures_foreign_commodity_realtime" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_foreign_commodity_realtime(s)?)
+        }
+        "futures_foreign_commodity_subscribe_exchange_symbol" => {
+            Ok(futures_foreign_commodity_subscribe_exchange_symbol()?)
+        }
+        "futures_foreign_detail" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_foreign_detail(s)?)
+        }
+        "futures_foreign_hist" => {
+            let [s] = take1(func, args)?;
+            Ok(futures_foreign_hist(s)?)
         }
         "rate_interbank" => {
             let [m, s, ind] = take3(func, args)?;

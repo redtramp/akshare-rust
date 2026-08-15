@@ -10,8 +10,9 @@
 use crate::core::config::get_config;
 use crate::core::error::{AkshareError, Result};
 use reqwest::blocking::Client;
-use reqwest::header::{HeaderMap, HeaderValue, REFERER, USER_AGENT};
+use reqwest::header::{HeaderMap, HeaderValue, CONTENT_ENCODING, REFERER, USER_AGENT};
 use serde_json::{Map, Value};
+use std::io::Read;
 use std::time::Duration;
 
 /// 反爬特征关键字：命中即判定为被拦截。
@@ -117,8 +118,7 @@ impl HttpClient {
             }
             match req.send() {
                 Ok(resp) => {
-                    let bytes = resp.bytes().map_err(AkshareError::from)?;
-                    let text = decode_body(&bytes);
+                    let text = response_text(resp)?;
                     // 反爬/登录态特征检测（命中 400016 即返回 AuthRequired）
                     detect_block_or_auth(url, &text)?;
                     return serde_json::from_str(&text)
@@ -570,7 +570,7 @@ impl HttpClient {
                 Ok(resp) => {
                     let status = resp.status();
                     if status.is_success() {
-                        return resp.bytes().map(|b| b.to_vec()).map_err(AkshareError::from);
+                        return response_bytes(resp);
                     }
                     let err = AkshareError::Status {
                         status: status.as_u16(),
@@ -615,8 +615,7 @@ impl HttpClient {
                 url: url.to_string(),
             });
         }
-        let bytes = resp.bytes().map_err(AkshareError::from)?;
-        let text = decode_body(&bytes);
+        let text = response_text(resp)?;
         detect_block_or_auth(url, &text)?;
         serde_json::from_str(&text).map_err(|e| AkshareError::json(url, e.to_string()))
     }
@@ -762,6 +761,55 @@ fn decode_body(bytes: &[u8]) -> String {
             cow.into_owned()
         }
     }
+}
+
+/// 按 `Content-Encoding` 解压响应体。
+///
+/// reqwest 0.12 的 `gzip`/`deflate` 特性仅对 **async** 客户端透明解压
+/// （经 `tower-http::DecompressionLayer`），**blocking** 客户端不处理，
+/// 故需在此手动解压。支持 `gzip`/`x-gzip` 与 `deflate`（zlib 封装）；
+/// 未知编码或解压失败时回退为原始字节，交由字符集解码兜底。
+fn decompress_body(bytes: &[u8], encoding: Option<&str>) -> Vec<u8> {
+    match encoding {
+        Some("gzip") | Some("x-gzip") => {
+            let mut out = Vec::new();
+            match flate2::read::GzDecoder::new(bytes).read_to_end(&mut out) {
+                Ok(_) => out,
+                Err(_) => bytes.to_vec(),
+            }
+        }
+        Some("deflate") => {
+            let mut out = Vec::new();
+            match flate2::read::ZlibDecoder::new(bytes).read_to_end(&mut out) {
+                Ok(_) => out,
+                Err(_) => bytes.to_vec(),
+            }
+        }
+        _ => bytes.to_vec(),
+    }
+}
+
+/// 读取响应体文本：按 `Content-Encoding` 解压后按字符集解码。
+fn response_text(resp: reqwest::blocking::Response) -> Result<String> {
+    let encoding = resp
+        .headers()
+        .get(CONTENT_ENCODING)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let bytes = resp.bytes().map_err(AkshareError::from)?;
+    let raw = decompress_body(&bytes, encoding.as_deref());
+    Ok(decode_body(&raw))
+}
+
+/// 读取响应体字节：按 `Content-Encoding` 解压（供仅需原始字节的路径使用）。
+fn response_bytes(resp: reqwest::blocking::Response) -> Result<Vec<u8>> {
+    let encoding = resp
+        .headers()
+        .get(CONTENT_ENCODING)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let bytes = resp.bytes().map_err(AkshareError::from)?;
+    Ok(decompress_body(&bytes, encoding.as_deref()))
 }
 
 /// 检测反爬拦截与登录态特征，命中即报错（对应 akshare 抛异常语义，v1.0 无浏览器兜底）。

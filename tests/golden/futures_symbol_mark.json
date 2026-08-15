@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "exchange",
+      "dtype": "str"
+    },
+    {
+      "name": "symbol",
+      "dtype": "str"
+    },
+    {
+      "name": "mark",
+      "dtype": "str"
+    }
+  ],
+  "height": 86,
+  "head": [
+    [
+      "郑州商品交易所",
+      "PTA",
+      "pta_qh"
+    ],
+    [
+      "郑州商品交易所",
+      "菜油",
+      "czy_qh"
+    ],
+    [
+      "郑州商品交易所",
+      "菜籽",
+      "ycz_qh"
+    ],
+    [
+      "郑州商品交易所",
+      "菜粕",
+      "czp_qh"
+    ],
+    [
+      "郑州商品交易所",
+      "动力煤",
+      "dlm_qh"
+    ]
+  ]
+}

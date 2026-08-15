@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "symbol",
+      "dtype": "str"
+    },
+    {
+      "name": "code",
+      "dtype": "str"
+    }
+  ],
+  "height": 30,
+  "head": [
+    [
+      "新加坡铁矿石",
+      "FEF"
+    ],
+    [
+      "马棕油",
+      "FCPO"
+    ],
+    [
+      "日橡胶",
+      "RSS3"
+    ],
+    [
+      "美国原糖",
+      "RS"
+    ],
+    [
+      "CME比特币期货",
+      "BTC"
+    ]
+  ]
+}

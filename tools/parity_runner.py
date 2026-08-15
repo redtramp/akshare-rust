@@ -263,6 +263,17 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("futures_index_ccidx", ["中证商品期货价格指数"], "loose", "中证商品期货价格指数"),
     ("futures_global_spot_em", [], "loose", "国际期货实时行情"),
     ("futures_global_hist_em", ["HG00Y"], "loose", "国际期货历史行情-铜"),
+    # 批次29 子组B 新浪期货集群（国内 sina + 外盘 hq/foreign）
+    ("futures_symbol_mark", [], "loose", "期货品种代码映射"),
+    ("futures_zh_realtime", ["工业硅"], "loose", "期货品种实时合约"),
+    ("futures_zh_spot", ["RB0", "CF", "0"], "loose", "期货实时行情"),
+    ("futures_zh_daily_sina", ["RB0"], "loose", "期货日线"),
+    ("futures_zh_minute_sina", ["RB0", "1"], "loose", "期货分钟线"),
+    ("futures_hq_subscribe_exchange_symbol", [], "loose", "外盘品种对应表"),
+    ("futures_foreign_commodity_realtime", ["CT,NID"], "loose", "外盘期货实时"),
+    # futures_foreign_commodity_subscribe_exchange_symbol 上游返回 list（非 DataFrame），不注册 parity
+    ("futures_foreign_detail", ["ZSD"], "loose", "外盘合约详情"),
+    ("futures_foreign_hist", ["ZSD"], "loose", "外盘历史日线"),
     # 批次20 利率：银行间拆借利率（东财 RPT_IMP_INTRESTRATEN）
     ("rate_interbank", ["上海银行同业拆借市场", "Shibor人民币", "3月"], "loose", "Shibor-3月"),
     ("rate_interbank", ["伦敦银行同业拆借市场", "Libor美元", "1月"], "loose", "Libor美元-1月"),

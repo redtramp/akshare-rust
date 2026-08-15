@@ -29,6 +29,10 @@ use serde_json::{Map, Value};
 pub mod em_global;
 pub use em_global::*;
 
+// 批次 29 子组 B：新浪期货集群（国内 sina + 外盘 hq/foreign）
+pub mod sina;
+pub use sina::*;
+
 /// 将「请求失败」映射为 akshare 语义的结果：
 /// 非 2xx（页面不存在/数据未发布）→ 空表（akshare `if status != 200: return pd.DataFrame()`）；
 /// 传输/反爬/登录态错误 → 如实上报（akshare 对连接异常直接抛错，项目 §2.1.4 要求拦截时明确失败）。

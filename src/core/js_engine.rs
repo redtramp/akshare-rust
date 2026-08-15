@@ -99,6 +99,77 @@ impl JsEngine {
     }
 }
 
+/// 去除 JS 字面量中的 `//` 行注释与 `/* */` 块注释（字符串内的 `//` 不受影响）。
+///
+/// 对应 `demjson.decode` 默认容忍注释的行为。新浪 `qihuohangqing.js` 等源在对象
+/// 字面量尾部带有 `// bohai : ...` 这类注释，QuickJS 解析会报语法错误，故先剥离。
+fn strip_js_comments(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut in_line = false;
+    let mut in_block = false;
+    while let Some(c) = chars.next() {
+        if in_line {
+            if c == '\n' {
+                in_line = false;
+                out.push(c);
+            }
+            continue;
+        }
+        if in_block {
+            if c == '*' && chars.peek() == Some(&'/') {
+                chars.next();
+                in_block = false;
+            }
+            continue;
+        }
+        if c == '\'' && !in_double {
+            in_single = !in_single;
+            out.push(c);
+            continue;
+        }
+        if c == '"' && !in_single {
+            in_double = !in_double;
+            out.push(c);
+            continue;
+        }
+        if !in_single && !in_double {
+            if c == '/' && chars.peek() == Some(&'/') {
+                chars.next();
+                in_line = true;
+                continue;
+            }
+            if c == '/' && chars.peek() == Some(&'*') {
+                chars.next();
+                in_block = true;
+                continue;
+            }
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// 将一段 JS 字面量（对象/数组，可能含未加引号的键）序列化为 JSON 文本。
+///
+/// 对应 akshare `from akshare.utils import demjson; demjson.decode(...)`：
+/// 把 `var x = {...};` 这类片段用 QuickJS 求值后 `JSON.stringify`，
+/// 等价于 demjson 的宽松解析（未加引号键、单引号字符串、尾随注释等均被接受）。
+pub fn js_literal_to_json(literal: &str) -> Result<String> {
+    let lit = strip_js_comments(literal).trim().to_string();
+    // 去掉调用方可能已加的包裹括号，避免 `({ {...} })` 双括号语法错误
+    // （本工程调用方传入的片段已自带 `{}`/`[]`，直接用 `JSON.stringify(片段)` 即可）。
+    let expr = if lit.starts_with('(') && lit.ends_with(')') {
+        &lit[1..lit.len() - 1]
+    } else {
+        &lit
+    };
+    let mut engine = JsEngine::new()?;
+    engine.call_expr(&format!("JSON.stringify({expr})"))
+}
+
 /// 巨潮加密头（对应 akshare `getResCode1()`）。
 ///
 /// AES-CBC(时间戳, key="1234567887654321") → base64。

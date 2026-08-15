@@ -34,6 +34,9 @@ serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "1"
 # 字符集解码：GBK/GB2312 页面（交易所/新浪 HTML 源必需）
 encoding_rs = "0.8"
+# 响应体解压：新浪 stock2 等端点返回 gzip，但 reqwest blocking 客户端不透明解压，
+# 需手动按 Content-Encoding 解压（对应 akshare requests 的自动解压）。
+flate2 = "1"
 once_cell = "1"
 # 乐咕等站点的 md5 日期 token（对应 akshare get_token_lg）
 md-5 = "0.10"

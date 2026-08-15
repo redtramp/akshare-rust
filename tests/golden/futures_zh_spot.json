@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "symbol",
+      "dtype": "str"
+    },
+    {
+      "name": "time",
+      "dtype": "str"
+    },
+    {
+      "name": "open",
+      "dtype": "float64"
+    },
+    {
+      "name": "high",
+      "dtype": "float64"
+    },
+    {
+      "name": "low",
+      "dtype": "float64"
+    },
+    {
+      "name": "current_price",
+      "dtype": "float64"
+    },
+    {
+      "name": "bid_price",
+      "dtype": "float64"
+    },
+    {
+      "name": "ask_price",
+      "dtype": "float64"
+    },
+    {
+      "name": "buy_vol",
+      "dtype": "int64"
+    },
+    {
+      "name": "sell_vol",
+      "dtype": "int64"
+    },
+    {
+      "name": "hold",
+      "dtype": "float64"
+    },
+    {
+      "name": "volume",
+      "dtype": "int64"
+    },
+    {
+      "name": "avg_price",
+      "dtype": "float64"
+    },
+    {
+      "name": "last_close",
+      "dtype": "float64"
+    },
+    {
+      "name": "last_settle_price",
+      "dtype": "float64"
+    }
+  ],
+  "height": 1,
+  "head": [
+    [
+      "螺纹钢连续",
+      "230000",
+      "3016.0",
+      "3024.0",
+      "3015.0",
+      "3018.0",
+      "3018.0",
+      "3019.0",
+      "689",
+      "12",
+      "2065688.0",
+      "195974",
+      "0.0",
+      "0.0",
+      "3019.0"
+    ]
+  ]
+}
