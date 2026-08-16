@@ -1,0 +1,1845 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "SECUCODE",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_NAME_ABBR",
+      "dtype": "str"
+    },
+    {
+      "name": "ORG_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "ORG_TYPE",
+      "dtype": "str"
+    },
+    {
+      "name": "REPORT_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "REPORT_TYPE",
+      "dtype": "str"
+    },
+    {
+      "name": "REPORT_DATE_NAME",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_TYPE_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "NOTICE_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "UPDATE_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "CURRENCY",
+      "dtype": "str"
+    },
+    {
+      "name": "TOTAL_OPERATE_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_OPERATE_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTEREST_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTEREST_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EARNED_PREMIUM",
+      "dtype": "float64"
+    },
+    {
+      "name": "EARNED_PREMIUM_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FEE_COMMISSION_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "FEE_COMMISSION_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_BUSINESS_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_BUSINESS_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOI_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOI_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_OPERATE_COST",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_OPERATE_COST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_COST",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_COST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTEREST_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTEREST_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FEE_COMMISSION_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "FEE_COMMISSION_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "RESEARCH_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "RESEARCH_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "SURRENDER_VALUE",
+      "dtype": "float64"
+    },
+    {
+      "name": "SURRENDER_VALUE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NET_COMPENSATE_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "NET_COMPENSATE_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NET_CONTRACT_RESERVE",
+      "dtype": "float64"
+    },
+    {
+      "name": "NET_CONTRACT_RESERVE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "POLICY_BONUS_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "POLICY_BONUS_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "REINSURE_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "REINSURE_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_BUSINESS_COST",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_BUSINESS_COST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_TAX_ADD",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_TAX_ADD_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "SALE_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "SALE_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "MANAGE_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "MANAGE_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ME_RESEARCH_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "ME_RESEARCH_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FINANCE_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "FINANCE_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FE_INTEREST_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "FE_INTEREST_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FE_INTEREST_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "FE_INTEREST_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_IMPAIRMENT_LOSS",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_IMPAIRMENT_LOSS_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDIT_IMPAIRMENT_LOSS",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDIT_IMPAIRMENT_LOSS_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOC_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOC_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FAIRVALUE_CHANGE_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "FAIRVALUE_CHANGE_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_JOINT_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_JOINT_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NET_EXPOSURE_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "NET_EXPOSURE_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EXCHANGE_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "EXCHANGE_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_DISPOSAL_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_DISPOSAL_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_IMPAIRMENT_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_IMPAIRMENT_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDIT_IMPAIRMENT_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDIT_IMPAIRMENT_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_PROFIT_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_PROFIT_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_PROFIT_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_PROFIT_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_PROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPERATE_PROFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NONBUSINESS_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "NONBUSINESS_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NONCURRENT_DISPOSAL_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "NONCURRENT_DISPOSAL_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NONBUSINESS_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "NONBUSINESS_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NONCURRENT_DISPOSAL_LOSS",
+      "dtype": "float64"
+    },
+    {
+      "name": "NONCURRENT_DISPOSAL_LOSS_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EFFECT_TP_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "EFFECT_TP_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_PROFIT_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_PROFIT_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_PROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_PROFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INCOME_TAX",
+      "dtype": "float64"
+    },
+    {
+      "name": "INCOME_TAX_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EFFECT_NETPROFIT_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "EFFECT_NETPROFIT_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EFFECT_NETPROFIT_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "EFFECT_NETPROFIT_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNCONFIRM_INVEST_LOSS",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNCONFIRM_INVEST_LOSS_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NETPROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "NETPROFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PRECOMBINE_PROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "PRECOMBINE_PROFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CONTINUED_NETPROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "CONTINUED_NETPROFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DISCONTINUED_NETPROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "DISCONTINUED_NETPROFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_NETPROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_NETPROFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "MINORITY_INTEREST",
+      "dtype": "float64"
+    },
+    {
+      "name": "MINORITY_INTEREST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEDUCT_PARENT_NETPROFIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEDUCT_PARENT_NETPROFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NETPROFIT_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "NETPROFIT_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NETPROFIT_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "NETPROFIT_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "BASIC_EPS",
+      "dtype": "float64"
+    },
+    {
+      "name": "BASIC_EPS_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DILUTED_EPS",
+      "dtype": "float64"
+    },
+    {
+      "name": "DILUTED_EPS_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_COMPRE_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_COMPRE_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_OCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_OCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "MINORITY_OCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "MINORITY_OCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_OCI_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_OCI_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_OCI_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_OCI_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNABLE_OCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNABLE_OCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDITRISK_FAIRVALUE_CHANGE",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDITRISK_FAIRVALUE_CHANGE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHERRIGHT_FAIRVALUE_CHANGE",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHERRIGHT_FAIRVALUE_CHANGE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "SETUP_PROFIT_CHANGE",
+      "dtype": "float64"
+    },
+    {
+      "name": "SETUP_PROFIT_CHANGE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "RIGHTLAW_UNABLE_OCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "RIGHTLAW_UNABLE_OCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNABLE_OCI_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNABLE_OCI_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNABLE_OCI_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNABLE_OCI_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ABLE_OCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "ABLE_OCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "RIGHTLAW_ABLE_OCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "RIGHTLAW_ABLE_OCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "AFA_FAIRVALUE_CHANGE",
+      "dtype": "float64"
+    },
+    {
+      "name": "AFA_FAIRVALUE_CHANGE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "HMI_AFA",
+      "dtype": "float64"
+    },
+    {
+      "name": "HMI_AFA_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CASHFLOW_HEDGE_VALID",
+      "dtype": "float64"
+    },
+    {
+      "name": "CASHFLOW_HEDGE_VALID_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDITOR_FAIRVALUE_CHANGE",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDITOR_FAIRVALUE_CHANGE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDITOR_IMPAIRMENT_RESERVE",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDITOR_IMPAIRMENT_RESERVE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FINANCE_OCI_AMT",
+      "dtype": "float64"
+    },
+    {
+      "name": "FINANCE_OCI_AMT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CONVERT_DIFF",
+      "dtype": "float64"
+    },
+    {
+      "name": "CONVERT_DIFF_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ABLE_OCI_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "ABLE_OCI_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ABLE_OCI_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "ABLE_OCI_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OCI_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "OCI_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OCI_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "OCI_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_COMPRE_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_COMPRE_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_TCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_TCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "MINORITY_TCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "MINORITY_TCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PRECOMBINE_TCI",
+      "dtype": "float64"
+    },
+    {
+      "name": "PRECOMBINE_TCI_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EFFECT_TCI_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "EFFECT_TCI_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TCI_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "TCI_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TCI_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TCI_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACF_END_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACF_END_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPINION_TYPE",
+      "dtype": "str"
+    }
+  ],
+  "height": 103,
+  "head": [
+    [
+      "600519.SH",
+      "600519",
+      "贵州茅台",
+      "10002602",
+      "通用",
+      "2026-06-30 00:00:00",
+      "中报",
+      "2026中报",
+      "058001001",
+      "2026-08-15 00:00:00",
+      "2026-08-15 00:00:00",
+      "CNY",
+      "92278072083.21",
+      "1.3000994756",
+      "90703260964.48",
+      "1.4698691541",
+      "1574811118.73",
+      "-7.6036376251",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "30946044878.08",
+      "9.141923291",
+      "9473762565.88",
+      "21.8100086988",
+      "76587662.57",
+      "-16.3947776718",
+      "183088.17",
+      "329.0858123956",
+      "114926219.6",
+      "55.5126054632",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "14682159453.47",
+      "5.3059422344",
+      "3206308341.53",
+      "-1.6609484226",
+      "3635355263.82",
+      "-1.606323704",
+      null,
+      null,
+      "-243237716.96",
+      "50.0173884519",
+      "21034591.16",
+      "381.3825586787",
+      "266574096.14",
+      "-45.9909149183",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "22082651.62",
+      "1156.1211628208",
+      "1013870.58",
+      "1613.6245300664",
+      "16912.87",
+      null,
+      null,
+      null,
+      null,
+      null,
+      "139731.04",
+      "-72.7048069206",
+      null,
+      null,
+      "32473761.91",
+      "653.0394633834",
+      "23554465.99",
+      "4.6027823785",
+      null,
+      null,
+      "0.0",
+      null,
+      "61411291686.27",
+      "-2.1629821473",
+      "35315234.56",
+      "8.9710699804",
+      null,
+      null,
+      "8187743.54",
+      "-64.9804702116",
+      null,
+      null,
+      null,
+      null,
+      "0.0",
+      null,
+      "61438419177.29",
+      "-2.1338392003",
+      "15405088610.51",
+      "-2.4458419167",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "46033330566.78",
+      "-2.0289810922",
+      null,
+      null,
+      "46033330566.78",
+      "-2.0289810922",
+      null,
+      null,
+      "44516880421.86",
+      "-1.951594855",
+      "1516450144.92",
+      "-4.2475337986",
+      "44464207646.01",
+      "-2.0401738838",
+      null,
+      null,
+      null,
+      null,
+      "35.57",
+      "-1.6860143726",
+      "35.57",
+      "-1.6860143726",
+      "27974688.63",
+      "161.5704119926",
+      "11538418.03",
+      "7.8871260291",
+      "16436270.6",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "11538418.03",
+      "7.8871260291",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "17107138.79",
+      null,
+      null,
+      null,
+      null,
+      null,
+      "-5568720.76",
+      "-152.0689471375",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "46061305255.41",
+      "-1.9917518052",
+      "44528418839.89",
+      "-1.9492778402",
+      "1532886415.52",
+      "-3.2097064422",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "600519.SH",
+      "600519",
+      "贵州茅台",
+      "10002602",
+      "通用",
+      "2026-03-31 00:00:00",
+      "一季报",
+      "2026一季报",
+      "058001001",
+      "2026-04-25 00:00:00",
+      "2026-04-25 00:00:00",
+      "CNY",
+      "54702912385.23",
+      "6.3360092771",
+      "53909252220.51",
+      "6.5380073282",
+      "793660164.72",
+      "-5.7961966183",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "17192223524.71",
+      "19.1150084026",
+      "5520729200.32",
+      "35.9306562496",
+      "40932871.08",
+      "-14.6273233662",
+      "118272.18",
+      "517.6112301135",
+      "59310724.46",
+      "125.0853031475",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "8227407160.96",
+      "14.8306307099",
+      "1605764764.88",
+      "7.3858505701",
+      "1853763865.81",
+      "-3.4477440755",
+      null,
+      null,
+      "-115803334.98",
+      "59.0148558679",
+      "15366726.62",
+      "532.2286204378",
+      "133866727.66",
+      "-53.2982454019",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "-3077007.2",
+      "-571.2299475625",
+      "434629.49",
+      "63.7935671784",
+      "87268.16",
+      null,
+      null,
+      null,
+      null,
+      null,
+      "130409.49",
+      "-73.4828780688",
+      null,
+      null,
+      "25860797.96",
+      "256.7460194363",
+      "2970996.16",
+      "-83.2958182846",
+      null,
+      null,
+      "0.0",
+      null,
+      "37537008686.42",
+      "1.3511242456",
+      "6759734.6",
+      "-58.8366046259",
+      null,
+      null,
+      "518777.0",
+      "-97.5945006129",
+      null,
+      null,
+      null,
+      null,
+      "0.0",
+      null,
+      "37543249644.02",
+      "1.3820575316",
+      "9389418154.13",
+      "1.4324633058",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "28153831489.89",
+      "1.3652581374",
+      null,
+      null,
+      "28153831489.89",
+      "1.3652581374",
+      null,
+      null,
+      "27242512886.45",
+      "1.471418295",
+      "911318603.44",
+      "-1.7087815604",
+      "27239985194.41",
+      "1.452898254",
+      null,
+      null,
+      null,
+      null,
+      "21.76",
+      "1.7773620206",
+      "21.76",
+      "1.7773620206",
+      "14877422.36",
+      "353.5133499054",
+      "5788143.27",
+      "76.4418714876",
+      "9089279.09",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "5788143.27",
+      "76.4418714876",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "9460270.08",
+      null,
+      null,
+      null,
+      null,
+      null,
+      "-3672126.81",
+      "-211.9386470709",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "28168708912.25",
+      "1.4068456828",
+      "27248301029.72",
+      "1.4805777842",
+      "920407882.53",
+      "-0.7284478845",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "600519.SH",
+      "600519",
+      "贵州茅台",
+      "10002602",
+      "通用",
+      "2025-12-31 00:00:00",
+      "年报",
+      "2025年报",
+      "058001001",
+      "2026-04-17 00:00:00",
+      "2026-04-17 00:00:00",
+      "CNY",
+      "172054171890.91",
+      "-1.2000971769",
+      "168838102514.79",
+      "-1.2060035021",
+      "3216069376.12",
+      "-0.8890304352",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "57370818034.33",
+      "5.2212751674",
+      "14892277570.91",
+      "7.997364756",
+      "175775959.12",
+      "67.2021632012",
+      "103597.22",
+      "10.1182346553",
+      "190112246.58",
+      "-12.9424911683",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "27354227684.88",
+      "1.5897780688",
+      "7253499600.68",
+      "28.624111577",
+      "8320061659.66",
+      "-10.6872670642",
+      null,
+      null,
+      "-815240284.72",
+      "44.5497707487",
+      "28734948.29",
+      "98.5200273205",
+      "842988240.6",
+      "-42.9253046755",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "76162597.66",
+      "24.8961839529",
+      "561176.14",
+      "-93.8537215782",
+      "181873.67",
+      null,
+      null,
+      null,
+      null,
+      null,
+      "3106625.19",
+      "698.9221581833",
+      null,
+      null,
+      "17234379.37",
+      "174.1313495143",
+      "28531529.3",
+      "34.3958826444",
+      null,
+      null,
+      "0.0",
+      null,
+      "114808950164.24",
+      "-4.0769380932",
+      "74947039.7",
+      "5.6535907959",
+      null,
+      null,
+      "128635598.86",
+      "6.3650586572",
+      null,
+      null,
+      null,
+      null,
+      "0.0",
+      null,
+      "114755261605.08",
+      "-4.081724025",
+      "29444936771.41",
+      "-2.834337526",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "85310324833.67",
+      "-4.5048586156",
+      null,
+      null,
+      "85310324833.67",
+      "-4.5048586156",
+      null,
+      null,
+      "82320067101.68",
+      "-4.5322548172",
+      "2990257731.99",
+      "-3.7444331779",
+      "82293107655.25",
+      "-4.5776401319",
+      null,
+      null,
+      null,
+      null,
+      "65.66",
+      "-4.3414918415",
+      "65.66",
+      "-4.3414918415",
+      "-74127.66",
+      "98.0768526597",
+      "4137381.07",
+      "207.3390607592",
+      "-4211508.73",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "4137381.07",
+      "207.3390607592",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "-4383407.05",
+      null,
+      null,
+      null,
+      null,
+      null,
+      "8520788.12",
+      "321.0609509384",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "85310250706.01",
+      "-4.5008211203",
+      "82324204482.75",
+      "-4.5231887147",
+      "2986046223.26",
+      "-3.8800004756",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "标准无保留意见"
+    ],
+    [
+      "600519.SH",
+      "600519",
+      "贵州茅台",
+      "10002602",
+      "通用",
+      "2025-09-30 00:00:00",
+      "三季报",
+      "2025三季报",
+      "058001001",
+      "2025-10-30 00:00:00",
+      "2025-10-30 00:00:00",
+      "CNY",
+      "130903889634.88",
+      "6.3200018806",
+      "128453707655.86",
+      "6.3568651041",
+      "2450181979.02",
+      "4.4225516878",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "41426154052.85",
+      "5.7264425581",
+      "11183972073.77",
+      "9.3457904411",
+      "136006174.86",
+      "88.8667497101",
+      "55753.36",
+      "-73.7049935618",
+      "113086640.98",
+      "-19.4545530141",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "20645707926.55",
+      "3.6858370187",
+      "4478672252.48",
+      "5.7492190839",
+      "5503383668.62",
+      "-4.5798043151",
+      null,
+      null,
+      "-634730437.77",
+      "45.8792703232",
+      "6505588.51",
+      "-9.9733149618",
+      "644763065.59",
+      "-44.9169504642",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "6956011.89",
+      "-82.9376112221",
+      "59165.27",
+      "-99.2622194368",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "511925.45",
+      "6872.5577537235",
+      null,
+      null,
+      "-20021460.99",
+      "-93.6267818119",
+      "24453342.83",
+      "34.7448588913",
+      null,
+      null,
+      "0.0",
+      null,
+      "89489694566.48",
+      "6.5394935882",
+      "39970046.24",
+      "-26.0538775809",
+      null,
+      null,
+      "126220158.04",
+      "6533.081973019",
+      null,
+      null,
+      null,
+      null,
+      "0.0",
+      null,
+      "89403444454.68",
+      "6.3707697498",
+      "22504639708.51",
+      "7.0761218482",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "66898804746.17",
+      "6.1355747895",
+      null,
+      null,
+      "66898804746.17",
+      "6.1355747895",
+      null,
+      null,
+      "64626746712.18",
+      "6.2458449524",
+      "2272058033.99",
+      "3.0921366665",
+      "64680616431.2",
+      "6.4199772865",
+      null,
+      null,
+      null,
+      null,
+      "51.53",
+      "6.4229657166",
+      "51.53",
+      "6.4229657166",
+      "7966781.33",
+      "2708.1868508286",
+      "8860982.33",
+      "3000.9328411592",
+      "-894201.0",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "8860982.33",
+      "3000.9328411592",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "-930699.0",
+      null,
+      null,
+      null,
+      null,
+      null,
+      "9791681.33",
+      "3305.6276474216",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "66906771527.5",
+      "6.1487285628",
+      "64635607694.51",
+      "6.2609459373",
+      "2271163832.99",
+      "3.0515632787",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "600519.SH",
+      "600519",
+      "贵州茅台",
+      "10002602",
+      "通用",
+      "2025-06-30 00:00:00",
+      "中报",
+      "2025中报",
+      "058001001",
+      "2025-08-13 00:00:00",
+      "2026-08-15 00:00:00",
+      "CNY",
+      "91093762553.97",
+      "9.1581680613",
+      "89389354416.84",
+      "9.1032439273",
+      "1704408137.13",
+      "12.118322346",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "28353948643.16",
+      "9.3222611794",
+      "7777491083.93",
+      "15.2070833227",
+      "91606314.1",
+      "125.6531558526",
+      "42669.36",
+      "-78.7623548009",
+      "73901545.96",
+      "-20.0343805584",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "13942384581.48",
+      "3.3268791999",
+      "3260462949.46",
+      "24.564821775",
+      "3694704172.74",
+      "-3.6841324228",
+      null,
+      null,
+      "-486644673.87",
+      "45.623938499",
+      "4369620.54",
+      "-23.9819641725",
+      "493572693.81",
+      "-44.8881485183",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "1758003.31",
+      "-95.0525945957",
+      "59165.27",
+      "-97.4142412992",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "511925.45",
+      "660.8803151217",
+      null,
+      null,
+      "4312358.58",
+      "123.8690601675",
+      "22518010.95",
+      "40.032045769",
+      null,
+      null,
+      "0.0",
+      null,
+      "62768973374.37",
+      "9.0667862278",
+      "32407899.24",
+      "17.3464209403",
+      null,
+      null,
+      "23380506.79",
+      "8039.3216937986",
+      null,
+      null,
+      null,
+      null,
+      "0.0",
+      null,
+      "62778000766.82",
+      "9.0306951928",
+      "15791319317.58",
+      "9.6515280772",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "46986681449.24",
+      "8.8236205896",
+      null,
+      null,
+      "46986681449.24",
+      "8.8236205896",
+      null,
+      null,
+      "45402962298.1",
+      "8.8914665772",
+      "1583719151.14",
+      "6.9138970473",
+      "45390247623.82",
+      "8.92762436",
+      null,
+      null,
+      null,
+      null,
+      "36.18",
+      "9.0087375716",
+      "36.18",
+      "9.0087375716",
+      "10694897.95",
+      "583.7748924686",
+      "10694897.95",
+      "583.7748924686",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "10694897.95",
+      "583.7748924686",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "10694897.95",
+      "583.7748924686",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "46997376347.19",
+      "8.8539640085",
+      "45413657196.05",
+      "8.9228916492",
+      "1583719151.14",
+      "6.9138970473",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ]
+}

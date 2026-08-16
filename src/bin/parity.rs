@@ -269,8 +269,10 @@ use akshare_rust::stock::{
     stock_zt_pool_zbgc_em,
 };
 use akshare_rust::stock::{
-    stock_balance_sheet_by_report_em, stock_balance_sheet_by_yearly_em, stock_hk_spot_em,
-    stock_zh_a_new_em, stock_zh_a_st_em,
+    stock_balance_sheet_by_report_em, stock_balance_sheet_by_yearly_em,
+    stock_cash_flow_sheet_by_report_em, stock_cash_flow_sheet_by_yearly_em, stock_hk_spot_em,
+    stock_profit_sheet_by_report_em, stock_profit_sheet_by_yearly_em, stock_zh_a_new_em,
+    stock_zh_a_st_em,
 };
 use akshare_rust::stock_feature::{
     stock_account_statistics_em, stock_analyst_detail_em, stock_analyst_rank_em,
@@ -901,6 +903,22 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_balance_sheet_by_yearly_em" => {
             let [s] = take1(func, args)?;
             Ok(stock_balance_sheet_by_yearly_em(s)?)
+        }
+        "stock_profit_sheet_by_report_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_profit_sheet_by_report_em(s)?)
+        }
+        "stock_profit_sheet_by_yearly_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_profit_sheet_by_yearly_em(s)?)
+        }
+        "stock_cash_flow_sheet_by_report_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_cash_flow_sheet_by_report_em(s)?)
+        }
+        "stock_cash_flow_sheet_by_yearly_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_cash_flow_sheet_by_yearly_em(s)?)
         }
         "stock_gpzy_distribute_statistics_company_em" => {
             Ok(stock_gpzy_distribute_statistics_company_em()?)

@@ -2439,6 +2439,45 @@ pub fn stock_balance_sheet_by_yearly_em(symbol: &str) -> Result<Df> {
     emweb_f10_financial(symbol, "1", "zcfzbDateAjaxNew", "zcfzbAjaxNew")
 }
 
+/// 个股利润表-按报告期（对应 akshare [`akshare.stock_profit_sheet_by_report_em`]）。
+///
+/// 走 emweb F10 `NewFinanceAnalysis` 流程（`lrbDateAjaxNew`/`lrbAjaxNew`，
+/// `reportDateType=0`），与资产负债表函数仅端点前缀不同；akshare **不重命名列**，
+/// 返回原始字段键（如 `REPORT_DATE`/`OPERATE_INCOME` 等），行 = 各报告期，与 akshare 一致。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"SH600519"`，内部转大写）
+pub fn stock_profit_sheet_by_report_em(symbol: &str) -> Result<Df> {
+    emweb_f10_financial(symbol, "0", "lrbDateAjaxNew", "lrbAjaxNew")
+}
+
+/// 个股利润表-按年度（对应 akshare [`akshare.stock_profit_sheet_by_yearly_em`]）。
+///
+/// 与 [`stock_profit_sheet_by_report_em`] 仅 `reportDateType` 不同（`1`=年度）。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"SH600519"`，内部转大写）
+pub fn stock_profit_sheet_by_yearly_em(symbol: &str) -> Result<Df> {
+    emweb_f10_financial(symbol, "1", "lrbDateAjaxNew", "lrbAjaxNew")
+}
+
+/// 个股现金流量表-按报告期（对应 akshare [`akshare.stock_cash_flow_sheet_by_report_em`]）。
+///
+/// 走 emweb F10 `NewFinanceAnalysis` 流程（`xjllbDateAjaxNew`/`xjllbAjaxNew`，
+/// `reportDateType=0`）；akshare **不重命名列**，返回原始字段键（如 `REPORT_DATE`/`CASH_FLOW_NET_INCREASE` 等）。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"SH600519"`，内部转大写）
+pub fn stock_cash_flow_sheet_by_report_em(symbol: &str) -> Result<Df> {
+    emweb_f10_financial(symbol, "0", "xjllbDateAjaxNew", "xjllbAjaxNew")
+}
+
+/// 个股现金流量表-按年度（对应 akshare [`akshare.stock_cash_flow_sheet_by_yearly_em`]）。
+///
+/// 与 [`stock_cash_flow_sheet_by_report_em`] 仅 `reportDateType` 不同（`1`=年度）。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"SH600036"`，内部转大写）
+pub fn stock_cash_flow_sheet_by_yearly_em(symbol: &str) -> Result<Df> {
+    emweb_f10_financial(symbol, "1", "xjllbDateAjaxNew", "xjllbAjaxNew")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2544,6 +2583,33 @@ mod tests {
         assert!(cols.iter().any(|c| *c == "SECUCODE"));
         assert!(cols.iter().any(|c| *c == "TOTAL_ASSETS"));
         assert!(cols.iter().any(|c| *c == "EQUITY_BALANCE"));
+    }
+
+    #[test]
+    fn financial_report_typed_df_offline() {
+        // 验证 Df::from_json_rows_typed 的列类型推断与 akshare pd.DataFrame(records) 对齐：
+        // 数值 JSON → Float64/Int64；全空列 → Float64（akshare pd.to_numeric(errors='coerce')）。
+        let rows = json!([
+            {"REPORT_DATE":"2024-03-31","OPERATE_INCOME":123.5,"TOTAL_ASSETS":120,"EMPTY_COL":null},
+            {"REPORT_DATE":"2023-12-31","OPERATE_INCOME":100.0,"TOTAL_ASSETS":90,"EMPTY_COL":null}
+        ]);
+        let df = emweb_financial_report_df(rows.as_array().unwrap()).unwrap();
+        assert_eq!(df.height(), 2);
+
+        let op_income = df.inner().column("OPERATE_INCOME").unwrap().dtype();
+        assert!(op_income.is_float(), "OPERATE_INCOME 应推断为 float64");
+        let total_assets = df.inner().column("TOTAL_ASSETS").unwrap().dtype();
+        assert!(
+            total_assets.is_integer(),
+            "TOTAL_ASSETS 应推断为 int64（无空值整数列）"
+        );
+        let empty = df.inner().column("EMPTY_COL").unwrap().dtype();
+        assert!(
+            empty.is_float(),
+            "全空列应模仿 akshare pd.to_numeric(errors='coerce') 置为 float64"
+        );
+        let rd = df.inner().column("REPORT_DATE").unwrap().dtype();
+        assert!(rd.is_string(), "日期列应保持 str");
     }
 }
 

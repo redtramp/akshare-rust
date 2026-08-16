@@ -194,6 +194,10 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_xjll_em", ["20240331"], "loose", "现金流量表"),
     ("stock_balance_sheet_by_report_em", ["SH600519"], "loose", "资产负债表-按报告期(emweb F10)"),
     ("stock_balance_sheet_by_yearly_em", ["SH600036"], "loose", "资产负债表-按年度(emweb F10)"),
+    ("stock_profit_sheet_by_report_em", ["SH600519"], "loose", "利润表-按报告期(emweb F10)"),
+    ("stock_profit_sheet_by_yearly_em", ["SH600519"], "loose", "利润表-按年度(emweb F10)"),
+    ("stock_cash_flow_sheet_by_report_em", ["SH600519"], "loose", "现金流量表-按报告期(emweb F10)"),
+    ("stock_cash_flow_sheet_by_yearly_em", ["SH600036"], "loose", "现金流量表-按年度(emweb F10)"),
     # stock_feature 东财 datacenter 质押分布/股东协作/千股千评明细/商誉行业（Batch 1 Stage 1i）
     ("stock_gpzy_distribute_statistics_company_em", [], "loose", "股权质押-证券公司分布统计"),
     ("stock_gpzy_distribute_statistics_bank_em", [], "loose", "股权质押-银行分布统计"),
