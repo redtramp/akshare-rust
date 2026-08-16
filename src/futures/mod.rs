@@ -144,9 +144,12 @@ pub fn futures_settle_cffex(date: &str) -> Result<Df> {
         d
     );
     let http = HttpClient::default();
-    let text = match or_empty(
-        http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", UA_CHROME)], None),
-    )? {
+    let text = match or_empty(http.get_text_with_headers(
+        &url,
+        &Map::new(),
+        &[("User-Agent", UA_CHROME)],
+        None,
+    ))? {
         Some(t) => t,
         None => return empty_df(),
     };
@@ -233,9 +236,12 @@ pub fn futures_settle_czce(date: &str) -> Result<Df> {
         d
     );
     let http = HttpClient::default();
-    let text = match or_empty(
-        http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", UA_CHROME)], None),
-    )? {
+    let text = match or_empty(http.get_text_with_headers(
+        &url,
+        &Map::new(),
+        &[("User-Agent", UA_CHROME)],
+        None,
+    ))? {
         Some(t) => t,
         None => return empty_df(),
     };
@@ -474,9 +480,12 @@ pub fn futures_settle_shfe(date: &str) -> Result<Df> {
     let d = convert_date(date)?;
     let url = format!("https://www.shfe.com.cn/data/tradedata/future/dailydata/js{d}.dat");
     let http = HttpClient::default();
-    let json = match or_empty(
-        http.get_json_with_headers(&url, &Map::new(), &[("User-Agent", UA_MSIE)], None),
-    )? {
+    let json = match or_empty(http.get_json_with_headers(
+        &url,
+        &Map::new(),
+        &[("User-Agent", UA_MSIE)],
+        None,
+    ))? {
         Some(j) => j,
         None => return empty_df(),
     };
@@ -492,9 +501,12 @@ pub fn futures_settle_ine(date: &str) -> Result<Df> {
     let d = convert_date(date)?;
     let url = format!("https://www.ine.cn/data/tradedata/future/dailydata/js{d}.dat");
     let http = HttpClient::default();
-    let json = match or_empty(
-        http.get_json_with_headers(&url, &Map::new(), &[("User-Agent", UA_MSIE)], None),
-    )? {
+    let json = match or_empty(http.get_json_with_headers(
+        &url,
+        &Map::new(),
+        &[("User-Agent", UA_MSIE)],
+        None,
+    ))? {
         Some(j) => j,
         None => return empty_df(),
     };
@@ -750,9 +762,10 @@ fn parse_contract_detail(text: &str) -> Result<Df> {
         .map_err(|e| AkshareError::Empty(format!("解析单元格选择器失败: {e}")))?;
 
     let doc = Html::parse_document(text);
-    let table = doc.select(&table_sel).next().ok_or_else(|| {
-        AkshareError::Empty("新浪期货合约详情页缺少基础数据表".into())
-    })?;
+    let table = doc
+        .select(&table_sel)
+        .next()
+        .ok_or_else(|| AkshareError::Empty("新浪期货合约详情页缺少基础数据表".into()))?;
     let mut rows: Vec<Vec<String>> = Vec::new();
     for tr in table.select(&tr_sel) {
         // 单元格文本按空白折叠（对应 pandas read_html 的 `_remove_whitespace`：
@@ -786,8 +799,7 @@ fn parse_contract_detail(text: &str) -> Result<Df> {
         }
         col += 2;
     }
-    let rows_out: Vec<Vec<Option<String>>> =
-        pairs.into_iter().map(|p| p.to_vec()).collect();
+    let rows_out: Vec<Vec<Option<String>>> = pairs.into_iter().map(|p| p.to_vec()).collect();
     Df::from_string_rows(&["item", "value"], &rows_out)
 }
 
@@ -944,10 +956,7 @@ pub fn futures_inventory_em(symbol: &str) -> Result<Df> {
     // akshare 解析顺序：先命中 datacenter 主合约表，再回退到硬编码品种表，否则报错。
     let product_id = if let Some(code) = code_by_type.get(symbol) {
         code.clone()
-    } else if let Some((_, code)) = INVENTORY_SYMBOL_MAP
-        .iter()
-        .find(|(s, _)| *s == symbol)
-    {
+    } else if let Some((_, code)) = INVENTORY_SYMBOL_MAP.iter().find(|(s, _)| *s == symbol) {
         (*code).to_string()
     } else {
         return Err(AkshareError::Param(format!(
@@ -1029,10 +1038,12 @@ mod tests {
 
     #[test]
     fn cffex_html_page_gives_empty() {
-        assert!(parse_cffex("<!DOCTYPE html><html>要查看的页面不存在</html>", "20260119")
-            .unwrap()
-            .height()
-            == 0);
+        assert!(
+            parse_cffex("<!DOCTYPE html><html>要查看的页面不存在</html>", "20260119")
+                .unwrap()
+                .height()
+                == 0
+        );
     }
 
     #[test]
@@ -1143,14 +1154,34 @@ mod tests {
         assert_eq!(unified.column_names(), SETTLE_OUTPUT_COLUMNS);
         assert_eq!(unified.height(), 5);
         // 有映射的列保留值
-        let price = unified.inner().column("settle_price").unwrap().str().unwrap();
+        let price = unified
+            .inner()
+            .column("settle_price")
+            .unwrap()
+            .str()
+            .unwrap();
         assert_eq!(price.get(0), Some("9,436.00"));
-        let margin = unified.inner().column("long_margin_ratio").unwrap().str().unwrap();
+        let margin = unified
+            .inner()
+            .column("long_margin_ratio")
+            .unwrap()
+            .str()
+            .unwrap();
         assert_eq!(margin.get(0), Some("10"));
         // 无映射的列为全空
-        let sr = unified.inner().column("short_margin_ratio").unwrap().str().unwrap();
+        let sr = unified
+            .inner()
+            .column("short_margin_ratio")
+            .unwrap()
+            .str()
+            .unwrap();
         assert!(sr.get(0).is_none());
-        let tf = unified.inner().column("trade_fee_ratio").unwrap().str().unwrap();
+        let tf = unified
+            .inner()
+            .column("trade_fee_ratio")
+            .unwrap()
+            .str()
+            .unwrap();
         assert!(tf.get(0).is_none());
     }
 
@@ -1170,11 +1201,26 @@ mod tests {
         assert_eq!(unified.column_names(), SETTLE_OUTPUT_COLUMNS);
         assert_eq!(unified.height(), 1);
         // 数值源列复制后仍是 float64
-        let lmr = unified.inner().column("long_margin_ratio").unwrap().f64().unwrap();
+        let lmr = unified
+            .inner()
+            .column("long_margin_ratio")
+            .unwrap()
+            .f64()
+            .unwrap();
         assert_eq!(lmr.get(0), Some(0.2));
-        let hsr = unified.inner().column("hedge_short_margin_ratio").unwrap().f64().unwrap();
+        let hsr = unified
+            .inner()
+            .column("hedge_short_margin_ratio")
+            .unwrap()
+            .f64()
+            .unwrap();
         assert_eq!(hsr.get(0), Some(0.2)); // akshare 上游怪癖：← spec_buy_rate
-        let pos = unified.inner().column("position_limit").unwrap().f64().unwrap();
+        let pos = unified
+            .inner()
+            .column("position_limit")
+            .unwrap()
+            .f64()
+            .unwrap();
         assert_eq!(pos.get(0), Some(300.0));
         // 无来源列空
         assert!(unified
@@ -1214,7 +1260,10 @@ mod tests {
         assert_eq!(value.get(0), Some("聚氯乙烯"));
         assert_eq!(item.get(1), Some("交易时间"));
         // 连续空格折叠为单个（对应 pandas read_html）
-        assert_eq!(value.get(1), Some("上午 09:00-10:15 10:30-11:30 下午 13:30-15:00 夜间 21:00-23:00"));
+        assert_eq!(
+            value.get(1),
+            Some("上午 09:00-10:15 10:30-11:30 下午 13:30-15:00 夜间 21:00-23:00")
+        );
         assert_eq!(item.get(2), Some("交割方式"));
         assert_eq!(value.get(2), Some("实物交割"));
         assert_eq!(item.get(3), Some("交易单位"));
@@ -1257,7 +1306,14 @@ mod tests {
         assert_eq!(idx, Some(1.0));
         let d = df.inner().column("日期").unwrap().str().unwrap().get(0);
         assert_eq!(d, Some("2024-01-05"));
-        let t = df.inner().column(ton).unwrap().f64().unwrap().get(0).unwrap();
+        let t = df
+            .inner()
+            .column(ton)
+            .unwrap()
+            .f64()
+            .unwrap()
+            .get(0)
+            .unwrap();
         assert!(approx(t, 12345.67));
     }
 
@@ -1282,9 +1338,23 @@ mod tests {
         assert_eq!(col_names(&df), vec!["日期", "库存", "增减"]);
         let d = df.inner().column("日期").unwrap().str().unwrap().get(0);
         assert_eq!(d, Some("2024-02-08"));
-        let n = df.inner().column("库存").unwrap().f64().unwrap().get(0).unwrap();
+        let n = df
+            .inner()
+            .column("库存")
+            .unwrap()
+            .f64()
+            .unwrap()
+            .get(0)
+            .unwrap();
         assert!(approx(n, 123456.0));
-        let c = df.inner().column("增减").unwrap().f64().unwrap().get(0).unwrap();
+        let c = df
+            .inner()
+            .column("增减")
+            .unwrap()
+            .f64()
+            .unwrap()
+            .get(0)
+            .unwrap();
         assert!(approx(c, -789.0));
     }
 }

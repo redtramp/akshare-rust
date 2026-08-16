@@ -67,8 +67,7 @@ fn fetch_exchange_symbol_raw_em() -> Result<Vec<Value>> {
         for num in 1..=len {
             let mut p2 = Map::new();
             p2.insert("msgid".into(), Value::String(format!("{mktid}_{num}")));
-            let inner2 =
-                http.get_json_with_headers(base, &p2, &[("User-Agent", UA_EM)], None)?;
+            let inner2 = http.get_json_with_headers(base, &p2, &[("User-Agent", UA_EM)], None)?;
             if let Some(arr) = inner2.as_array() {
                 all.extend(arr.iter().cloned());
             }
@@ -114,11 +113,31 @@ fn build_symbol_maps(raw: &[Value]) -> EmSymbolMaps {
         c_symbol_mkt: HashMap::new(),
     };
     for it in raw {
-        let name = it.get("name").and_then(Value::as_str).unwrap_or("").to_string();
-        let code = it.get("code").and_then(Value::as_str).unwrap_or("").to_string();
-        let mktid = it.get("mktid").and_then(Value::as_str).unwrap_or("").to_string();
-        let vcode = it.get("vcode").and_then(Value::as_str).unwrap_or("").to_string();
-        let vname = it.get("vname").and_then(Value::as_str).unwrap_or("").to_string();
+        let name = it
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let code = it
+            .get("code")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let mktid = it
+            .get("mktid")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let vcode = it
+            .get("vcode")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let vname = it
+            .get("vname")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
         if !name.is_empty() {
             m.c_contract_mkt.insert(name.clone(), mktid.clone());
             m.c_contract_to_e_contract.insert(name, code);
@@ -165,12 +184,7 @@ fn fmt_ymd(s: &str) -> String {
 ///
 /// # 返回列
 /// `时间, 开盘, 最高, 最低, 收盘, 涨跌, 涨跌幅, 成交量, 成交额, 持仓量`
-pub fn futures_hist_em(
-    symbol: &str,
-    period: &str,
-    start_date: &str,
-    end_date: &str,
-) -> Result<Df> {
+pub fn futures_hist_em(symbol: &str, period: &str, start_date: &str, end_date: &str) -> Result<Df> {
     let raw = fetch_exchange_symbol_raw_em()?;
     let maps = build_symbol_maps(&raw);
     // 解析 symbol → secid（对应 akshare 的 try/except KeyError 分支）
@@ -187,7 +201,9 @@ pub fn futures_hist_em(
             return Err(AkshareError::Param(format!("无法解析合约: {symbol}")));
         }
         // 判断首个字母串是否全中文
-        let all_cn = chars.chars().all(|c| (c as u32) >= 0x4e00 && (c as u32) <= 0x9fa5);
+        let all_cn = chars
+            .chars()
+            .all(|c| (c as u32) >= 0x4e00 && (c as u32) <= 0x9fa5);
         let mkt = if all_cn {
             maps.c_symbol_mkt
                 .get(&chars)
@@ -218,7 +234,10 @@ pub fn futures_hist_em(
     params.insert("lmt".into(), Value::String("10000".into()));
     params.insert("end".into(), Value::String("20500000".into()));
     params.insert("iscca".into(), Value::String("1".into()));
-    params.insert("fields1".into(), Value::String("f1,f2,f3,f4,f5,f6,f7,f8".into()));
+    params.insert(
+        "fields1".into(),
+        Value::String("f1,f2,f3,f4,f5,f6,f7,f8".into()),
+    );
     params.insert(
         "fields2".into(),
         Value::String("f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64".into()),
@@ -239,7 +258,16 @@ pub fn futures_hist_em(
     if klines.is_empty() {
         return Df::from_string_rows(
             &[
-                "时间", "开盘", "最高", "最低", "收盘", "涨跌", "涨跌幅", "成交量", "成交额", "持仓量",
+                "时间",
+                "开盘",
+                "最高",
+                "最低",
+                "收盘",
+                "涨跌",
+                "涨跌幅",
+                "成交量",
+                "成交额",
+                "持仓量",
             ],
             &[],
         );
@@ -249,7 +277,9 @@ pub fn futures_hist_em(
     // 选取顺序：时间,开,高,低,收,涨跌,涨跌幅,量,额,持仓
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(klines.len());
     for k in klines {
-        let s = k.as_str().ok_or_else(|| AkshareError::Empty("EM kline 元素非字符串".into()))?;
+        let s = k
+            .as_str()
+            .ok_or_else(|| AkshareError::Empty("EM kline 元素非字符串".into()))?;
         let f: Vec<&str> = s.split(',').collect();
         if f.len() < 13 {
             continue;
@@ -277,12 +307,29 @@ pub fn futures_hist_em(
     });
     let mut df = Df::from_string_rows(
         &[
-            "时间", "开盘", "最高", "最低", "收盘", "涨跌", "涨跌幅", "成交量", "成交额", "持仓量",
+            "时间",
+            "开盘",
+            "最高",
+            "最低",
+            "收盘",
+            "涨跌",
+            "涨跌幅",
+            "成交量",
+            "成交额",
+            "持仓量",
         ],
         &rows,
     )?;
     df.cast_numeric(&[
-        "开盘", "最高", "最低", "收盘", "涨跌", "涨跌幅", "成交量", "成交额", "持仓量",
+        "开盘",
+        "最高",
+        "最低",
+        "收盘",
+        "涨跌",
+        "涨跌幅",
+        "成交量",
+        "成交额",
+        "持仓量",
     ])?;
     Ok(df)
 }
@@ -304,7 +351,10 @@ fn fetch_ftse_index_futu(date: &str) -> Result<usize> {
     params.insert("lmt".into(), Value::String("10000".into()));
     params.insert("end".into(), Value::String(date.to_string()));
     params.insert("iscca".into(), Value::String("1".into()));
-    params.insert("fields1".into(), Value::String("f1,f2,f3,f4,f5,f6,f7,f8".into()));
+    params.insert(
+        "fields1".into(),
+        Value::String("f1,f2,f3,f4,f5,f6,f7,f8".into()),
+    );
     params.insert(
         "fields2".into(),
         Value::String("f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64".into()),
@@ -342,7 +392,11 @@ fn parse_sgx_zip(bytes: &[u8]) -> Result<Df> {
     entry
         .read_to_string(&mut content)
         .map_err(|e| AkshareError::Empty(format!("SGX ZIP 条目解码失败: {e}")))?;
-    let delim = if entry.name().ends_with("txt") { '\t' } else { ',' };
+    let delim = if entry.name().ends_with("txt") {
+        '\t'
+    } else {
+        ','
+    };
     let lines: Vec<&str> = content.lines().collect();
     if lines.is_empty() {
         return Err(AkshareError::Empty("SGX ZIP 条目为空".into()));
@@ -393,9 +447,18 @@ mod tests {
 
     #[test]
     fn separate_char_and_numbers_basic() {
-        assert_eq!(separate_char_and_numbers("焦煤2506"), ("焦煤".to_string(), "2506".to_string()));
-        assert_eq!(separate_char_and_numbers("rb2505"), ("rb".to_string(), "2505".to_string()));
-        assert_eq!(separate_char_and_numbers("热卷主连"), ("热卷主连".to_string(), "".to_string()));
+        assert_eq!(
+            separate_char_and_numbers("焦煤2506"),
+            ("焦煤".to_string(), "2506".to_string())
+        );
+        assert_eq!(
+            separate_char_and_numbers("rb2505"),
+            ("rb".to_string(), "2505".to_string())
+        );
+        assert_eq!(
+            separate_char_and_numbers("热卷主连"),
+            ("热卷主连".to_string(), "".to_string())
+        );
     }
 
     #[test]
@@ -411,7 +474,10 @@ mod tests {
         ];
         let m = build_symbol_maps(&raw);
         assert_eq!(m.c_contract_mkt.get("螺纹钢"), Some(&"114".to_string()));
-        assert_eq!(m.c_contract_to_e_contract.get("螺纹钢"), Some(&"rb".to_string()));
+        assert_eq!(
+            m.c_contract_to_e_contract.get("螺纹钢"),
+            Some(&"rb".to_string())
+        );
         assert_eq!(m.e_symbol_mkt.get("rb9999"), Some(&"114".to_string()));
         assert_eq!(m.c_symbol_mkt.get("螺纹主连"), Some(&"114".to_string()));
     }
@@ -419,7 +485,8 @@ mod tests {
     #[test]
     fn hist_em_column_select_matches_akshare() {
         // 单条 kline CSV（14 字段），验证 10 列选取顺序与 akshare 一致
-        let kline = "2024-01-02 00:00:00,3500.0,3550.0,3600.0,3480.0,100000,3.5e8,0,1.2,50.0,0,0,120000,0";
+        let kline =
+            "2024-01-02 00:00:00,3500.0,3550.0,3600.0,3480.0,100000,3.5e8,0,1.2,50.0,0,0,120000,0";
         let f: Vec<&str> = kline.split(',').collect();
         let row = vec![
             Some(f[0].to_string()),

@@ -161,9 +161,12 @@ impl Df {
                 .into_series()
                 .into()
             } else if ints > 0 {
-                Int64Chunked::from_iter_options(PlSmallStr::from_str(name), int_vals.iter().copied())
-                    .into_series()
-                    .into()
+                Int64Chunked::from_iter_options(
+                    PlSmallStr::from_str(name),
+                    int_vals.iter().copied(),
+                )
+                .into_series()
+                .into()
             } else {
                 // 全空列：pandas 推断为 object(str)，而非 float64
                 StringChunked::from_iter_options(
@@ -347,9 +350,9 @@ impl Df {
                     (0..series.len())
                         .map(|i| {
                             s.get(i).map(|v| {
-                                v.strip_suffix(suffix).map(str::to_string).unwrap_or_else(
-                                    || v.to_string(),
-                                )
+                                v.strip_suffix(suffix)
+                                    .map(str::to_string)
+                                    .unwrap_or_else(|| v.to_string())
                             })
                         })
                         .collect()

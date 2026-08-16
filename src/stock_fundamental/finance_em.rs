@@ -596,7 +596,15 @@ pub fn stock_zh_a_gbjg_em(symbol: &str) -> Result<Df> {
     let mut extra = report_extra("END_DATE", "-1", Some(&filter), None, None, None);
     extra.insert("source".into(), json!("HSF10"));
     extra.insert("client".into(), json!("PC"));
-    let rows = fetch_securities_pages(&http, "RPT_F10_EH_EQUITY", "ALL", &extra, "500", "HSF10", "PC")?;
+    let rows = fetch_securities_pages(
+        &http,
+        "RPT_F10_EH_EQUITY",
+        "ALL",
+        &extra,
+        "500",
+        "HSF10",
+        "PC",
+    )?;
     let mut df = finalize_report(&rows, &GBJG_RENAME, &GBJG_COLS, &GBJG_NUMERIC, None)?;
     df.cast_date(&GBJG_DATE)?;
     Ok(df)
@@ -613,15 +621,15 @@ pub fn stock_sy_em(date: &str) -> Result<Df> {
     let ymd = fmt_ymd(date)?;
     let http = HttpClient::default();
     let filter = format!("(REPORT_DATE='{ymd}')");
-    let extra =
-        report_extra("NOTICE_DATE,SECURITY_CODE", "-1,-1", Some(&filter), None, Some(SY_TOKEN), None);
-    let rows = fetch_datacenter_pages(
-        &http,
-        "RPT_GOODWILL_STOCKDETAILS",
-        "ALL",
-        &extra,
-        "5000",
-    )?;
+    let extra = report_extra(
+        "NOTICE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(&filter),
+        None,
+        Some(SY_TOKEN),
+        None,
+    );
+    let rows = fetch_datacenter_pages(&http, "RPT_GOODWILL_STOCKDETAILS", "ALL", &extra, "5000")?;
     let mut df = finalize_report(&rows, &SY_RENAME, &SY_COLS, &SY_NUMERIC, Some("序号"))?;
     // 交易市场 枚举映射（对应 akshare `.map({"shzb":"沪市主板",...})`）
     let board = df
@@ -700,7 +708,13 @@ pub fn stock_financial_hk_analysis_indicator_em(symbol: &str, indicator: &str) -
         "F10",
         "PC",
     )?;
-    finalize_report(&rows, &identity_rename(&HK_COLS), &HK_COLS, &HK_NUMERIC, None)
+    finalize_report(
+        &rows,
+        &identity_rename(&HK_COLS),
+        &HK_COLS,
+        &HK_NUMERIC,
+        None,
+    )
 }
 
 /// 东方财富-美股-财务分析-主要指标（对应 akshare
@@ -758,7 +772,13 @@ DEBT_RATIO_YOY,EQUITY_RATIO",
         ("RPT_USF10_FN_GMAININDICATOR", "USF10_FN_GMAININDICATOR")
     };
     let rows = fetch_securities_pages(&http, report, columns, &extra, "", "SECURITIES", "PC")?;
-    finalize_report(&rows, &identity_rename(&US_COLS), &US_COLS, &US_NUMERIC, None)
+    finalize_report(
+        &rows,
+        &identity_rename(&US_COLS),
+        &US_COLS,
+        &US_NUMERIC,
+        None,
+    )
 }
 
 #[cfg(test)]
@@ -800,10 +820,27 @@ mod tests {
         let mut df = finalize_report(&rows, &GBJG_RENAME, &GBJG_COLS, &GBJG_NUMERIC, None).unwrap();
         df.cast_date(&GBJG_DATE).unwrap();
         assert_eq!(df.column_names(), GBJG_COLS.to_vec());
-        assert_eq!(df.inner().column("变更日期").unwrap().str().unwrap().get(0), Some("2025-12-17"));
-        assert_eq!(df.inner().column("总股本").unwrap().f64().unwrap().get(0), Some(1264392804.0));
-        assert_eq!(df.inner().column("变动原因").unwrap().str().unwrap().get(0), Some("回购"));
-        assert_eq!(df.inner().column("流通受限股份").unwrap().f64().unwrap().get(0), None);
+        assert_eq!(
+            df.inner().column("变更日期").unwrap().str().unwrap().get(0),
+            Some("2025-12-17")
+        );
+        assert_eq!(
+            df.inner().column("总股本").unwrap().f64().unwrap().get(0),
+            Some(1264392804.0)
+        );
+        assert_eq!(
+            df.inner().column("变动原因").unwrap().str().unwrap().get(0),
+            Some("回购")
+        );
+        assert_eq!(
+            df.inner()
+                .column("流通受限股份")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
+            None
+        );
     }
 
     #[test]
@@ -819,7 +856,8 @@ mod tests {
             "GOODWILL_PRE": 225901300.0,
             "NOTICE_DATE": "2026-08-06 00:00:00",
         })];
-        let mut df = finalize_report(&rows, &SY_RENAME, &SY_COLS, &SY_NUMERIC, Some("序号")).unwrap();
+        let mut df =
+            finalize_report(&rows, &SY_RENAME, &SY_COLS, &SY_NUMERIC, Some("序号")).unwrap();
         let board = df.inner().column("交易市场").unwrap().str().unwrap();
         let mapped: Vec<Option<String>> = (0..df.height())
             .map(|i| board.get(i).map(map_trade_board).map(str::to_string))
@@ -828,10 +866,22 @@ mod tests {
         let mut expect = vec!["序号"];
         expect.extend(SY_COLS.iter().copied());
         assert_eq!(df.column_names(), expect);
-        assert_eq!(df.inner().column("序号").unwrap().f64().unwrap().get(0), Some(1.0));
-        assert_eq!(df.inner().column("股票代码").unwrap().str().unwrap().get(0), Some("000637"));
-        assert_eq!(df.inner().column("交易市场").unwrap().str().unwrap().get(0), Some("深市主板"));
-        assert_eq!(df.inner().column("商誉").unwrap().f64().unwrap().get(0), Some(225901300.0));
+        assert_eq!(
+            df.inner().column("序号").unwrap().f64().unwrap().get(0),
+            Some(1.0)
+        );
+        assert_eq!(
+            df.inner().column("股票代码").unwrap().str().unwrap().get(0),
+            Some("000637")
+        );
+        assert_eq!(
+            df.inner().column("交易市场").unwrap().str().unwrap().get(0),
+            Some("深市主板")
+        );
+        assert_eq!(
+            df.inner().column("商誉").unwrap().f64().unwrap().get(0),
+            Some(225901300.0)
+        );
     }
 
     #[test]
@@ -847,12 +897,41 @@ mod tests {
             "BPS": 7.920279,
             "SEASON_LABEL": "一季度",
         })];
-        let df = finalize_report(&rows, &identity_rename(&FIN_DJ_COLS), &FIN_DJ_COLS, &FIN_DJ_NUMERIC, None).unwrap();
+        let df = finalize_report(
+            &rows,
+            &identity_rename(&FIN_DJ_COLS),
+            &FIN_DJ_COLS,
+            &FIN_DJ_NUMERIC,
+            None,
+        )
+        .unwrap();
         assert_eq!(df.column_names(), FIN_DJ_COLS.to_vec());
-        assert_eq!(df.inner().column("SECUCODE").unwrap().str().unwrap().get(0), Some("301389.SZ"));
-        assert_eq!(df.inner().column("EPSJB").unwrap().f64().unwrap().get(0), Some(0.09));
-        assert_eq!(df.inner().column("REPORT_DATE").unwrap().str().unwrap().get(0), Some("2026-03-31 00:00:00"));
-        assert_eq!(df.inner().column("SEASON_LABEL").unwrap().str().unwrap().get(0), Some("一季度"));
+        assert_eq!(
+            df.inner().column("SECUCODE").unwrap().str().unwrap().get(0),
+            Some("301389.SZ")
+        );
+        assert_eq!(
+            df.inner().column("EPSJB").unwrap().f64().unwrap().get(0),
+            Some(0.09)
+        );
+        assert_eq!(
+            df.inner()
+                .column("REPORT_DATE")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
+            Some("2026-03-31 00:00:00")
+        );
+        assert_eq!(
+            df.inner()
+                .column("SEASON_LABEL")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
+            Some("一季度")
+        );
     }
 
     #[test]
@@ -867,10 +946,36 @@ mod tests {
             "BASIC_EPS": 4.5,
             "CURRENCY_ABBR": "USD",
         })];
-        let df = finalize_report(&rows, &identity_rename(&US_COLS), &US_COLS, &US_NUMERIC, None).unwrap();
+        let df = finalize_report(
+            &rows,
+            &identity_rename(&US_COLS),
+            &US_COLS,
+            &US_NUMERIC,
+            None,
+        )
+        .unwrap();
         assert_eq!(df.column_names(), US_COLS.to_vec());
-        assert_eq!(df.inner().column("SECUCODE").unwrap().str().unwrap().get(0), Some("TSLA.OQX"));
-        assert_eq!(df.inner().column("OPERATE_INCOME").unwrap().f64().unwrap().get(0), Some(23400000000.0));
-        assert_eq!(df.inner().column("CURRENCY_ABBR").unwrap().str().unwrap().get(0), Some("USD"));
+        assert_eq!(
+            df.inner().column("SECUCODE").unwrap().str().unwrap().get(0),
+            Some("TSLA.OQX")
+        );
+        assert_eq!(
+            df.inner()
+                .column("OPERATE_INCOME")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
+            Some(23400000000.0)
+        );
+        assert_eq!(
+            df.inner()
+                .column("CURRENCY_ABBR")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
+            Some("USD")
+        );
     }
 }

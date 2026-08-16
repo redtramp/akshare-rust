@@ -18,10 +18,7 @@ const BAIDU_CALENDAR_URL: &str = "https://finance.pae.baidu.com/sapi/v1/financec
 
 /// 百度财经日历标准请求头（对应 akshare `_baidu_finance_calendar` 的 headers）。
 const BAIDU_HEADERS: &[(&str, &str)] = &[
-    (
-        "accept",
-        "application/vnd.finance-web.v1+json",
-    ),
+    ("accept", "application/vnd.finance-web.v1+json"),
     (
         "user-agent",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) \
@@ -171,13 +168,11 @@ fn build_calendar_df(
                 // fallback：当前列值为 None 时尝试源键
                 if val.is_none() {
                     if let Some((_, src)) = fallbacks.iter().find(|(col, _)| *col == *c) {
-                        val = obj
-                            .and_then(|o| o.get(*src))
-                            .and_then(|v| match v {
-                                Value::String(s) => Some(s.clone()),
-                                Value::Null => None,
-                                other => Some(other.to_string()),
-                            });
+                        val = obj.and_then(|o| o.get(*src)).and_then(|v| match v {
+                            Value::String(s) => Some(s.clone()),
+                            Value::Null => None,
+                            other => Some(other.to_string()),
+                        });
                     }
                 }
                 // 整列缺失（required 且 key 从未出现）才用 fill 补整列
@@ -218,7 +213,16 @@ pub fn news_economic_baidu(date: &str) -> Result<Df> {
         ],
         &["公布", "预期", "前值", "重要性"],
         &[
-            "日期", "时间", "国家", "地区", "事件", "统计周期", "公布", "预期", "前值", "重要性",
+            "日期",
+            "时间",
+            "国家",
+            "地区",
+            "事件",
+            "统计周期",
+            "公布",
+            "预期",
+            "前值",
+            "重要性",
         ],
         &["公布", "预期", "前值", "重要性"],
         &["日期"],
@@ -251,8 +255,18 @@ pub fn news_trade_notify_suspend_baidu(date: &str) -> Result<Df> {
         ],
         &["复牌时间"],
         &[
-            "股票代码", "股票简称", "交易所代码", "停牌时间", "复牌时间", "停牌事项说明", "市值",
-            "公告日期", "公告时间", "证券类型", "市场类型", "是否跳过",
+            "股票代码",
+            "股票简称",
+            "交易所代码",
+            "停牌时间",
+            "复牌时间",
+            "停牌事项说明",
+            "市值",
+            "公告日期",
+            "公告时间",
+            "证券类型",
+            "市场类型",
+            "是否跳过",
         ],
         &[],
         &[],
@@ -282,7 +296,15 @@ pub fn news_trade_notify_dividend_baidu(date: &str) -> Result<Df> {
         ],
         &["分红", "实物", "送股", "转增"],
         &[
-            "股票代码", "除权日", "分红", "送股", "转增", "实物", "交易所", "股票简称", "报告期",
+            "股票代码",
+            "除权日",
+            "分红",
+            "送股",
+            "转增",
+            "实物",
+            "交易所",
+            "股票简称",
+            "报告期",
         ],
         &[],
         &["除权日", "报告期"],
@@ -311,7 +333,13 @@ pub fn news_report_time_baidu(date: &str) -> Result<Df> {
         ],
         &["财报类型", "发布时间"],
         &[
-            "股票代码", "股票简称", "交易所", "财报类型", "发布时间", "市值", "发布日期",
+            "股票代码",
+            "股票简称",
+            "交易所",
+            "财报类型",
+            "发布时间",
+            "市值",
+            "发布日期",
         ],
         &["市值"],
         &["发布日期"],

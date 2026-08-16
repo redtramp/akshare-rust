@@ -219,7 +219,14 @@ pub fn futures_contract_info_cffex(date: &str) -> Result<Df> {
         "查询交易日",
     ];
     let numeric: &[&str] = &["挂盘基准价", "涨停板价位", "跌停板价位", "持仓限额"];
-    let mut df = xml_to_df(&text, "INDEX", &["TRADING_DAY", "OPEN_DATE", "END_TRADING_DAY"], rename, select, numeric)?;
+    let mut df = xml_to_df(
+        &text,
+        "INDEX",
+        &["TRADING_DAY", "OPEN_DATE", "END_TRADING_DAY"],
+        rename,
+        select,
+        numeric,
+    )?;
     df = df.sort_by("合约代码", false, false)?;
     Ok(df)
 }
@@ -412,7 +419,8 @@ pub fn futures_contract_info_ine(date: &str) -> Result<Df> {
 
 /// 上海期货交易所-交易所服务-业务数据-交易参数汇总查询（对应 akshare [`akshare.futures_contract_info_shfe`]）。
 pub fn futures_contract_info_shfe(date: &str) -> Result<Df> {
-    let url = format!("https://www.shfe.com.cn/data/busiparamdata/future/ContractBaseInfo{date}.dat");
+    let url =
+        format!("https://www.shfe.com.cn/data/busiparamdata/future/ContractBaseInfo{date}.dat");
     let http = HttpClient::default();
     let v = http.get_json_with_headers(&url, &Map::new(), &[("User-Agent", UA)], None)?;
     let rows = v
@@ -451,7 +459,13 @@ fn contract_info_shfe_like(rows: &[Value]) -> Result<Df> {
     let numeric: &[&str] = &["挂牌基准价"];
     rows_to_df(
         rows,
-        &["OPENDATE", "EXPIREDATE", "STARTDELIVDATE", "ENDDELIVDATE", "TRADINGDAY"],
+        &[
+            "OPENDATE",
+            "EXPIREDATE",
+            "STARTDELIVDATE",
+            "ENDDELIVDATE",
+            "TRADINGDAY",
+        ],
         rename,
         select,
         numeric,
@@ -471,8 +485,7 @@ fn empty_df() -> Result<Df> {
 /// 单元格统一转为字符串：空 → `""`、数值 → 去尾零的十进制、其余 → 原值字符串。
 fn xls_rows(bytes: &[u8]) -> Result<Vec<Vec<String>>> {
     let cur = std::io::Cursor::new(bytes.to_vec());
-    let mut wb = Xls::new(cur)
-        .map_err(|e| AkshareError::Empty(format!("xls 解析失败: {e}")))?;
+    let mut wb = Xls::new(cur).map_err(|e| AkshareError::Empty(format!("xls 解析失败: {e}")))?;
     let range = wb
         .worksheet_range_at(0)
         .ok_or_else(|| AkshareError::Empty("xls 无工作表".into()))?
@@ -705,7 +718,10 @@ pub fn futures_gfex_warehouse_receipt(date: &str) -> Result<Df> {
             Some(o) => o,
             None => continue,
         };
-        let variety_order = obj.get("varietyOrder").and_then(Value::as_str).unwrap_or("");
+        let variety_order = obj
+            .get("varietyOrder")
+            .and_then(Value::as_str)
+            .unwrap_or("");
         if variety_order.is_empty() {
             continue;
         }
@@ -718,9 +734,17 @@ pub fn futures_gfex_warehouse_receipt(date: &str) -> Result<Df> {
             Some(variety_order.to_string()),
             cell_str(obj.get("variety")),
             cell_str(obj.get("whAbbr")),
-            Some(strip_thousands(obj.get("lastWbillQty").and_then(Value::as_str).unwrap_or(""))),
-            Some(strip_thousands(obj.get("wbillQty").and_then(Value::as_str).unwrap_or(""))),
-            Some(strip_thousands(obj.get("regWbillQty").and_then(Value::as_str).unwrap_or(""))),
+            Some(strip_thousands(
+                obj.get("lastWbillQty")
+                    .and_then(Value::as_str)
+                    .unwrap_or(""),
+            )),
+            Some(strip_thousands(
+                obj.get("wbillQty").and_then(Value::as_str).unwrap_or(""),
+            )),
+            Some(strip_thousands(
+                obj.get("regWbillQty").and_then(Value::as_str).unwrap_or(""),
+            )),
         ]);
     }
     let mut df = Df::from_string_rows(&cols, &out)?;
@@ -778,7 +802,10 @@ pub fn futures_delivery_dce(date: &str) -> Result<Df> {
     params.insert("deliveryQuotes.variety".into(), Value::String("all".into()));
     params.insert("year".into(), Value::String(String::new()));
     params.insert("month".into(), Value::String(String::new()));
-    params.insert("deliveryQuotes.begin_month".into(), Value::String(date.to_string()));
+    params.insert(
+        "deliveryQuotes.begin_month".into(),
+        Value::String(date.to_string()),
+    );
     params.insert(
         "deliveryQuotes.end_month".into(),
         Value::String((date.parse::<i64>().unwrap_or(0) + 1).to_string()),
@@ -803,14 +830,25 @@ pub fn futures_delivery_dce(date: &str) -> Result<Df> {
     for r in &t[1..] {
         // 过滤品种含「小计|总计」行
         if let Some(i) = i_var {
-            if r.get(i).map(|c| c.contains("小计") || c.contains("总计")).unwrap_or(false) {
+            if r.get(i)
+                .map(|c| c.contains("小计") || c.contains("总计"))
+                .unwrap_or(false)
+            {
                 continue;
             }
         }
-        let date = i_date.and_then(|i| r.get(i).cloned()).map(|s| s.split('.').next().unwrap_or("").to_string());
-        let var = i_var.and_then(|i| r.get(i).cloned()).filter(|c| !c.is_empty());
-        let qty = i_qty.and_then(|i| r.get(i).cloned()).map(|s| strip_thousands(&s));
-        let amt = i_amt.and_then(|i| r.get(i).cloned()).map(|s| strip_thousands(&s));
+        let date = i_date
+            .and_then(|i| r.get(i).cloned())
+            .map(|s| s.split('.').next().unwrap_or("").to_string());
+        let var = i_var
+            .and_then(|i| r.get(i).cloned())
+            .filter(|c| !c.is_empty());
+        let qty = i_qty
+            .and_then(|i| r.get(i).cloned())
+            .map(|s| strip_thousands(&s));
+        let amt = i_amt
+            .and_then(|i| r.get(i).cloned())
+            .map(|s| strip_thousands(&s));
         out.push(vec![date, var, qty, amt]);
     }
     let mut df = Df::from_string_rows(&cols, &out)?;
@@ -829,8 +867,14 @@ pub fn futures_to_spot_dce(date: &str) -> Result<Df> {
     params.insert("ftsDealQuotes.variety".into(), Value::String("all".into()));
     params.insert("year".into(), Value::String(String::new()));
     params.insert("month".into(), Value::String(String::new()));
-    params.insert("ftsDealQuotes.begin_month".into(), Value::String(date.to_string()));
-    params.insert("ftsDealQuotes.end_month".into(), Value::String(date.to_string()));
+    params.insert(
+        "ftsDealQuotes.begin_month".into(),
+        Value::String(date.to_string()),
+    );
+    params.insert(
+        "ftsDealQuotes.end_month".into(),
+        Value::String(date.to_string()),
+    );
     let text = http.post_form_text(url, &params, &[])?;
     let tables = crate::core::html::read_html_tables(&text)?;
     let t = tables
@@ -849,13 +893,22 @@ pub fn futures_to_spot_dce(date: &str) -> Result<Df> {
     let mut out: Vec<Vec<Option<String>>> = Vec::new();
     for r in &t[1..] {
         if let Some(i) = i_sym {
-            if r.get(i).map(|c| c.contains("小计") || c.contains("总计")).unwrap_or(false) {
+            if r.get(i)
+                .map(|c| c.contains("小计") || c.contains("总计"))
+                .unwrap_or(false)
+            {
                 continue;
             }
         }
-        let date = i_date.and_then(|i| r.get(i).cloned()).map(|s| s.split('.').next().unwrap_or("").to_string());
-        let sym = i_sym.and_then(|i| r.get(i).cloned()).filter(|c| !c.is_empty());
-        let qty = i_qty.and_then(|i| r.get(i).cloned()).map(|s| strip_thousands(&s));
+        let date = i_date
+            .and_then(|i| r.get(i).cloned())
+            .map(|s| s.split('.').next().unwrap_or("").to_string());
+        let sym = i_sym
+            .and_then(|i| r.get(i).cloned())
+            .filter(|c| !c.is_empty());
+        let qty = i_qty
+            .and_then(|i| r.get(i).cloned())
+            .map(|s| strip_thousands(&s));
         out.push(vec![date, sym, qty]);
     }
     let mut df = Df::from_string_rows(&cols, &out)?;
@@ -871,9 +924,15 @@ pub fn futures_delivery_match_dce(symbol: &str) -> Result<Df> {
     let url = "http://www.dce.com.cn/publicweb/quotesdata/deliveryMatch.html";
     let http = HttpClient::default();
     let mut params = Map::new();
-    params.insert("deliveryMatchQuotes.variety".into(), Value::String(symbol.to_string()));
+    params.insert(
+        "deliveryMatchQuotes.variety".into(),
+        Value::String(symbol.to_string()),
+    );
     params.insert("contract.contract_id".into(), Value::String("all".into()));
-    params.insert("contract.variety_id".into(), Value::String(symbol.to_string()));
+    params.insert(
+        "contract.variety_id".into(),
+        Value::String(symbol.to_string()),
+    );
     let text = http.post_form_text(url, &params, &[])?;
     let tables = crate::core::html::read_html_tables(&text)?;
     let t = tables
@@ -884,7 +943,11 @@ pub fn futures_delivery_match_dce(symbol: &str) -> Result<Df> {
         return empty_df();
     }
     // akshare：iloc[:-1] 丢弃末行
-    let data = if t.len() > 2 { &t[1..t.len() - 1] } else { &t[1..] };
+    let data = if t.len() > 2 {
+        &t[1..t.len() - 1]
+    } else {
+        &t[1..]
+    };
     let header = &t[0];
     let i_date = header.iter().position(|c| c == "配对日期");
     let i_lots = header.iter().position(|c| c == "配对手数");
@@ -893,9 +956,15 @@ pub fn futures_delivery_match_dce(symbol: &str) -> Result<Df> {
     let numeric = ["配对手数", "交割结算价"];
     let mut out: Vec<Vec<Option<String>>> = Vec::new();
     for r in data {
-        let date = i_date.and_then(|i| r.get(i).cloned()).map(|s| s.split('.').next().unwrap_or("").to_string());
-        let lots = i_lots.and_then(|i| r.get(i).cloned()).map(|s| strip_thousands(&s));
-        let settle = i_settle.and_then(|i| r.get(i).cloned()).map(|s| strip_thousands(&s));
+        let date = i_date
+            .and_then(|i| r.get(i).cloned())
+            .map(|s| s.split('.').next().unwrap_or("").to_string());
+        let lots = i_lots
+            .and_then(|i| r.get(i).cloned())
+            .map(|s| strip_thousands(&s));
+        let settle = i_settle
+            .and_then(|i| r.get(i).cloned())
+            .map(|s| strip_thousands(&s));
         out.push(vec![date, lots, settle]);
     }
     let mut df = Df::from_string_rows(&cols, &out)?;
@@ -929,7 +998,11 @@ pub fn futures_to_spot_czce(date: &str) -> Result<Df> {
         if code.contains("小计") || code.contains("合计") {
             continue;
         }
-        let qty = r.get(1).cloned().map(|s| strip_thousands(&s)).filter(|c| !c.is_empty());
+        let qty = r
+            .get(1)
+            .cloned()
+            .map(|s| strip_thousands(&s))
+            .filter(|c| !c.is_empty());
         out.push(vec![Some(code), qty]);
     }
     let mut df = Df::from_string_rows(&cols, &out)?;
@@ -959,8 +1032,16 @@ pub fn futures_delivery_czce(date: &str) -> Result<Df> {
     for r in &rows[2..] {
         let var = r.first().cloned().filter(|c| !c.is_empty());
         let Some(var) = var else { continue };
-        let qty = r.get(1).cloned().map(|s| strip_thousands(&s)).filter(|c| !c.is_empty());
-        let amt = r.get(2).cloned().map(|s| strip_thousands(&s)).filter(|c| !c.is_empty());
+        let qty = r
+            .get(1)
+            .cloned()
+            .map(|s| strip_thousands(&s))
+            .filter(|c| !c.is_empty());
+        let amt = r
+            .get(2)
+            .cloned()
+            .map(|s| strip_thousands(&s))
+            .filter(|c| !c.is_empty());
         out.push(vec![Some(var), qty, amt]);
     }
     let mut df = Df::from_string_rows(&cols, &out)?;
@@ -992,7 +1073,12 @@ pub fn futures_delivery_shfe(date: &str) -> Result<Df> {
         "交割量-本年累计",
         "交割量-累计同比",
     ];
-    let numeric = ["交割量-本月", "交割量-比重", "交割量-本年累计", "交割量-累计同比"];
+    let numeric = [
+        "交割量-本月",
+        "交割量-比重",
+        "交割量-本年累计",
+        "交割量-累计同比",
+    ];
     let mut out: Vec<Vec<Option<String>>> = Vec::new();
     for r in &rows {
         // 按位置：akshare 设列 [品种, 品种代码, _, 交割量-本月, 交割量-比重,

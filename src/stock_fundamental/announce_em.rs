@@ -72,10 +72,7 @@ fn map_mainop_type(v: &str) -> String {
 
 /// 安全取字符串字段。
 fn str_of(v: &Value, key: &str) -> String {
-    v.get(key)
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string()
+    v.get(key).and_then(Value::as_str).unwrap_or("").to_string()
 }
 
 /// 东财个股 F10 主营构成。
@@ -178,7 +175,11 @@ fn fetch_announcements(
         None => return Ok(Vec::new()),
     };
     let total_hits = data.get("total_hits").and_then(Value::as_u64).unwrap_or(0);
-    let page_size = data.get("page_size").and_then(Value::as_u64).unwrap_or(100).max(1);
+    let page_size = data
+        .get("page_size")
+        .and_then(Value::as_u64)
+        .unwrap_or(100)
+        .max(1);
     let total_pages = total_hits.div_ceil(page_size);
 
     let mut acc: Vec<Value> = Vec::with_capacity(total_hits as usize);
@@ -189,7 +190,10 @@ fn fetch_announcements(
         params.insert("page_index".to_string(), json!(page));
         match http.get_json(NOTICE_URL, &params, None) {
             Ok(v) => {
-                if let Some(list) = v.get("data").and_then(|d| d.get("list")).and_then(Value::as_array)
+                if let Some(list) = v
+                    .get("data")
+                    .and_then(|d| d.get("list"))
+                    .and_then(Value::as_array)
                 {
                     acc.extend(list.iter().cloned());
                 } else {
@@ -211,7 +215,14 @@ fn build_notice_df(items: &[Value], with_url: bool) -> Result<Df> {
     let col_names: &[&str] = if with_url {
         &["代码", "名称", "公告标题", "公告类型", "公告日期", "网址"]
     } else {
-        &["代码", "名称", "公告标题", "公告类型", "公告日期", "公告代码"]
+        &[
+            "代码",
+            "名称",
+            "公告标题",
+            "公告类型",
+            "公告日期",
+            "公告代码",
+        ]
     };
     let mut data: Vec<Vec<Option<String>>> = Vec::with_capacity(items.len());
     for item in items {
@@ -336,8 +347,17 @@ mod tests {
         assert_eq!(
             df.column_names(),
             vec![
-                "股票代码", "报告日期", "分类类型", "主营构成", "主营收入", "收入比例",
-                "主营成本", "成本比例", "主营利润", "利润比例", "毛利率"
+                "股票代码",
+                "报告日期",
+                "分类类型",
+                "主营构成",
+                "主营收入",
+                "收入比例",
+                "主营成本",
+                "成本比例",
+                "主营利润",
+                "利润比例",
+                "毛利率"
             ]
         );
         // 分类类型枚举映射
@@ -402,7 +422,14 @@ mod tests {
         let df = build_notice_df(items, false).unwrap();
         assert_eq!(
             df.column_names(),
-            vec!["代码", "名称", "公告标题", "公告类型", "公告日期", "公告代码"]
+            vec![
+                "代码",
+                "名称",
+                "公告标题",
+                "公告类型",
+                "公告日期",
+                "公告代码"
+            ]
         );
         let gc = df.inner().column("公告代码").unwrap().str().unwrap();
         assert_eq!(gc.get(0), Some("AN202608141827988685"));

@@ -382,9 +382,8 @@ impl HttpClient {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| {
-            AkshareError::Blocked("GET(字节) 请求重试耗尽，未知错误".into())
-        }))
+        Err(last_err
+            .unwrap_or_else(|| AkshareError::Blocked("GET(字节) 请求重试耗尽，未知错误".into())))
     }
 
     /// 带重试的 POST（query 参数 + 自定义请求头），返回解析后的 JSON。
@@ -491,9 +490,8 @@ impl HttpClient {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| {
-            AkshareError::Blocked("POST(JSON) 请求重试耗尽，未知错误".into())
-        }))
+        Err(last_err
+            .unwrap_or_else(|| AkshareError::Blocked("POST(JSON) 请求重试耗尽，未知错误".into())))
     }
 
     /// 带重试的 POST（application/x-www-form-urlencoded 表单体 + 自定义请求头），返回解析后的 JSON。
@@ -916,7 +914,10 @@ mod tests {
         assert!(detect_block_or_auth("http://x", &big).is_ok());
         // 但真正的雪球错误信封仍须命中
         assert!(matches!(
-            detect_block_or_auth("http://x", r#"{"error_code": 400016,"error_info":"need login"}"#),
+            detect_block_or_auth(
+                "http://x",
+                r#"{"error_code": 400016,"error_info":"need login"}"#
+            ),
             Err(AkshareError::AuthRequired(_))
         ));
     }

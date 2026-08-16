@@ -9,10 +9,10 @@
 //! - 列名逐字对齐 akshare 输出（含其位置映射对应的实际字段名）。
 //! - 日期类字段统一归一化为 `YYYY-MM-DD`；数值列 `cast_numeric`。
 
+use crate::bond::util::{cell_string, df_by_keys};
 use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::sources::chinamoney as cm;
-use crate::bond::util::{cell_string, df_by_keys};
 use serde_json::Value;
 
 /// 把 `YYYYMMDD` 规整为 `YYYY-MM-DD`（akshare 拼 `startDate`/`endDate` 的格式）。
@@ -55,12 +55,12 @@ pub fn bond_spot_deal() -> Result<Df> {
         &records,
         &[
             // akshare 位置映射对应的实际字段（顺序对齐 akshare 的 select）
-            ("abdAssetEncdShrtDesc", "债券简称"), // 位置2
-            ("dmiLatestRate", "成交净价"),        // 位置12
+            ("abdAssetEncdShrtDesc", "债券简称"),       // 位置2
+            ("dmiLatestRate", "成交净价"),              // 位置12
             ("dmiLatestContraRateLabel", "最新收益率"), // 位置15
-            ("bpNum", "涨跌"),                   // 位置7
-            ("dmiWghtdContraRate", "加权收益率"), // 位置11
-            ("dmiTtlTradedAmnt", "交易量"),       // 位置17
+            ("bpNum", "涨跌"),                          // 位置7
+            ("dmiWghtdContraRate", "加权收益率"),       // 位置11
+            ("dmiTtlTradedAmnt", "交易量"),             // 位置17
         ],
     )?;
     df.cast_numeric(&["成交净价", "最新收益率", "涨跌", "加权收益率", "交易量"])?;
@@ -112,7 +112,9 @@ fn split_slash(df: &mut Df, src: &str, left: &str, right: &str) -> Result<()> {
         .clone();
     let mut lvals: Vec<Option<String>> = Vec::with_capacity(series.len());
     let mut rvals: Vec<Option<String>> = Vec::with_capacity(series.len());
-    let ca = series.str().map_err(|_| AkshareError::Empty(format!("{src} 非字符串列")))?;
+    let ca = series
+        .str()
+        .map_err(|_| AkshareError::Empty(format!("{src} 非字符串列")))?;
     for i in 0..series.len() {
         match ca.get(i) {
             Some(s) => {

@@ -12,8 +12,8 @@
 
 use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
-use crate::core::http::HttpClient;
 use crate::core::html::read_html_tables;
+use crate::core::http::HttpClient;
 use crate::core::js_engine::js_literal_to_json;
 use crate::sources::eastmoney::finalize_report;
 use serde_json::{Map, Value};
@@ -175,9 +175,7 @@ const DAILY_KEY_MAP: &[(&str, &str)] = &[
 const DAILY_SELECT: &[&str] = &[
     "date", "open", "high", "low", "close", "volume", "hold", "settle",
 ];
-const DAILY_NUMERIC: &[&str] = &[
-    "open", "high", "low", "close", "volume", "hold", "settle",
-];
+const DAILY_NUMERIC: &[&str] = &["open", "high", "low", "close", "volume", "hold", "settle"];
 
 /// 新浪分钟线接口短键 → 标准列名。
 const MINUTE_KEY_MAP: &[(&str, &str)] = &[
@@ -189,12 +187,8 @@ const MINUTE_KEY_MAP: &[(&str, &str)] = &[
     ("v", "volume"),
     ("p", "hold"),
 ];
-const MINUTE_SELECT: &[&str] = &[
-    "datetime", "open", "high", "low", "close", "volume", "hold",
-];
-const MINUTE_NUMERIC: &[&str] = &[
-    "open", "high", "low", "close", "volume", "hold",
-];
+const MINUTE_SELECT: &[&str] = &["datetime", "open", "high", "low", "close", "volume", "hold"];
+const MINUTE_NUMERIC: &[&str] = &["open", "high", "low", "close", "volume", "hold"];
 
 /// 期货品种与代码映射（对应 akshare [`akshare.futures_symbol_mark`]）。
 ///
@@ -235,8 +229,16 @@ pub fn futures_symbol_mark() -> Result<Df> {
                 Some(p) => p,
                 None => continue,
             };
-            let symbol = pair.first().and_then(Value::as_str).unwrap_or("").to_string();
-            let mark = pair.get(1).and_then(Value::as_str).unwrap_or("").to_string();
+            let symbol = pair
+                .first()
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let mark = pair
+                .get(1)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
             rows.push(vec![Some(market.clone()), Some(symbol), Some(mark)]);
         }
     }
@@ -258,7 +260,9 @@ pub fn futures_zh_realtime(symbol: &str) -> Result<Df> {
         }
     }
     let node = map.get(symbol).ok_or_else(|| {
-        AkshareError::Param(format!("未知品种: {symbol}（可用 futures_symbol_mark() 查询）"))
+        AkshareError::Param(format!(
+            "未知品种: {symbol}（可用 futures_symbol_mark() 查询）"
+        ))
     })?;
     let url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQFuturesData";
     let mut params = Map::new();
@@ -463,8 +467,7 @@ pub fn futures_foreign_commodity_subscribe_exchange_symbol() -> Result<Df> {
     let json = js_literal_to_json(raw)?;
     let obj: Map<String, Value> = serde_json::from_str(&json)
         .map_err(|e| AkshareError::json("oHF_1 JSON 解析失败", e.to_string()))?;
-    let rows: Vec<Vec<Option<String>>> =
-        obj.keys().map(|k| vec![Some(k.clone())]).collect();
+    let rows: Vec<Vec<Option<String>>> = obj.keys().map(|k| vec![Some(k.clone())]).collect();
     Df::from_string_rows(&["code"], &rows)
 }
 
@@ -506,7 +509,11 @@ pub fn futures_foreign_commodity_realtime(symbol: &str) -> Result<Df> {
             Some(a) => a,
             None => continue,
         };
-        let nm = arr.first().and_then(Value::as_str).unwrap_or("").to_string();
+        let nm = arr
+            .first()
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
         if arr.len() >= 2 {
             if let Some(s) = arr[1].as_str() {
                 if let Some(ch) = s.chars().next() {
@@ -712,10 +719,23 @@ const MAIN_KEY_MAP: &[(&str, &str)] = &[
     ("s", "动态结算价"),
 ];
 const MAIN_SELECT: &[&str] = &[
-    "日期", "开盘价", "最高价", "最低价", "收盘价", "成交量", "持仓量", "动态结算价",
+    "日期",
+    "开盘价",
+    "最高价",
+    "最低价",
+    "收盘价",
+    "成交量",
+    "持仓量",
+    "动态结算价",
 ];
 const MAIN_NUMERIC: &[&str] = &[
-    "开盘价", "最高价", "最低价", "收盘价", "成交量", "持仓量", "动态结算价",
+    "开盘价",
+    "最高价",
+    "最低价",
+    "收盘价",
+    "成交量",
+    "持仓量",
+    "动态结算价",
 ];
 
 /// 新浪主力连续合约品种一览表（对应 akshare [`akshare.futures_display_main_sina`]）。
@@ -752,8 +772,14 @@ pub fn futures_display_main_sina() -> Result<Df> {
             if !name.contains("连续") || !symbol_continuous_digit_is_zero(symbol) {
                 continue;
             }
-            let sym = obj.get("symbol").and_then(Value::as_str).map(str::to_string);
-            let ex = obj.get("exchange").and_then(Value::as_str).map(str::to_string);
+            let sym = obj
+                .get("symbol")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let ex = obj
+                .get("exchange")
+                .and_then(Value::as_str)
+                .map(str::to_string);
             let nm = obj.get("name").and_then(Value::as_str).map(str::to_string);
             rows.push(vec![sym, ex, nm]);
             break; // 每节点仅取首个匹配（对应 akshare `.iloc[0,:3]`）
@@ -833,8 +859,11 @@ pub fn futures_hold_pos_sina(symbol: &str, contract: &str, date: &str) -> Result
     }
     // raw[0] = 表头，其余为数据行；akshare `.iloc[:-1,:]` 丢弃最后一行（合计）。
     let header: Vec<String> = raw[0].clone();
-    let mut data: Vec<Vec<Option<String>>> =
-        raw.into_iter().skip(1).map(|r| r.into_iter().map(Some).collect()).collect();
+    let mut data: Vec<Vec<Option<String>>> = raw
+        .into_iter()
+        .skip(1)
+        .map(|r| r.into_iter().map(Some).collect())
+        .collect();
     data.pop();
     let names: Vec<&str> = header.iter().map(String::as_str).collect();
     let mut df = Df::from_string_rows(&names, &data)?;
@@ -855,9 +884,10 @@ pub fn futures_foreign_detail(symbol: &str) -> Result<Df> {
     let http = HttpClient::default();
     let text = http.get_text(&url, &Map::new(), None)?;
     let tables = read_html_tables(&text)?;
-    let raw = tables.into_iter().nth(6).ok_or_else(|| {
-        AkshareError::Empty("foreign_detail: 未找到第 7 个 <table>".into())
-    })?;
+    let raw = tables
+        .into_iter()
+        .nth(6)
+        .ok_or_else(|| AkshareError::Empty("foreign_detail: 未找到第 7 个 <table>".into()))?;
     let ncols = raw.iter().map(|r| r.len()).max().unwrap_or(0);
     let names: Vec<String> = (0..ncols).map(|i| i.to_string()).collect();
     let rows: Vec<Vec<Option<String>>> = raw

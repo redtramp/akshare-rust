@@ -77,7 +77,14 @@ const FF_SECTOR_PER_SELECT: [&str; 8] = [
     "流出资金",
     "净额",
 ];
-const FF_SECTOR_PER_NUMERIC: [&str; 6] = ["序号", "公司家数", "行业指数", "流入资金", "流出资金", "净额"];
+const FF_SECTOR_PER_NUMERIC: [&str; 6] = [
+    "序号",
+    "公司家数",
+    "行业指数",
+    "流入资金",
+    "流出资金",
+    "净额",
+];
 /// 概念/行业「即时」需先剥 `%` 再数值化的涨跌幅列。
 const FF_SECTOR_PCT_COLS: [&str; 2] = ["行业-涨跌幅", "领涨股-涨跌幅"];
 
@@ -157,9 +164,15 @@ pub fn stock_fund_flow_individual(symbol: &str) -> Result<Df> {
         Some(b) => format!("{FF_HOST}/ggzjl/board/{b}/field/zdf/order/desc"),
     };
     let (select, numeric) = if symbol == "即时" {
-        (&FF_INDIVIDUAL_IMM_SELECT[..], &FF_INDIVIDUAL_IMM_NUMERIC[..])
+        (
+            &FF_INDIVIDUAL_IMM_SELECT[..],
+            &FF_INDIVIDUAL_IMM_NUMERIC[..],
+        )
     } else {
-        (&FF_INDIVIDUAL_PER_SELECT[..], &FF_INDIVIDUAL_PER_NUMERIC[..])
+        (
+            &FF_INDIVIDUAL_PER_SELECT[..],
+            &FF_INDIVIDUAL_PER_NUMERIC[..],
+        )
     };
     let url_for_page = move |page: u32| format!("{base}/page/{page}/ajax/1/free/1/");
     let raw = fetch_ths_rank(&url_for_page)?;
@@ -221,7 +234,13 @@ pub fn stock_fund_flow_big_deal() -> Result<Df> {
     let base = format!("{FF_HOST}/ddzz/order/desc");
     let url_for_page = move |page: u32| format!("{base}/page/{page}/ajax/1/free/1/");
     let raw = fetch_ths_rank(&url_for_page)?;
-    build_fund_flow(&raw, &FF_BIG_DEAL_SELECT[..], &FF_BIG_DEAL_NUMERIC[..], false, &[])
+    build_fund_flow(
+        &raw,
+        &FF_BIG_DEAL_SELECT[..],
+        &FF_BIG_DEAL_NUMERIC[..],
+        false,
+        &[],
+    )
 }
 
 #[cfg(test)]
@@ -252,7 +271,10 @@ mod tests {
         .unwrap();
         assert_eq!(df.column_names(), FF_INDIVIDUAL_IMM_SELECT.to_vec());
         // 序号/股票代码/最新价 数值化（对应 pd.read_html 自动推断）
-        assert_eq!(df.inner().column("序号").unwrap().f64().unwrap().get(0), Some(1.0));
+        assert_eq!(
+            df.inner().column("序号").unwrap().f64().unwrap().get(0),
+            Some(1.0)
+        );
         assert_eq!(
             df.inner().column("股票代码").unwrap().f64().unwrap().get(0),
             Some(688485.0)
@@ -298,7 +320,12 @@ mod tests {
         );
         // 阶段涨跌幅 含 % 保持字符串
         assert_eq!(
-            df.inner().column("阶段涨跌幅").unwrap().str().unwrap().get(0),
+            df.inner()
+                .column("阶段涨跌幅")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
             Some("715.28%")
         );
     }
@@ -329,7 +356,12 @@ mod tests {
         assert_eq!(df.column_names(), FF_SECTOR_IMM_SELECT.to_vec());
         // 涨跌幅列先剥 % 再数值化
         assert_eq!(
-            df.inner().column("行业-涨跌幅").unwrap().f64().unwrap().get(0),
+            df.inner()
+                .column("行业-涨跌幅")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
             Some(2.94)
         );
         assert_eq!(
@@ -392,7 +424,12 @@ mod tests {
         );
         // 阶段涨跌幅 含 % 保持字符串
         assert_eq!(
-            df.inner().column("阶段涨跌幅").unwrap().str().unwrap().get(0),
+            df.inner()
+                .column("阶段涨跌幅")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
             Some("715.28%")
         );
     }
@@ -423,11 +460,21 @@ mod tests {
         .unwrap();
         assert_eq!(df.column_names(), FF_SECTOR_IMM_SELECT.to_vec());
         assert_eq!(
-            df.inner().column("行业-涨跌幅").unwrap().f64().unwrap().get(0),
+            df.inner()
+                .column("行业-涨跌幅")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
             Some(4.07)
         );
         assert_eq!(
-            df.inner().column("领涨股-涨跌幅").unwrap().f64().unwrap().get(0),
+            df.inner()
+                .column("领涨股-涨跌幅")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
             Some(20.01)
         );
     }
@@ -446,14 +493,8 @@ mod tests {
             "-0.46".to_string(),
             "详细".to_string(),
         ]];
-        let df = build_fund_flow(
-            &raw,
-            &FF_BIG_DEAL_SELECT,
-            &FF_BIG_DEAL_NUMERIC,
-            false,
-            &[],
-        )
-        .unwrap();
+        let df =
+            build_fund_flow(&raw, &FF_BIG_DEAL_SELECT, &FF_BIG_DEAL_NUMERIC, false, &[]).unwrap();
         // 末列 详细 被丢弃
         assert_eq!(df.column_names(), FF_BIG_DEAL_SELECT.to_vec());
         assert_eq!(df.height(), 1);

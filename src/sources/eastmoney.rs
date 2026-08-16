@@ -46,10 +46,7 @@ pub fn push2_urls(path: &str) -> Vec<String> {
 /// 追加业务参数（如 `srcSecurityCode` / `yearType`）。成功响应形如
 /// `{"code":"0", "data": [...], ...}`（或 data 为对象），返回其中的 `data` 字段。
 /// `code` 非 `"0"`（或缺失 `data`）时返回 [`AkshareError::Empty`]。
-pub(crate) fn emappdata_stockrank(
-    action: &str,
-    payload: &Map<String, Value>,
-) -> Result<Value> {
+pub(crate) fn emappdata_stockrank(action: &str, payload: &Map<String, Value>) -> Result<Value> {
     let url = format!("https://emappdata.eastmoney.com/stockrank/{action}");
     let mut body = json!({
         "appId": "appId01",
@@ -97,7 +94,11 @@ pub(crate) fn push2_ulist(secids: &str) -> Result<Vec<Value>> {
         "secids": secids,
     });
     let http = HttpClient::default();
-    let value = http.get_json(&url[0], &params.as_object().cloned().unwrap_or_default(), None)?;
+    let value = http.get_json(
+        &url[0],
+        &params.as_object().cloned().unwrap_or_default(),
+        None,
+    )?;
     value
         .get("data")
         .and_then(|d| d.get("diff"))
@@ -1115,11 +1116,7 @@ fn zt_pool_ymd_date(v: &Value) -> Option<String> {
 }
 
 /// 涨停板行情系列共用：行 → DataFrame（序号后置插入，数值列数值化）。
-fn build_zt_df(
-    rows: Vec<Vec<Option<String>>>,
-    select: &[&str],
-    numeric: &[&str],
-) -> Result<Df> {
+fn build_zt_df(rows: Vec<Vec<Option<String>>>, select: &[&str], numeric: &[&str]) -> Result<Df> {
     let mut df = Df::from_string_rows(&select[1..], &rows)?;
     df.cast_numeric(numeric)?;
     insert_index_col(&mut df, "序号")?;

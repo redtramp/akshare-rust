@@ -76,13 +76,14 @@ pub fn parse_ths_table(html: &str) -> Result<Vec<Vec<String>>> {
         .map_err(|e| AkshareError::js(format!("解析表格选择器失败: {e}")))?;
     let tr_sel =
         Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析行选择器失败: {e}")))?;
-    let td_sel =
-        Selector::parse("td").map_err(|e| AkshareError::js(format!("解析单元格选择器失败: {e}")))?;
+    let td_sel = Selector::parse("td")
+        .map_err(|e| AkshareError::js(format!("解析单元格选择器失败: {e}")))?;
 
     let doc = Html::parse_document(html);
-    let table = doc.select(&table_sel).next().ok_or_else(|| {
-        AkshareError::Empty("同花顺页面缺少 m-table J-ajax-table 数据表".into())
-    })?;
+    let table = doc
+        .select(&table_sel)
+        .next()
+        .ok_or_else(|| AkshareError::Empty("同花顺页面缺少 m-table J-ajax-table 数据表".into()))?;
     let mut out: Vec<Vec<String>> = Vec::new();
     for tr in table.select(&tr_sel) {
         let cells: Vec<String> = tr
@@ -153,10 +154,13 @@ fn extract_detail_links(html: &str) -> Vec<(String, String)> {
 pub fn parse_cate_inner(html: &str) -> Result<Vec<(String, String)>> {
     let div_sel = Selector::parse("div.cate_inner")
         .map_err(|e| AkshareError::js(format!("解析 cate_inner 选择器失败: {e}")))?;
-    let a_sel = Selector::parse("a").map_err(|e| AkshareError::js(format!("解析 a 选择器失败: {e}")))?;
+    let a_sel =
+        Selector::parse("a").map_err(|e| AkshareError::js(format!("解析 a 选择器失败: {e}")))?;
     let doc = Html::parse_document(html);
     let Some(div) = doc.select(&div_sel).next() else {
-        return Err(AkshareError::Empty("同花顺板块页缺少 div.cate_inner".into()));
+        return Err(AkshareError::Empty(
+            "同花顺板块页缺少 div.cate_inner".into(),
+        ));
     };
     let mut out = Vec::new();
     for a in div.select(&a_sel) {
@@ -177,11 +181,15 @@ pub fn parse_cate_inner(html: &str) -> Result<Vec<(String, String)>> {
 pub fn parse_board_infos(html: &str) -> Result<Vec<(String, String)>> {
     let div_sel = Selector::parse("div.board-infos")
         .map_err(|e| AkshareError::js(format!("解析 board-infos 选择器失败: {e}")))?;
-    let dt_sel = Selector::parse("dt").map_err(|e| AkshareError::js(format!("解析 dt 选择器失败: {e}")))?;
-    let dd_sel = Selector::parse("dd").map_err(|e| AkshareError::js(format!("解析 dd 选择器失败: {e}")))?;
+    let dt_sel =
+        Selector::parse("dt").map_err(|e| AkshareError::js(format!("解析 dt 选择器失败: {e}")))?;
+    let dd_sel =
+        Selector::parse("dd").map_err(|e| AkshareError::js(format!("解析 dd 选择器失败: {e}")))?;
     let doc = Html::parse_document(html);
     let Some(div) = doc.select(&div_sel).next() else {
-        return Err(AkshareError::Empty("同花顺板块简介页缺少 div.board-infos".into()));
+        return Err(AkshareError::Empty(
+            "同花顺板块简介页缺少 div.board-infos".into(),
+        ));
     };
     let names: Vec<String> = div
         .select(&dt_sel)
@@ -189,17 +197,10 @@ pub fn parse_board_infos(html: &str) -> Result<Vec<(String, String)>> {
         .collect();
     let values: Vec<String> = div
         .select(&dd_sel)
-        .map(|dd| {
-            dd.text()
-                .collect::<String>()
-                .trim()
-                .replace('\n', "/")
-        })
+        .map(|dd| dd.text().collect::<String>().trim().replace('\n', "/"))
         .collect();
     if names.len() != values.len() {
-        return Err(AkshareError::Empty(
-            "板块简介 dt/dd 数量不一致".into(),
-        ));
+        return Err(AkshareError::Empty("板块简介 dt/dd 数量不一致".into()));
     }
     Ok(names.into_iter().zip(values).collect())
 }
@@ -227,27 +228,24 @@ pub fn parse_ths_theaded_table_sel(
         .map_err(|e| AkshareError::js(format!("解析 thead 选择器失败: {e}")))?;
     let tbody_sel = Selector::parse("tbody")
         .map_err(|e| AkshareError::js(format!("解析 tbody 选择器失败: {e}")))?;
-    let th_sel = Selector::parse("th")
-        .map_err(|e| AkshareError::js(format!("解析 th 选择器失败: {e}")))?;
-    let tr_sel = Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
-    let td_sel = Selector::parse("td").map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
+    let th_sel =
+        Selector::parse("th").map_err(|e| AkshareError::js(format!("解析 th 选择器失败: {e}")))?;
+    let tr_sel =
+        Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
+    let td_sel =
+        Selector::parse("td").map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
 
     let doc = Html::parse_document(html);
     let table = doc
         .select(&table_sel)
         .nth(nth)
-        .ok_or_else(|| {
-            AkshareError::Empty(format!("同花顺页面缺少数据表格 ({selector})"))
-        })?;
+        .ok_or_else(|| AkshareError::Empty(format!("同花顺页面缺少数据表格 ({selector})")))?;
 
     // 表头：thead 内首个 tr 的 th（get_text 折叠空白 → 拼接）
     let mut headers: Vec<String> = Vec::new();
     if let Some(thead) = table.select(&thead_sel).next() {
         if let Some(tr) = thead.select(&tr_sel).next() {
-            headers = tr
-                .select(&th_sel)
-                .map(|th| collapse_text(&th))
-                .collect();
+            headers = tr.select(&th_sel).map(|th| collapse_text(&th)).collect();
         }
     }
 

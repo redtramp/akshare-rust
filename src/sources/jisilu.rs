@@ -61,7 +61,12 @@ pub fn jsl_post_json(url: &str, body: &Value, cookie: &str) -> Result<Value> {
     let max_retries = 3u32;
     let mut last: Option<AkshareError> = None;
     for attempt in 0..max_retries {
-        match JSL_CLIENT.post(&url_q).headers(hm.clone()).json(body).send() {
+        match JSL_CLIENT
+            .post(&url_q)
+            .headers(hm.clone())
+            .json(body)
+            .send()
+        {
             Ok(resp) => {
                 let status = resp.status();
                 if status.is_success() {

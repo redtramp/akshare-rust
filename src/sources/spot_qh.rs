@@ -20,8 +20,8 @@ fn variety_list() -> Result<Vec<Value>> {
     let http = HttpClient::default();
     let text = http.get_text(SPOTTREND_URL, &Map::new(), None)?;
     let doc = Html::parse_document(&text);
-    let sel = Selector::parse("script#__NEXT_DATA__")
-        .map_err(|e| AkshareError::Empty(e.to_string()))?;
+    let sel =
+        Selector::parse("script#__NEXT_DATA__").map_err(|e| AkshareError::Empty(e.to_string()))?;
     let data_text = doc
         .select(&sel)
         .next()
@@ -53,7 +53,10 @@ pub fn spot_price_table_qh() -> Result<Df> {
     let products = variety_list()?;
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(products.len());
     for p in &products {
-        let exch = p.get("qhExchangeName").and_then(Value::as_str).map(str::to_string);
+        let exch = p
+            .get("qhExchangeName")
+            .and_then(Value::as_str)
+            .map(str::to_string);
         let name = p.get("name").and_then(Value::as_str).map(str::to_string);
         rows.push(vec![exch, name]);
     }
@@ -69,7 +72,8 @@ pub fn spot_price_table_qh() -> Result<Df> {
 pub fn spot_price_qh(symbol: &str) -> Result<Df> {
     let products = variety_list()?;
     // name -> productId（productId 在 JSON 中为数字或字符串，两种都接受）
-    let mut symbol_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut symbol_map: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     for p in &products {
         let name = p.get("name").and_then(Value::as_str);
         let id = match p.get("productId") {
@@ -140,7 +144,11 @@ mod tests {
     fn variety_list_empty_ok() {
         // 离线单测：空 productList 不崩溃
         let v = serde_json::json!({"props":{"pageProps":{"data":{"varietyListData":[{"productList":[]},{"productList":[]}]}}}});
-        let arr = v.pointer("/props/pageProps/data/varietyListData").unwrap().as_array().unwrap();
+        let arr = v
+            .pointer("/props/pageProps/data/varietyListData")
+            .unwrap()
+            .as_array()
+            .unwrap();
         let mut count = 0;
         for item in arr {
             if let Some(l) = item.get("productList").and_then(Value::as_array) {

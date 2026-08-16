@@ -186,9 +186,9 @@ pub fn hurun_rank(indicator: &str, year: &str) -> Result<Df> {
     // 1) 首页：下拉菜单 榜单名 → 链接
     let home_text = http.get_text(HURUN_HOME, &Map::new(), None)?;
     let name_url = parse_dropdowns(&home_text)?;
-    let indicator_url = name_url.get(indicator).ok_or_else(|| {
-        AkshareError::Empty(format!("胡润首页未找到榜单链接: {indicator}"))
-    })?;
+    let indicator_url = name_url
+        .get(indicator)
+        .ok_or_else(|| AkshareError::Empty(format!("胡润首页未找到榜单链接: {indicator}")))?;
 
     // 2) 榜单页：年份 → 编码
     let page_text = http.get_text(indicator_url, &Map::new(), None)?;

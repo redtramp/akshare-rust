@@ -212,7 +212,12 @@ pub fn stock_market_pe_lg(symbol: &str) -> Result<Df> {
         }
     };
     if market_id.is_empty() {
-        let mut df = fetch_legu_data(page, "/api/stockdata/get-ke-chuang-ban-pe", &[], &["date", "close", "pe"])?;
+        let mut df = fetch_legu_data(
+            page,
+            "/api/stockdata/get-ke-chuang-ban-pe",
+            &[],
+            &["date", "close", "pe"],
+        )?;
         df.rename_columns(&["日期", "总市值", "市盈率"])?;
         df.cast_numeric(&["总市值", "市盈率"])?;
         return Ok(df);
@@ -260,7 +265,16 @@ pub fn stock_index_pe_lg(symbol: &str) -> Result<Df> {
         "https://legulegu.com/stockdata/sz50-ttm-lyr",
         "/api/stockdata/index-basic-pe",
         &[("indexCode", code)],
-        &["date", "close", "lyrPe", "addLyrPe", "middleLyrPe", "ttmPe", "addTtmPe", "middleTtmPe"],
+        &[
+            "date",
+            "close",
+            "lyrPe",
+            "addLyrPe",
+            "middleLyrPe",
+            "ttmPe",
+            "addTtmPe",
+            "middleTtmPe",
+        ],
     )?;
     df.rename_columns(&[
         "日期",
@@ -382,9 +396,8 @@ pub fn stock_buffett_index_lg() -> Result<Df> {
     let http = HttpClient::default();
     let token = get_token_lg();
     let page_url = "https://legulegu.com/stockdata/marketcap-gdp";
-    let api_url = format!(
-        "https://legulegu.com/api/stockdata/marketcap-gdp/get-marketcap-gdp?token={token}"
-    );
+    let api_url =
+        format!("https://legulegu.com/api/stockdata/marketcap-gdp/get-marketcap-gdp?token={token}");
     let data = api_get(&http, page_url, &api_url)?;
     let rows = data
         .get("data")
@@ -411,7 +424,14 @@ pub fn stock_buffett_index_lg() -> Result<Df> {
     }
     // 输出列序 = akshare base_cols + 可选列（近十年分位数/总历史分位数）
     let mut final_cols: Vec<&str> = Vec::new();
-    for c in ["日期", "收盘价", "总市值", "GDP", "近十年分位数", "总历史分位数"] {
+    for c in [
+        "日期",
+        "收盘价",
+        "总市值",
+        "GDP",
+        "近十年分位数",
+        "总历史分位数",
+    ] {
         if has.contains(&c) {
             final_cols.push(c);
         }

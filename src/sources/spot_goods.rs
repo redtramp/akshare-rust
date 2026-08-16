@@ -18,7 +18,11 @@ const GOODS_URL: &str =
 /// # 返回列
 /// `日期, 指数, 涨跌额, 涨跌幅`
 pub fn spot_goods(symbol: &str) -> Result<Df> {
-    let symbol_map = [("波罗的海干散货指数", "BDI"), ("钢坯价格指数", "GP"), ("澳大利亚粉矿价格", "PB")];
+    let symbol_map = [
+        ("波罗的海干散货指数", "BDI"),
+        ("钢坯价格指数", "GP"),
+        ("澳大利亚粉矿价格", "PB"),
+    ];
     let code = symbol_map
         .iter()
         .find(|(cn, _)| *cn == symbol)
@@ -38,8 +42,14 @@ pub fn spot_goods(symbol: &str) -> Result<Df> {
 
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(data.len());
     for item in &data {
-        let date = item.get("opendate").and_then(Value::as_str).map(str::to_string);
-        let price = item.get("price").and_then(Value::as_str).map(str::to_string);
+        let date = item
+            .get("opendate")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let price = item
+            .get("price")
+            .and_then(Value::as_str)
+            .map(str::to_string);
         let zde = item.get("zde").and_then(Value::as_str).map(str::to_string);
         let zdf = item.get("zdf").and_then(Value::as_str).map(str::to_string);
         // akshare dropna：日期缺失的行丢弃

@@ -60,7 +60,10 @@ pub fn futures_index_ccidx(symbol: &str) -> Result<Df> {
         .cloned()
         .unwrap_or_default();
     if arr.is_empty() {
-        return Df::from_string_rows(&["日期", "指数代码", "收盘点位", "结算点位", "涨跌", "涨跌幅"], &[]);
+        return Df::from_string_rows(
+            &["日期", "指数代码", "收盘点位", "结算点位", "涨跌", "涨跌幅"],
+            &[],
+        );
     }
     // 列名/列序严格对齐 akshare：`pd.DataFrame(dateLineJson)` 取首项键序，
     // 仅对 6 个字段做中文重命名，其余 18 个英文字段原样保留（共 24 列）。
@@ -122,14 +125,16 @@ pub fn futures_global_spot_em() -> Result<Df> {
     params.insert("token".into(), Value::String(FUTSSE_TOKEN.into()));
     params.insert(
         "field".into(),
-        Value::String(
-            "dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl".into(),
-        ),
+        Value::String("dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl".into()),
     );
     params.insert("blockName".into(), Value::String("callback".into()));
     let http = HttpClient::default();
     let v = http.get_json(url, &params, None)?;
-    let list = v.get("list").and_then(Value::as_array).cloned().unwrap_or_default();
+    let list = v
+        .get("list")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     let cols = [
         "序号",
         "代码",
@@ -244,9 +249,8 @@ fn global_market_code(symbol: &str) -> Option<i64> {
 /// `日期, 代码, 名称, 开盘, 最新价, 最高, 最低, 总量, 涨幅, 持仓, 日增`
 /// （`日期` 为 `YYYY-MM-DD`；数值列转 float64；`日增` 还原为有符号 32 位整数）
 pub fn futures_global_hist_em(symbol: &str) -> Result<Df> {
-    let market = global_market_code(symbol).ok_or_else(|| {
-        AkshareError::Param(format!("无法识别国际期货品种市场代码: {symbol}"))
-    })?;
+    let market = global_market_code(symbol)
+        .ok_or_else(|| AkshareError::Param(format!("无法识别国际期货品种市场代码: {symbol}")))?;
     let url = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
     let mut params = Map::new();
     params.insert("secid".into(), Value::String(format!("{market}.{symbol}")));
@@ -263,11 +267,18 @@ pub fn futures_global_hist_em(symbol: &str) -> Result<Df> {
         "fields2".into(),
         Value::String("f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64".into()),
     );
-    params.insert("ut".into(), Value::String("f057cbcbce2a86e2866ab8877db1d059".into()));
+    params.insert(
+        "ut".into(),
+        Value::String("f057cbcbce2a86e2866ab8877db1d059".into()),
+    );
     params.insert("forcect".into(), Value::String("1".into()));
     let http = HttpClient::default();
     let v = http.get_json(url, &params, None)?;
-    let data = v.get("data").and_then(Value::as_object).cloned().unwrap_or_default();
+    let data = v
+        .get("data")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
     let code = data.get("code").and_then(cell).unwrap_or_default();
     let name = data.get("name").and_then(cell).unwrap_or_default();
     let klines = data

@@ -20,8 +20,8 @@
 
 use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
-use crate::core::http::HttpClient;
 use crate::core::html::read_html_tables;
+use crate::core::http::HttpClient;
 use crate::core::js_engine::js_literal_to_json;
 use chrono::{LocalResult, TimeZone, Utc};
 use scraper::{Html, Selector};
@@ -105,12 +105,34 @@ pub fn futures_comm_js(date: &str) -> Result<Df> {
         ]);
     }
     let cols = [
-        "日期", "合约品种", "合约代码", "手续费公布时间", "价格公布时间", "现价", "涨停板",
-        "跌停板", "保证金/买开", "保证金/卖开", "保证金/每手", "开仓", "平今", "平昨",
-        "每手跳数", "每跳毛利", "每跳净利", "交易所",
+        "日期",
+        "合约品种",
+        "合约代码",
+        "手续费公布时间",
+        "价格公布时间",
+        "现价",
+        "涨停板",
+        "跌停板",
+        "保证金/买开",
+        "保证金/卖开",
+        "保证金/每手",
+        "开仓",
+        "平今",
+        "平昨",
+        "每手跳数",
+        "每跳毛利",
+        "每跳净利",
+        "交易所",
     ];
     let mut df = Df::from_string_rows(&cols, &rows)?;
-    df.cast_numeric(&["现价", "涨停板", "跌停板", "每手跳数", "每跳毛利", "每跳净利"])?;
+    df.cast_numeric(&[
+        "现价",
+        "涨停板",
+        "跌停板",
+        "每手跳数",
+        "每跳毛利",
+        "每跳净利",
+    ])?;
     Ok(df)
 }
 
@@ -150,10 +172,7 @@ pub fn futures_fees_info() -> Result<Df> {
         };
         let mut cols = header;
         cols.push("更新时间".to_string());
-        return Df::from_string_rows(
-            &cols.iter().map(String::as_str).collect::<Vec<_>>(),
-            &[],
-        );
+        return Df::from_string_rows(&cols.iter().map(String::as_str).collect::<Vec<_>>(), &[]);
     }
     let header = &raw[0];
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(raw.len() - 1);
@@ -164,8 +183,7 @@ pub fn futures_fees_info() -> Result<Df> {
     }
     let mut cols: Vec<String> = header.clone();
     cols.push("更新时间".to_string());
-    let mut df =
-        Df::from_string_rows(&cols.iter().map(String::as_str).collect::<Vec<_>>(), &rows)?;
+    let mut df = Df::from_string_rows(&cols.iter().map(String::as_str).collect::<Vec<_>>(), &rows)?;
     // 对齐 akshare pd.read_html 的列类型推断（数值列 → float64）
     df.infer_numeric()?;
     Ok(df)
@@ -195,11 +213,12 @@ pub fn futures_rule(date: &str) -> Result<Df> {
         .ok_or_else(|| AkshareError::Empty("国泰君安交易日历无表格".into()))?;
     // akshare 用 header=1（第 2 行作表头）
     if raw.len() < 2 {
-        let header: Vec<String> = if !raw.is_empty() { raw[0].clone() } else { Vec::new() };
-        return Df::from_string_rows(
-            &header.iter().map(String::as_str).collect::<Vec<_>>(),
-            &[],
-        );
+        let header: Vec<String> = if !raw.is_empty() {
+            raw[0].clone()
+        } else {
+            Vec::new()
+        };
+        return Df::from_string_rows(&header.iter().map(String::as_str).collect::<Vec<_>>(), &[]);
     }
     let header = raw[1].clone();
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(raw.len() - 2);
@@ -331,8 +350,8 @@ pub fn futures_news_shmet(symbol: &str) -> Result<Df> {
 /// 抓取 `99qh.com/data/stockIn` 的 `__NEXT_DATA__`，构建 名称/代码 → productId 映射。
 fn get_99_symbol_map(text: &str) -> Result<(HashMap<String, String>, HashMap<String, String>)> {
     let doc = Html::parse_document(text);
-    let sel = Selector::parse("script#__NEXT_DATA__")
-        .map_err(|e| AkshareError::Empty(e.to_string()))?;
+    let sel =
+        Selector::parse("script#__NEXT_DATA__").map_err(|e| AkshareError::Empty(e.to_string()))?;
     let raw = doc
         .select(&sel)
         .next()
@@ -350,8 +369,16 @@ fn get_99_symbol_map(text: &str) -> Result<(HashMap<String, String>, HashMap<Str
         let products = item.get("productList").and_then(Value::as_array);
         if let Some(products) = products {
             for p in products {
-                let name = p.get("name").and_then(Value::as_str).unwrap_or("").to_string();
-                let code = p.get("code").and_then(Value::as_str).unwrap_or("").to_string();
+                let name = p
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                let code = p
+                    .get("code")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
                 let pid = match p.get("productId") {
                     Some(Value::String(s)) => s.clone(),
                     Some(other) => other.to_string(),
@@ -582,7 +609,9 @@ pub fn futures_stock_shfe_js(date: &str) -> Result<Df> {
         .ok_or_else(|| AkshareError::Empty("金十库存周报缺少 data.values".into()))?;
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(values.len());
     for row in values {
-        let arr = row.as_array().ok_or_else(|| AkshareError::Empty("库存周报行非数组".into()))?;
+        let arr = row
+            .as_array()
+            .ok_or_else(|| AkshareError::Empty("库存周报行非数组".into()))?;
         rows.push(arr.iter().map(cell).collect());
     }
     let mut df = Df::from_string_rows(
@@ -603,8 +632,7 @@ pub fn futures_stock_shfe_js(date: &str) -> Result<Df> {
 /// 生意社品种 → 现期图 URL 字典（对应 akshare `__get_sys_spot_futures_dict`）。
 fn get_sys_spot_futures_dict(text: &str) -> Result<HashMap<String, String>> {
     let doc = Html::parse_document(text);
-    let sel = Selector::parse("div.q8 li")
-        .map_err(|e| AkshareError::Empty(e.to_string()))?;
+    let sel = Selector::parse("div.q8 li").map_err(|e| AkshareError::Empty(e.to_string()))?;
     let mut map = HashMap::new();
     for li in doc.select(&sel) {
         let a_sel = Selector::parse("a").map_err(|e| AkshareError::Empty(e.to_string()))?;
@@ -695,7 +723,11 @@ pub fn futures_spot_sys(symbol: &str, indicator: &str) -> Result<Df> {
         raw[0][1..].to_vec()
     } else {
         match indicator {
-            "市场价格" => vec!["现货价格".to_string(), "主力合约".to_string(), "最近合约".to_string()],
+            "市场价格" => vec![
+                "现货价格".to_string(),
+                "主力合约".to_string(),
+                "最近合约".to_string(),
+            ],
             "基差率" => vec!["基差率".to_string()],
             _ => vec!["主力基差".to_string()],
         }
@@ -772,7 +804,11 @@ pub fn futures_contract_detail_em(symbol: &str) -> Result<Df> {
     .collect();
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(obj.len());
     for (k, val) in obj {
-        let item = mapping.get(k.as_str()).copied().unwrap_or(k.as_str()).to_string();
+        let item = mapping
+            .get(k.as_str())
+            .copied()
+            .unwrap_or(k.as_str())
+            .to_string();
         rows.push(vec![Some(item), cell(val)]);
     }
     Df::from_string_rows(&["item", "value"], &rows)
@@ -868,7 +904,11 @@ fn extract_update_times(text: &str) -> (String, String) {
 ///
 /// `slice`：该交易所的数据行（每行 15 列）；`name`：交易所名称。
 /// 返回 21 列行。
-fn process_qihuo_slice(slice: &[Vec<String>], name: &str, times: &(String, String)) -> Vec<Vec<Option<String>>> {
+fn process_qihuo_slice(
+    slice: &[Vec<String>],
+    name: &str,
+    times: &(String, String),
+) -> Vec<Vec<Option<String>>> {
     let mut out = Vec::with_capacity(slice.len());
     for row in slice {
         let contract = rget(row, 0);
@@ -882,27 +922,27 @@ fn process_qihuo_slice(slice: &[Vec<String>], name: &str, times: &(String, Strin
         let (yest_w, yest_y) = parse_fee(rget(row, 7));
         let (today_w, today_y) = parse_fee(rget(row, 8));
         out.push(vec![
-            Some(name.to_string()),           // 交易所名称
-            Some(cname),                       // 合约名称
-            Some(ccode),                       // 合约代码
-            Some(rget(row, 1).to_string()),    // 现价
-            Some(up),                          // 涨停板
-            Some(down),                        // 跌停板
-            Some(margin_buy),                  // 保证金-买开
-            Some(margin_sell),                 // 保证金-卖开
-            Some(margin_per),                  // 保证金-每手
-            open_w,                            // 手续费标准-开仓-万分之
-            open_y,                            // 手续费标准-开仓-元
-            yest_w,                            // 手续费标准-平昨-万分之
-            yest_y,                            // 手续费标准-平昨-元
-            today_w,                           // 手续费标准-平今-万分之
-            today_y,                           // 手续费标准-平今-元
-            Some(rget(row, 9).to_string()),    // 每跳毛利
-            Some(fee_total),                   // 手续费
-            Some(rget(row, 11).to_string()),   // 每跳净利
-            Some(rget(row, 12).to_string()),   // 备注
-            Some(times.0.clone()),             // 手续费更新时间
-            Some(times.1.clone()),             // 价格更新时间
+            Some(name.to_string()),          // 交易所名称
+            Some(cname),                     // 合约名称
+            Some(ccode),                     // 合约代码
+            Some(rget(row, 1).to_string()),  // 现价
+            Some(up),                        // 涨停板
+            Some(down),                      // 跌停板
+            Some(margin_buy),                // 保证金-买开
+            Some(margin_sell),               // 保证金-卖开
+            Some(margin_per),                // 保证金-每手
+            open_w,                          // 手续费标准-开仓-万分之
+            open_y,                          // 手续费标准-开仓-元
+            yest_w,                          // 手续费标准-平昨-万分之
+            yest_y,                          // 手续费标准-平昨-元
+            today_w,                         // 手续费标准-平今-万分之
+            today_y,                         // 手续费标准-平今-元
+            Some(rget(row, 9).to_string()),  // 每跳毛利
+            Some(fee_total),                 // 手续费
+            Some(rget(row, 11).to_string()), // 每跳净利
+            Some(rget(row, 12).to_string()), // 备注
+            Some(times.0.clone()),           // 手续费更新时间
+            Some(times.1.clone()),           // 价格更新时间
         ]);
     }
     out
@@ -1024,10 +1064,7 @@ mod tests {
 
     #[test]
     fn split_slash_basic() {
-        assert_eq!(
-            split_slash("5 / 4"),
-            ("5".to_string(), "4".to_string())
-        );
+        assert_eq!(split_slash("5 / 4"), ("5".to_string(), "4".to_string()));
         assert_eq!(split_slash("7"), ("7".to_string(), String::new()));
     }
 
@@ -1097,9 +1134,21 @@ mod tests {
     fn transpose_spot_table_shape() {
         // 表头: [日期标签, 现货价格, 主力合约]; 两行日期
         let table = vec![
-            vec!["".to_string(), "现货价格".to_string(), "主力合约".to_string()],
-            vec!["2024-01-01".to_string(), "6000".to_string(), "5990".to_string()],
-            vec!["2024-01-02".to_string(), "6010".to_string(), "6000".to_string()],
+            vec![
+                "".to_string(),
+                "现货价格".to_string(),
+                "主力合约".to_string(),
+            ],
+            vec![
+                "2024-01-01".to_string(),
+                "6000".to_string(),
+                "5990".to_string(),
+            ],
+            vec![
+                "2024-01-02".to_string(),
+                "6010".to_string(),
+                "6000".to_string(),
+            ],
         ];
         let metrics = vec!["现货价格".to_string(), "主力合约".to_string()];
         let df = transpose_spot_table(&table, &metrics);

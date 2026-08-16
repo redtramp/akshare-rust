@@ -8,15 +8,14 @@ use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{
-    a_share_market_code, board_name_pairs, fetch_clist, fetch_datacenter_pages,
-    fetch_securities_pages, fetch_kline, fetch_kline_ext, fetch_kline_min, fetch_trends,
-    finalize_board_cons, finalize_board_name, finalize_fflow, finalize_hsgt, finalize_report,
-    finalize_zt_pool, finalize_zt_pool_dtgc, finalize_zt_pool_previous, finalize_zt_pool_strong,
+    a_share_market_code, board_name_pairs, fetch_clist, fetch_datacenter_pages, fetch_kline,
+    fetch_kline_ext, fetch_kline_min, fetch_securities_pages, fetch_trends, finalize_board_cons,
+    finalize_board_name, finalize_fflow, finalize_hsgt, finalize_report, finalize_zt_pool,
+    finalize_zt_pool_dtgc, finalize_zt_pool_previous, finalize_zt_pool_strong,
     finalize_zt_pool_sub_new, finalize_zt_pool_zbgc, json_value_to_string, kline_to_df,
-    min_kline_to_df, push2_urls, require_kline_data,
-    BOARD_HIST_SELECT, KLINE_COLS, KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_DTGC_SELECT,
-    ZT_POOL_PREVIOUS_SELECT, ZT_POOL_SELECT, ZT_POOL_STRONG_SELECT, ZT_POOL_SUB_NEW_SELECT,
-    ZT_POOL_ZBGC_SELECT,
+    min_kline_to_df, push2_urls, require_kline_data, BOARD_HIST_SELECT, KLINE_COLS,
+    KLINE_COLS_WITH_SYMBOL, UT_CLIST, UT_KLINE, ZT_POOL_DTGC_SELECT, ZT_POOL_PREVIOUS_SELECT,
+    ZT_POOL_SELECT, ZT_POOL_STRONG_SELECT, ZT_POOL_SUB_NEW_SELECT, ZT_POOL_ZBGC_SELECT,
 };
 use crate::stock_feature::{datacenter, report_extra};
 use serde_json::{json, Map, Value};
@@ -686,7 +685,12 @@ pub fn stock_zt_pool_em(date: &str) -> Result<Df> {
 ///
 /// 返回响应 `data.pool` 数组；`data` 为 `null` 或 `pool` 缺失时返回 `None`
 /// （由调用方按 akshare 语义报错），`pool` 为空数组时返回 `Some(空)`。
-fn fetch_zt_topic_pool(url: &str, date: &str, sort: &str, pagesize: &str) -> Result<Option<Vec<Value>>> {
+fn fetch_zt_topic_pool(
+    url: &str,
+    date: &str,
+    sort: &str,
+    pagesize: &str,
+) -> Result<Option<Vec<Value>>> {
     let http = HttpClient::default();
     let params = json!({
         "ut": UT_KLINE,
@@ -698,7 +702,11 @@ fn fetch_zt_topic_pool(url: &str, date: &str, sort: &str, pagesize: &str) -> Res
     });
     let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
     let value = http.get_json(url, &params, None)?;
-    match value.get("data").and_then(|d| d.get("pool")).and_then(Value::as_array) {
+    match value
+        .get("data")
+        .and_then(|d| d.get("pool"))
+        .and_then(Value::as_array)
+    {
         None => Ok(None),
         Some(pool) => Ok(Some(pool.clone())),
     }
@@ -1510,7 +1518,10 @@ fn reorder_valuation_rows(rows: &[Value]) -> Vec<Value> {
     }
     out.extend(rows.iter().take(rows.len() - 1).cloned());
     if let Some(obj) = out.get_mut(0).and_then(|v| v.as_object_mut()) {
-        let rank = obj.get("PAIMING").and_then(json_value_to_string).unwrap_or_default();
+        let rank = obj
+            .get("PAIMING")
+            .and_then(json_value_to_string)
+            .unwrap_or_default();
         obj.insert("PAIMING".into(), json!(format!("{rank}/{total_count}")));
     }
     if out.len() >= 3 {
@@ -1970,12 +1981,8 @@ const FUND_HOLD_DETAIL_SELECT: [&str; 6] = [
     "占总股本比例",
     "占流通股本比例",
 ];
-const FUND_HOLD_DETAIL_NUMERIC: [&str; 4] = [
-    "持股数",
-    "持股市值",
-    "占总股本比例",
-    "占流通股本比例",
-];
+const FUND_HOLD_DETAIL_NUMERIC: [&str; 4] =
+    ["持股数", "持股市值", "占总股本比例", "占流通股本比例"];
 
 /// 东方财富-数据中心-主力数据-基金持仓-明细（对应 akshare [`akshare.stock_report_fund_hold_detail`]）。
 ///
@@ -2039,8 +2046,16 @@ fn fetch_fund_hold_rows(date: &str, type_code: &str) -> Result<Vec<Value>> {
         params.insert("pageSize".into(), json!("500"));
         params.insert("p".into(), json!(page));
         params.insert("pageNo".into(), json!(page));
-        let v = http.get_json("https://data.eastmoney.com/dataapi/zlsj/list", &params, None)?;
-        let data = v.get("data").and_then(Value::as_array).cloned().unwrap_or_default();
+        let v = http.get_json(
+            "https://data.eastmoney.com/dataapi/zlsj/list",
+            &params,
+            None,
+        )?;
+        let data = v
+            .get("data")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         if data.is_empty() {
             break;
         }
@@ -2143,7 +2158,11 @@ pub fn stock_zh_kcb_report_em(from_page: &str, to_page: &str) -> Result<Df> {
         None => return build_kcb_df(&[]),
     };
     let total_hits = data.get("total_hits").and_then(Value::as_u64).unwrap_or(0);
-    let page_size = data.get("page_size").and_then(Value::as_u64).unwrap_or(100).max(1);
+    let page_size = data
+        .get("page_size")
+        .and_then(Value::as_u64)
+        .unwrap_or(100)
+        .max(1);
     let total_page = (total_hits / page_size) as i64;
     if to > total_page {
         to = total_page;
@@ -2268,7 +2287,14 @@ mod kcb_report_tests {
         let df = build_kcb_df(raw.as_array().unwrap()).unwrap();
         assert_eq!(
             df.column_names(),
-            vec!["代码", "名称", "公告标题", "公告类型", "公告日期", "公告代码"]
+            vec![
+                "代码",
+                "名称",
+                "公告标题",
+                "公告类型",
+                "公告日期",
+                "公告代码"
+            ]
         );
         assert_eq!(
             df.inner().column("代码").unwrap().str().unwrap().get(0),

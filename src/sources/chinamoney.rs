@@ -32,8 +32,7 @@ pub fn cm_get(url: &str, params: &[(String, String)]) -> Result<Value> {
         p.insert(k.clone(), Value::String(v.clone()));
     }
     let headers = [("User-Agent", CM_UA)];
-    HttpClient::default()
-        .get_json_with_headers(url, &p, &headers, None)
+    HttpClient::default().get_json_with_headers(url, &p, &headers, None)
 }
 
 /// 抽取 `records` 数组（对应 akshare `data_json["records"]`）。

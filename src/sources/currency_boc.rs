@@ -32,9 +32,32 @@ const SINA_COLS: &[&str] = &[
 
 /// SAFE 中间价 26 列（日期 + 25 币种，与 akshare `currency_boc_safe` 输出顺序一致）。
 const SAFE_COLS: &[&str] = &[
-    "日期", "美元", "欧元", "日元", "港元", "英镑", "澳元", "新西兰元", "新加坡元", "瑞士法郎",
-    "加元", "澳门元", "林吉特", "卢布", "兰特", "韩元", "迪拉姆", "里亚尔", "福林", "兹罗提",
-    "丹麦克朗", "瑞典克朗", "挪威克朗", "里拉", "比索", "泰铢",
+    "日期",
+    "美元",
+    "欧元",
+    "日元",
+    "港元",
+    "英镑",
+    "澳元",
+    "新西兰元",
+    "新加坡元",
+    "瑞士法郎",
+    "加元",
+    "澳门元",
+    "林吉特",
+    "卢布",
+    "兰特",
+    "韩元",
+    "迪拉姆",
+    "里亚尔",
+    "福林",
+    "兹罗提",
+    "丹麦克朗",
+    "瑞典克朗",
+    "挪威克朗",
+    "里拉",
+    "比索",
+    "泰铢",
 ];
 
 /// `YYYYMMDD` → `YYYY-MM-DD`。
@@ -55,8 +78,8 @@ fn fetch_sina_map(start_date: &str, end_date: &str) -> Result<HashMap<String, St
     params.insert("type".into(), Value::String("0".into()));
     let text = http.get_text_with_headers(SINA_URL, &params, &[], None)?;
     let doc = Html::parse_document(&text);
-    let sel = Selector::parse(r#"#money_code option"#)
-        .map_err(|e| AkshareError::Empty(e.to_string()))?;
+    let sel =
+        Selector::parse(r#"#money_code option"#).map_err(|e| AkshareError::Empty(e.to_string()))?;
     let mut map = HashMap::new();
     for opt in doc.select(&sel) {
         let name = opt.text().collect::<Vec<_>>().join("").trim().to_string();

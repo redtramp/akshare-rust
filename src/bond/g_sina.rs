@@ -63,9 +63,7 @@ const HS_SPOT_MAP: &[(usize, &str)] = &[
 ];
 
 /// 沪深债券实时行情中需数值化的列（其余保持字符串，对齐 akshare）。
-const HS_SPOT_NUM: &[&str] = &[
-    "最新价", "买入", "卖出", "昨收", "今开", "最高", "最低",
-];
+const HS_SPOT_NUM: &[&str] = &["最新价", "买入", "卖出", "昨收", "今开", "最高", "最低"];
 
 /// 在映射表中查找接口代码，找不到返回 `Empty` 错误。
 fn lookup<'a>(map: &'a [(&str, &str)], symbol: &str) -> Result<&'a str> {
@@ -114,9 +112,10 @@ fn extract_sina_js_encoded(text: &str) -> Result<String> {
         .split('=')
         .nth(1)
         .ok_or_else(|| AkshareError::Empty("新浪 JS 响应缺少 '=' 分隔".into()))?;
-    let before_semi = after_eq.split(';').next().ok_or_else(|| {
-        AkshareError::Empty("新浪 JS 响应缺少 ';' 分隔".into())
-    })?;
+    let before_semi = after_eq
+        .split(';')
+        .next()
+        .ok_or_else(|| AkshareError::Empty("新浪 JS 响应缺少 ';' 分隔".into()))?;
     Ok(before_semi.replace('"', ""))
 }
 
@@ -201,8 +200,8 @@ fn bond_hs_hist_daily(symbol: &str) -> Result<Df> {
     let text = http.get_text(&url, &Map::new(), None)?;
     let encoded = extract_sina_js_encoded(&text)?;
     let json = sina_js_decode(&encoded)?;
-    let rows: Vec<Value> =
-        serde_json::from_str(&json).map_err(|e| AkshareError::json("新浪日K解密结果非JSON数组", e.to_string()))?;
+    let rows: Vec<Value> = serde_json::from_str(&json)
+        .map_err(|e| AkshareError::json("新浪日K解密结果非JSON数组", e.to_string()))?;
     if rows.is_empty() {
         return Df::from_string_rows(&["date", "open", "high", "low", "close"], &[]);
     }
@@ -393,5 +392,7 @@ fn col_strs(df: &Df, name: &str) -> Result<Vec<Option<String>>> {
     let ca = s
         .str()
         .map_err(|_| AkshareError::Empty(format!("{name} 非字符串列")))?;
-    Ok((0..s.len()).map(|i| ca.get(i).map(str::to_string)).collect())
+    Ok((0..s.len())
+        .map(|i| ca.get(i).map(str::to_string))
+        .collect())
 }

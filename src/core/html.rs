@@ -18,7 +18,12 @@ fn clean(text: &str) -> String {
 
 /// 把单元格文本收成单行（去首尾空白，内部空白折叠为单空格）。
 fn cell_text(el: ElementRef<'_>) -> Option<String> {
-    let s: String = el.text().collect::<Vec<_>>().join("").split_whitespace().collect();
+    let s: String = el
+        .text()
+        .collect::<Vec<_>>()
+        .join("")
+        .split_whitespace()
+        .collect();
     if s.is_empty() {
         None
     } else {
@@ -155,7 +160,8 @@ mod tests {
 
     #[test]
     fn multiple_tables() {
-        let html = "<table><tr><td>a</td></tr></table><div></div><table><tr><td>b</td></tr></table>";
+        let html =
+            "<table><tr><td>a</td></tr></table><div></div><table><tr><td>b</td></tr></table>";
         let tables = read_html_tables(html).unwrap();
         assert_eq!(tables.len(), 2);
         assert_eq!(tables[1][0][0], "b");

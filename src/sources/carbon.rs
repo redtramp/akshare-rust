@@ -17,9 +17,10 @@ use serde_json::{Map, Value};
 const GZ_URL: &str = "http://ets.cnemission.com/carbon/portalIndex/markethistory";
 const HB_URL: &str = "https://www.hbets.cn/";
 
-const GZ_HEADERS: &[(&str, &str)] = &[
-    ("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
-];
+const GZ_HEADERS: &[(&str, &str)] = &[(
+    "user-agent",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+)];
 
 /// 广州碳排放权交易中心-行情信息（对应 akshare [`energy_carbon_gz`]）。
 ///
@@ -47,7 +48,15 @@ pub fn energy_carbon_gz() -> Result<Df> {
         .collect();
 
     let names = [
-        "日期", "品种", "开盘价", "收盘价", "最高价", "最低价", "涨跌", "涨跌幅", "成交数量",
+        "日期",
+        "品种",
+        "开盘价",
+        "收盘价",
+        "最高价",
+        "最低价",
+        "涨跌",
+        "涨跌幅",
+        "成交数量",
         "成交金额",
     ];
     let mut df = Df::from_string_rows(&names, &data_rows)?;
@@ -55,7 +64,14 @@ pub fn energy_carbon_gz() -> Result<Df> {
     // 涨跌幅带百分号，先剥离再数值化
     df.strip_suffix(&["涨跌幅"], "%")?;
     df.cast_numeric(&[
-        "开盘价", "收盘价", "最高价", "最低价", "涨跌", "涨跌幅", "成交数量", "成交金额",
+        "开盘价",
+        "收盘价",
+        "最高价",
+        "最低价",
+        "涨跌",
+        "涨跌幅",
+        "成交数量",
+        "成交金额",
     ])?;
     // akshare 按日期升序
     let sorted = df.sort_by("日期", true, false)?;
@@ -83,8 +99,8 @@ pub fn energy_carbon_hb() -> Result<Df> {
         return Err(AkshareError::Empty("湖北碳市场 cjj 数组切片异常".into()));
     }
     let sub = &text[start..end];
-    let arr: Vec<Value> = serde_json::from_str(sub)
-        .map_err(|e| AkshareError::json(HB_URL, e.to_string()))?;
+    let arr: Vec<Value> =
+        serde_json::from_str(sub).map_err(|e| AkshareError::json(HB_URL, e.to_string()))?;
 
     let rows: Vec<Vec<Option<String>>> = arr
         .iter()
@@ -96,20 +112,11 @@ pub fn energy_carbon_hb() -> Result<Df> {
                     other => Some(other.to_string()),
                 })
             };
-            vec![
-                get("riqi"),
-                get("cjj"),
-                get("cjl"),
-                get("zx"),
-                get("zd"),
-            ]
+            vec![get("riqi"), get("cjj"), get("cjl"), get("zx"), get("zd")]
         })
         .collect();
 
-    let mut df = Df::from_string_rows(
-        &["日期", "成交价", "成交量", "最新", "涨跌"],
-        &rows,
-    )?;
+    let mut df = Df::from_string_rows(&["日期", "成交价", "成交量", "最新", "涨跌"], &rows)?;
     df.cast_date(&["日期"])?;
     df.cast_numeric(&["成交价", "成交量", "最新", "涨跌"])?;
     Ok(df)
@@ -134,8 +141,22 @@ mod tests {
             Some("68620".into()),
             Some("2629623.29".into()),
         ]];
-        let mut df =
-            Df::from_string_rows(&["日期", "品种", "开盘价", "收盘价", "最高价", "最低价", "涨跌", "涨跌幅", "成交数量", "成交金额"], &rows).unwrap();
+        let mut df = Df::from_string_rows(
+            &[
+                "日期",
+                "品种",
+                "开盘价",
+                "收盘价",
+                "最高价",
+                "最低价",
+                "涨跌",
+                "涨跌幅",
+                "成交数量",
+                "成交金额",
+            ],
+            &rows,
+        )
+        .unwrap();
         df.cast_date(&["日期"]).unwrap();
         df.strip_suffix(&["涨跌幅"], "%").unwrap();
         df.cast_numeric(&["涨跌幅"]).unwrap();

@@ -64,8 +64,7 @@ fn extract(records: &[Value], picks: &[(&str, &str)]) -> Result<Df> {
 /// # 返回列
 /// `货币对, 买报价, 卖报价`
 pub fn fx_spot_quote() -> Result<Df> {
-    const URL: &str =
-        "http://www.chinamoney.com.cn/r/cms/www/chinamoney/data/fx/rfx-sp-quot.json";
+    const URL: &str = "http://www.chinamoney.com.cn/r/cms/www/chinamoney/data/fx/rfx-sp-quot.json";
     let records = post_quote(URL)?;
     const PICKS: [(&str, &str); 3] = [
         ("ccyPair", "货币对"),
@@ -82,8 +81,7 @@ pub fn fx_spot_quote() -> Result<Df> {
 /// # 返回列
 /// `货币对, 1周, 1月, 3月, 6月, 9月, 1年`
 pub fn fx_swap_quote() -> Result<Df> {
-    const URL: &str =
-        "http://www.chinamoney.com.cn/r/cms/www/chinamoney/data/fx/rfx-sw-quot.json";
+    const URL: &str = "http://www.chinamoney.com.cn/r/cms/www/chinamoney/data/fx/rfx-sw-quot.json";
     let records = post_quote(URL)?;
     const PICKS: [(&str, &str); 7] = [
         ("ccyPair", "货币对"),
@@ -102,8 +100,7 @@ pub fn fx_swap_quote() -> Result<Df> {
 /// # 返回列
 /// `货币对, 买报价, 卖报价`
 pub fn fx_pair_quote() -> Result<Df> {
-    const URL: &str =
-        "http://www.chinamoney.com.cn/r/cms/www/chinamoney/data/fx/cpair-quot.json";
+    const URL: &str = "http://www.chinamoney.com.cn/r/cms/www/chinamoney/data/fx/cpair-quot.json";
     let records = post_quote(URL)?;
     const PICKS: [(&str, &str); 3] = [
         ("ccyPair", "货币对"),
@@ -120,7 +117,8 @@ pub fn fx_pair_quote() -> Result<Df> {
 /// # 返回列
 /// `日期时间, 期限品种, 掉期点(Pips), 掉期点数据源, 全价汇率`
 pub fn fx_c_swap_cm() -> Result<Df> {
-    const URL: &str = "https://www.chinamoney.org.cn/r/cms/www/chinamoney/data/fx/fx-c-sw-curv-USD.CNY.json";
+    const URL: &str =
+        "https://www.chinamoney.org.cn/r/cms/www/chinamoney/data/fx/fx-c-sw-curv-USD.CNY.json";
     let records = post_quote(URL)?;
     const PICKS: [(&str, &str); 5] = [
         ("curveTime", "日期时间"),

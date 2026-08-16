@@ -36,10 +36,7 @@ fn clean_content(raw: &str) -> String {
         .trim_start_matches("央视网消息(新闻联播)：")
         .trim_start_matches("央视网消息（新闻联播）：")
         .trim_start_matches("(新闻联播)：");
-    stripped
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    stripped.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// 新闻联播文字稿（对应 akshare [`news_cctv`]）。
@@ -63,7 +60,8 @@ pub fn news_cctv(date: &str) -> Result<Df> {
 
     let http = HttpClient::default();
     let list_url = format!("{CCTV_LIST_URL}/{date}.shtml");
-    let list_text = http.get_text_with_headers(&list_url, &Default::default(), CCTV_HEADERS, None)?;
+    let list_text =
+        http.get_text_with_headers(&list_url, &Default::default(), CCTV_HEADERS, None)?;
 
     let doc = Html::parse_document(&list_text);
     let li_sel = Selector::parse("li").map_err(|e| AkshareError::Empty(e.to_string()))?;
@@ -83,18 +81,17 @@ pub fn news_cctv(date: &str) -> Result<Df> {
 
     let h3_sel = Selector::parse("h3").map_err(|e| AkshareError::Empty(e.to_string()))?;
     let tit_sel = Selector::parse("div.tit").map_err(|e| AkshareError::Empty(e.to_string()))?;
-    let cnt_sel =
-        Selector::parse("div.cnt_bd").map_err(|e| AkshareError::Empty(e.to_string()))?;
+    let cnt_sel = Selector::parse("div.cnt_bd").map_err(|e| AkshareError::Empty(e.to_string()))?;
     let area_sel =
         Selector::parse("div.content_area").map_err(|e| AkshareError::Empty(e.to_string()))?;
 
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(links.len());
     for link in &links {
-        let sub_text = match http.get_text_with_headers(link, &Default::default(), CCTV_HEADERS, None)
-        {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
+        let sub_text =
+            match http.get_text_with_headers(link, &Default::default(), CCTV_HEADERS, None) {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
         let sub = Html::parse_document(&sub_text);
         let title = sub
             .select(&h3_sel)
@@ -117,10 +114,7 @@ pub fn news_cctv(date: &str) -> Result<Df> {
         ]);
     }
 
-    Df::from_string_rows(
-        &["date", "title", "content"],
-        &rows,
-    )
+    Df::from_string_rows(&["date", "title", "content"], &rows)
 }
 
 #[cfg(test)]

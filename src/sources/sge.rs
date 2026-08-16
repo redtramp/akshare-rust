@@ -58,9 +58,9 @@ fn time_to_secs(t: &str) -> Option<i32> {
 /// `序号, 品种`（序号从 1 开始）
 pub fn spot_symbol_table_sge() -> Result<Df> {
     let symbols = [
-        "Au99.99", "Au99.95", "Au100g", "Pt99.95", "Ag(T+D)", "Au(T+D)", "mAu(T+D)",
-        "Au(T+N1)", "Au(T+N2)", "Ag99.99", "iAu99.99", "Au99.5", "iAu100g", "iAu99.5",
-        "PGC30g", "NYAuTN06", "NYAuTN12",
+        "Au99.99", "Au99.95", "Au100g", "Pt99.95", "Ag(T+D)", "Au(T+D)", "mAu(T+D)", "Au(T+N1)",
+        "Au(T+N2)", "Ag99.99", "iAu99.99", "Au99.5", "iAu100g", "iAu99.5", "PGC30g", "NYAuTN06",
+        "NYAuTN12",
     ];
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(symbols.len());
     for (i, sym) in symbols.iter().enumerate() {
@@ -107,8 +107,16 @@ fn fetch_benchmark(url: &str) -> Result<Df> {
     let mut eve: Vec<Option<String>> = Vec::with_capacity(n);
     let mut morn: Vec<Option<String>> = Vec::with_capacity(n);
     for i in 0..n {
-        let w = wp.get(i).and_then(Value::as_array).cloned().unwrap_or_default();
-        let z = zp.get(i).and_then(Value::as_array).cloned().unwrap_or_default();
+        let w = wp
+            .get(i)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let z = zp
+            .get(i)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         let ms = w.first().and_then(Value::as_i64);
         date.push(ms.and_then(ms_to_date));
         eve.push(w.get(1).and_then(Value::as_str).map(str::to_string));
@@ -186,10 +194,7 @@ pub fn spot_quotations_sge(symbol: &str) -> Result<Df> {
         .unwrap_or_default()
         .to_string();
     // 更新时间的时点部分（如 "15:30:00"）
-    let update_secs = delaystr
-        .split_whitespace()
-        .nth(1)
-        .and_then(time_to_secs);
+    let update_secs = delaystr.split_whitespace().nth(1).and_then(time_to_secs);
 
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(times.len());
     for (i, t) in times.iter().enumerate() {

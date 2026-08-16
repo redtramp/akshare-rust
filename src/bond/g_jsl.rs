@@ -185,7 +185,11 @@ pub fn bond_cb_index_jsl() -> Result<Df> {
     if cols.iter().any(|c| c == "price_dt") {
         df.cast_date(&["price_dt"])?;
     }
-    let numeric: Vec<&str> = cols.iter().filter(|c| *c != "price_dt").map(String::as_str).collect();
+    let numeric: Vec<&str> = cols
+        .iter()
+        .filter(|c| *c != "price_dt")
+        .map(String::as_str)
+        .collect();
     df.cast_numeric(&numeric)?;
     Ok(df)
 }

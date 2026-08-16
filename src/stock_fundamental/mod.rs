@@ -137,7 +137,14 @@ stock_register_em_fn!(
 /// # 返回列
 /// `序号, 企业名称`（`序号` 前置 1-based，对应 akshare `reset_index` + `range(1,..)`）。
 pub fn stock_register_db() -> Result<Df> {
-    let extra = report_extra("NOTICE_DATE,SECURITY_CODE", "-1,-1", Some(r#"(ORG_TYPE_CODE="03")"#), None, None, None);
+    let extra = report_extra(
+        "NOTICE_DATE,SECURITY_CODE",
+        "-1,-1",
+        Some(r#"(ORG_TYPE_CODE="03")"#),
+        None,
+        None,
+        None,
+    );
     // 沿用 akshare 的 `columns=KCB_LB`（东财忽略该限制、返回完整行，含 ORG_NAME）
     let rows = datacenter("RPT_KCB_IPO", "KCB_LB", &extra, "500")?;
     let rename: [(&str, &str); 1] = [("ORG_NAME", "企业名称")];
@@ -809,9 +816,10 @@ fn pandas_cell(v: Option<&Value>) -> Option<String> {
 /// 转置后行 = 报告期、列 = 指标名。`do_sort=true`（abstract）按 `报告期`
 /// 字符串升序（ISO 日期字符串序 = 时间序）。
 fn parse_old_finance(json: &Value, indicator: &str, do_sort: bool) -> Result<Df> {
-    let title = json.get("title").and_then(Value::as_array).ok_or_else(|| {
-        AkshareError::Empty("同花顺财务旧系列缺 title".into())
-    })?;
+    let title = json
+        .get("title")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AkshareError::Empty("同花顺财务旧系列缺 title".into()))?;
     let df_index: Vec<String> = title
         .iter()
         .map(|item| match item {
@@ -1022,7 +1030,12 @@ fn parse_new_finance(json: &Value) -> Result<Df> {
 }
 
 /// 新系列请求 + 解析（`id` 区分 重要指标/资产负债表/利润表/现金流量表）。
-fn fetch_new_finance(symbol: &str, indicator: &str, id: &str, periods: &[(&str, &str)]) -> Result<Df> {
+fn fetch_new_finance(
+    symbol: &str,
+    indicator: &str,
+    id: &str,
+    periods: &[(&str, &str)],
+) -> Result<Df> {
     let period = periods
         .iter()
         .find(|(k, _)| *k == indicator)
@@ -1196,11 +1209,7 @@ fn pf_eps_net(html: &str, idx: usize) -> Result<Df> {
         .collect();
     let mut df = Df::from_string_rows(&cols, &string_rows)?;
     // 年度保持字符串（akshare astype(str)），其余数值化
-    let numeric: Vec<&str> = cols
-        .iter()
-        .copied()
-        .filter(|c| *c != "年度")
-        .collect();
+    let numeric: Vec<&str> = cols.iter().copied().filter(|c| *c != "年度").collect();
     df.cast_numeric(&numeric)?;
     Ok(df)
 }
@@ -1216,7 +1225,11 @@ fn pf_eps_net(html: &str, idx: usize) -> Result<Df> {
 pub(crate) fn pf_org(html: &str, idx: usize) -> Result<Df> {
     // 解析 thead 两行单元格（含 colspan/rowspan）
     let cells = parse_thead_rows(html, idx)?;
-    let col_count = cells.iter().map(|r| r.iter().map(|c| c.1).sum::<usize>()).max().unwrap_or(0);
+    let col_count = cells
+        .iter()
+        .map(|r| r.iter().map(|c| c.1).sum::<usize>())
+        .max()
+        .unwrap_or(0);
     if col_count == 0 {
         return Err(AkshareError::Empty("机构详表无表头".into()));
     }
@@ -1274,8 +1287,8 @@ pub(crate) fn pf_org(html: &str, idx: usize) -> Result<Df> {
 fn parse_thead_rows(html: &str, idx: usize) -> Result<Vec<Vec<(String, usize)>>> {
     let table_sel = Selector::parse("table")
         .map_err(|e| AkshareError::js(format!("解析 table 选择器失败: {e}")))?;
-    let tr_sel = Selector::parse("tr")
-        .map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
+    let tr_sel =
+        Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
     let cell_sel = Selector::parse("th, td")
         .map_err(|e| AkshareError::js(format!("解析 th/td 选择器失败: {e}")))?;
     let doc = Html::parse_document(html);
@@ -1307,10 +1320,10 @@ fn parse_table_rows(html: &str, idx: usize, width: usize) -> Result<Vec<Vec<Stri
         .map_err(|e| AkshareError::js(format!("解析 table 选择器失败: {e}")))?;
     let tbody_sel = Selector::parse("tbody")
         .map_err(|e| AkshareError::js(format!("解析 tbody 选择器失败: {e}")))?;
-    let tr_sel = Selector::parse("tr")
-        .map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
-    let td_sel = Selector::parse("td")
-        .map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
+    let tr_sel =
+        Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
+    let td_sel =
+        Selector::parse("td").map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
     let doc = Html::parse_document(html);
     let table = doc
         .select(&table_sel)
@@ -1319,10 +1332,7 @@ fn parse_table_rows(html: &str, idx: usize, width: usize) -> Result<Vec<Vec<Stri
     let mut out = Vec::new();
     if let Some(tbody) = table.select(&tbody_sel).next() {
         for tr in tbody.select(&tr_sel) {
-            let cells: Vec<String> = tr
-                .select(&td_sel)
-                .map(|td| collapse_text(&td))
-                .collect();
+            let cells: Vec<String> = tr.select(&td_sel).map(|td| collapse_text(&td)).collect();
             if !cells.is_empty() {
                 out.push(cells);
             }
@@ -1360,22 +1370,19 @@ pub(crate) fn parse_table_nth(html: &str, idx: usize) -> Result<(Vec<String>, Ve
         .map_err(|e| AkshareError::js(format!("解析 thead 选择器失败: {e}")))?;
     let tbody_sel = Selector::parse("tbody")
         .map_err(|e| AkshareError::js(format!("解析 tbody 选择器失败: {e}")))?;
-    let tr_sel = Selector::parse("tr")
-        .map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
-    let th_sel = Selector::parse("th")
-        .map_err(|e| AkshareError::js(format!("解析 th 选择器失败: {e}")))?;
-    let td_sel = Selector::parse("td")
-        .map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
+    let tr_sel =
+        Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析 tr 选择器失败: {e}")))?;
+    let th_sel =
+        Selector::parse("th").map_err(|e| AkshareError::js(format!("解析 th 选择器失败: {e}")))?;
+    let td_sel =
+        Selector::parse("td").map_err(|e| AkshareError::js(format!("解析 td 选择器失败: {e}")))?;
 
     // 表头：所有 thead tr 的 th 文本（机构详表有两行，pandas 展开 MultiIndex）
     let mut headers: Vec<String> = Vec::new();
     let mut rows: Vec<Vec<String>> = Vec::new();
     if let Some(thead) = table.select(&thead_sel).next() {
         for tr in thead.select(&tr_sel) {
-            let ths: Vec<String> = tr
-                .select(&th_sel)
-                .map(|th| collapse_text(&th))
-                .collect();
+            let ths: Vec<String> = tr.select(&th_sel).map(|th| collapse_text(&th)).collect();
             if !ths.is_empty() {
                 headers.extend(ths);
             }
@@ -1383,10 +1390,7 @@ pub(crate) fn parse_table_nth(html: &str, idx: usize) -> Result<(Vec<String>, Ve
     }
     if let Some(tbody) = table.select(&tbody_sel).next() {
         for tr in tbody.select(&tr_sel) {
-            let cells: Vec<String> = tr
-                .select(&td_sel)
-                .map(|td| collapse_text(&td))
-                .collect();
+            let cells: Vec<String> = tr.select(&td_sel).map(|td| collapse_text(&td)).collect();
             if !cells.is_empty() {
                 rows.push(cells);
             }
@@ -1419,7 +1423,11 @@ pub fn stock_management_change_ths(symbol: &str) -> Result<Df> {
         "table[class=\"data_table_1 m_table m_hl\"]",
         0,
     )?;
-    let rename = [("变动数量（股）", "变动数量"), ("交易均价（元）", "交易均价"), ("剩余股数（股）", "剩余股数")];
+    let rename = [
+        ("变动数量（股）", "变动数量"),
+        ("交易均价（元）", "交易均价"),
+        ("剩余股数（股）", "剩余股数"),
+    ];
     let cols: Vec<&str> = headers.iter().map(|s| s.as_str()).collect();
     let string_rows: Vec<Vec<Option<String>>> = rows
         .iter()
@@ -2103,9 +2111,7 @@ pub use finance_em::{
 
 /// 东方财富-公告大全 / 主营构成（emweb F10 + np-anotice-stock，批次27）。
 mod announce_em;
-pub use announce_em::{
-    stock_individual_notice_report, stock_notice_report, stock_zygc_em,
-};
+pub use announce_em::{stock_individual_notice_report, stock_notice_report, stock_zygc_em};
 
 #[cfg(test)]
 mod tests {

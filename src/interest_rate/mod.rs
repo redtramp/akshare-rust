@@ -152,9 +152,23 @@ mod tests {
         assert_eq!(col_names(&df), vec!["报告日", "利率", "涨跌"]);
         let d = df.inner().column("报告日").unwrap().str().unwrap().get(0);
         assert_eq!(d, Some("2024-03-15"));
-        let r = df.inner().column("利率").unwrap().f64().unwrap().get(0).unwrap();
+        let r = df
+            .inner()
+            .column("利率")
+            .unwrap()
+            .f64()
+            .unwrap()
+            .get(0)
+            .unwrap();
         assert!((r - 2.31).abs() < 1e-6);
-        let c = df.inner().column("涨跌").unwrap().f64().unwrap().get(0).unwrap();
+        let c = df
+            .inner()
+            .column("涨跌")
+            .unwrap()
+            .f64()
+            .unwrap()
+            .get(0)
+            .unwrap();
         assert!((c - (-0.05)).abs() < 1e-6);
     }
 
