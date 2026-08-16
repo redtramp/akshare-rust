@@ -2106,7 +2106,8 @@ fn build_xq_df(data: &Value) -> Result<Df> {
 mod finance_em;
 pub use finance_em::{
     stock_financial_analysis_indicator_em, stock_financial_hk_analysis_indicator_em,
-    stock_financial_us_analysis_indicator_em, stock_sy_em, stock_zh_a_gbjg_em,
+    stock_financial_hk_report_em, stock_financial_us_analysis_indicator_em,
+    stock_financial_us_report_em, stock_sy_em, stock_zh_a_gbjg_em,
 };
 
 /// 东方财富-公告大全 / 主营构成（emweb F10 + np-anotice-stock，批次27）。

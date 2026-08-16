@@ -128,6 +128,13 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_financial_analysis_indicator_em", ["301389.SZ", "按单季度"], "loose", "东财A股财务分析主要指标-单季度"),
     ("stock_financial_hk_analysis_indicator_em", ["00700", "年度"], "loose", "东财港股财务分析主要指标"),
     ("stock_financial_us_analysis_indicator_em", ["TSLA", "年报"], "loose", "东财美股财务分析主要指标"),
+    # === BATCH35 东财 港股/美股 三大报表（datacenter securities，长表原生键，loose 比列契约） ===
+    ("stock_financial_hk_report_em", ["00700", "资产负债表", "年度"], "loose", "东财港股财务报表-资产负债表(年度)"),
+    ("stock_financial_hk_report_em", ["00700", "利润表", "年度"], "loose", "东财港股财务报表-利润表(年度)"),
+    ("stock_financial_hk_report_em", ["00700", "现金流量表", "年度"], "loose", "东财港股财务报表-现金流量表(年度)"),
+    ("stock_financial_us_report_em", ["TSLA", "资产负债表", "年报"], "loose", "东财美股财务报表-资产负债表(年报)"),
+    ("stock_financial_us_report_em", ["TSLA", "综合损益表", "年报"], "loose", "东财美股财务报表-综合损益表(年报)"),
+    ("stock_financial_us_report_em", ["TSLA", "现金流量表", "年报"], "loose", "东财美股财务报表-现金流量表(年报)"),
     # === BATCH27 东财公告大全 / 主营构成（emweb F10 + np-anotice-stock，loose 比列契约） ===
     ("stock_zygc_em", ["SH688041"], "loose", "东财主营构成"),
     ("stock_notice_report", ["全部", "20220511"], "loose", "东财公告大全-按日期"),

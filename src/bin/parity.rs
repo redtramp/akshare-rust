@@ -332,7 +332,9 @@ use akshare_rust::stock_fundamental::{
     stock_financial_debt_new_ths,
     stock_financial_debt_ths,
     stock_financial_hk_analysis_indicator_em,
+    stock_financial_hk_report_em,
     stock_financial_us_analysis_indicator_em,
+    stock_financial_us_report_em,
     stock_individual_basic_info_hk_xq,
     stock_individual_basic_info_us_xq,
     stock_individual_basic_info_xq,
@@ -1024,6 +1026,14 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_financial_us_analysis_indicator_em" => {
             let [s, ind] = take2(func, args)?;
             Ok(stock_financial_us_analysis_indicator_em(s, ind)?)
+        }
+        "stock_financial_hk_report_em" => {
+            let [s, sym, ind] = take3(func, args)?;
+            Ok(stock_financial_hk_report_em(s, sym, ind)?)
+        }
+        "stock_financial_us_report_em" => {
+            let [s, sym, ind] = take3(func, args)?;
+            Ok(stock_financial_us_report_em(s, sym, ind)?)
         }
         "stock_financial_abstract_ths" => {
             let [s, i] = take2(func, args)?;

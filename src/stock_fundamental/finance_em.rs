@@ -781,6 +781,213 @@ DEBT_RATIO_YOY,EQUITY_RATIO",
     )
 }
 
+/// 东方财富-港股-财务报表-三大报表（对应 akshare
+/// [`akshare.stock_financial_hk_report_em`]）。
+///
+/// `stock`：港股代码（如 `00700`）；`symbol`：`资产负债表` / `利润表` / `现金流量表`；
+/// `indicator`：`年度` / `报告期`。先经 `RPT_CUSTOM_HKSK_APPFN_CASHFLOW_SUMMARY` 取报告期清单，
+/// 再按报表分别拉取明细（`RPT_HKF10_FN_BALANCE_PC` / `RPT_HKF10_FN_INCOME_PC` /
+/// `RPT_HKF10_FN_CASHFLOW_PC`，`source=F10`），返回长表原生英文键（与 akshare 一致）。
+pub fn stock_financial_hk_report_em(stock: &str, symbol: &str, indicator: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let secucode = format!("{stock}.HK");
+    // 1) 报告期清单（对应 akshare `RPT_CUSTOM_HKSK_APPFN_CASHFLOW_SUMMARY` 取 REPORT_LIST）
+    let mut summary_extra = serde_json::Map::new();
+    summary_extra.insert("filter".into(), json!(format!("(SECUCODE=\"{secucode}\")")));
+    summary_extra.insert("source".into(), json!("F10"));
+    summary_extra.insert("client".into(), json!("PC"));
+    let summary = fetch_securities_pages(
+        &http,
+        "RPT_CUSTOM_HKSK_APPFN_CASHFLOW_SUMMARY",
+        "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,START_DATE,REPORT_DATE,FISCAL_YEAR,\
+CURRENCY,ACCOUNT_STANDARD,REPORT_TYPE",
+        &summary_extra,
+        "0",
+        "F10",
+        "PC",
+    )?;
+    let report_list = summary
+        .first()
+        .and_then(|v| v.get("REPORT_LIST"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| AkshareError::Empty(format!("未获取到港股 {stock} 报告期清单")))?;
+    // 年度只保留年报；报告期保留全部
+    let year_list: Vec<String> = report_list
+        .iter()
+        .filter(|v| {
+            indicator != "年度" || v.get("REPORT_TYPE").and_then(Value::as_str) == Some("年报")
+        })
+        .filter_map(|v| {
+            v.get("REPORT_DATE")
+                .and_then(Value::as_str)
+                .map(|s| s.split(' ').next().unwrap_or(s).to_string())
+        })
+        .collect();
+    if year_list.is_empty() {
+        return Err(AkshareError::Empty(format!("未获取到港股 {stock} 报告期")));
+    }
+    // 2) 按报表拉取明细长表
+    let (report_name, columns) = match symbol {
+        "资产负债表" => (
+            "RPT_HKF10_FN_BALANCE_PC",
+            "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,REPORT_DATE,DATE_TYPE_CODE,\
+FISCAL_YEAR,STD_ITEM_CODE,STD_ITEM_NAME,AMOUNT,STD_REPORT_DATE",
+        ),
+        "利润表" => (
+            "RPT_HKF10_FN_INCOME_PC",
+            "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,REPORT_DATE,DATE_TYPE_CODE,\
+FISCAL_YEAR,START_DATE,STD_ITEM_CODE,STD_ITEM_NAME,AMOUNT",
+        ),
+        "现金流量表" => (
+            "RPT_HKF10_FN_CASHFLOW_PC",
+            "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,REPORT_DATE,DATE_TYPE_CODE,\
+FISCAL_YEAR,START_DATE,STD_ITEM_CODE,STD_ITEM_NAME,AMOUNT",
+        ),
+        other => return Err(AkshareError::Param(format!("未知 symbol: {other}"))),
+    };
+    let in_list = year_list
+        .iter()
+        .map(|y| format!("'{y}'"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut extra = report_extra(
+        "REPORT_DATE,STD_ITEM_CODE",
+        "-1,1",
+        Some(&format!(
+            "(SECUCODE=\"{secucode}\")(REPORT_DATE in ({in_list}))"
+        )),
+        None,
+        None,
+        None,
+    );
+    extra.insert("source".into(), json!("F10"));
+    extra.insert("client".into(), json!("PC"));
+    let rows = fetch_securities_pages(&http, report_name, columns, &extra, "0", "F10", "PC")?;
+    Df::from_json_rows_typed(&rows)
+}
+
+/// 东方财富-美股-财务分析-三大报表（对应 akshare
+/// [`akshare.stock_financial_us_report_em`]）。
+///
+/// `stock`：美股代码（如 `TSLA` / `BRK`）；`symbol`：`资产负债表` / `综合损益表` / `现金流量表`；
+/// `indicator`：`年报` / `单季报` / `累计季报`。先经 `RPT_USF10_INFO_ORGPROFILE` 查市场得 `SECUCODE`，
+/// 再取报告期清单（按 indicator 过滤 `REPORT`）拼 `(REPORT in (...))` 过滤，最后拉取明细长表
+/// （原生英文键，与 akshare 一致）。
+pub fn stock_financial_us_report_em(stock: &str, symbol: &str, indicator: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    // 1) 市场查询得到 SECUCODE
+    let mkt_filter = format!("(SECURITY_CODE=\"{stock}\")");
+    let mut mkt_extra = report_extra("", "", Some(&mkt_filter), None, None, None);
+    mkt_extra.insert("source".into(), json!("SECURITIES"));
+    mkt_extra.insert("client".into(), json!("PC"));
+    let mkt = fetch_securities_pages(
+        &http,
+        "RPT_USF10_INFO_ORGPROFILE",
+        "SECUCODE,SECURITY_CODE,ORG_CODE,SECURITY_INNER_CODE,ORG_NAME,ORG_EN_ABBR,BELONG_INDUSTRY,\
+FOUND_DATE,CHAIRMAN,REG_PLACE,ADDRESS,EMP_NUM,ORG_TEL,ORG_FAX,ORG_EMAIL,ORG_WEB,ORG_PROFILE",
+        &mkt_extra,
+        "200",
+        "SECURITIES",
+        "PC",
+    )?;
+    let secucode = mkt
+        .first()
+        .and_then(|v| v.get("SECUCODE"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| AkshareError::Empty(format!("未找到美股代码: {stock}")))?;
+    // 2) 报表名 + 报告期清单列
+    let (report_name, list_columns) = match symbol {
+        "资产负债表" => (
+            "RPT_USF10_FN_BALANCE",
+            "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,REPORT,REPORT_DATE,FISCAL_YEAR,\
+CURRENCY,ACCOUNT_STANDARD,REPORT_TYPE,DATE_TYPE_CODE",
+        ),
+        "综合损益表" => (
+            "RPT_USF10_FN_INCOME",
+            "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,REPORT,REPORT_DATE,FISCAL_YEAR,\
+CURRENCY,ACCOUNT_STANDARD,REPORT_TYPE,DATE_TYPE_CODE",
+        ),
+        "现金流量表" => (
+            "RPT_USSK_FN_CASHFLOW",
+            "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,REPORT,REPORT_DATE,FISCAL_YEAR,\
+CURRENCY,ACCOUNT_STANDARD,REPORT_TYPE,DATE_TYPE_CODE",
+        ),
+        other => return Err(AkshareError::Param(format!("未知 symbol: {other}"))),
+    };
+    let list_filter = format!("(SECUCODE=\"{secucode}\")");
+    let mut list_extra = report_extra("REPORT_DATE", "-1", Some(&list_filter), None, None, None);
+    list_extra.insert("source".into(), json!("SECURITIES"));
+    list_extra.insert("client".into(), json!("PC"));
+    let list_rows = fetch_securities_pages(
+        &http,
+        report_name,
+        list_columns,
+        &list_extra,
+        "0",
+        "SECURITIES",
+        "PC",
+    )?;
+    // 3) 去重 + 按 indicator 过滤 REPORT + 年份降序
+    let mut reports: Vec<String> = list_rows
+        .iter()
+        .filter_map(|v| v.get("REPORT").and_then(Value::as_str).map(str::to_string))
+        .collect();
+    reports.sort();
+    reports.dedup();
+    let quarters = ["Q1", "Q2", "Q3", "Q4"];
+    let picked: Vec<String> = match indicator {
+        "年报" => reports.into_iter().filter(|r| r.contains("FY")).collect(),
+        "单季报" => reports
+            .into_iter()
+            .filter(|r| quarters.iter().any(|q| r.contains(q)))
+            .collect(),
+        "累计季报" => reports
+            .into_iter()
+            .filter(|r| r.contains("Q6") || r.contains("Q9"))
+            .collect(),
+        other => return Err(AkshareError::Param(format!("未知 indicator: {other}"))),
+    };
+    let mut sorted = picked;
+    sorted.sort_by(|a, b| {
+        b.split('/')
+            .next()
+            .unwrap_or("")
+            .cmp(a.split('/').next().unwrap_or(""))
+    });
+    if sorted.is_empty() {
+        return Err(AkshareError::Empty(format!("未获取到美股 {stock} 报告期")));
+    }
+    let in_list = sorted
+        .iter()
+        .map(|r| format!("\"{r}\""))
+        .collect::<Vec<_>>()
+        .join(",");
+    // 4) 明细长表
+    let main_columns = "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,REPORT_DATE,REPORT_TYPE,REPORT,\
+STD_ITEM_CODE,AMOUNT,ITEM_NAME";
+    let mut extra = report_extra(
+        "STD_ITEM_CODE,REPORT_DATE",
+        "1,-1",
+        Some(&format!("(SECUCODE=\"{secucode}\")(REPORT in ({in_list}))")),
+        Some(""),
+        None,
+        None,
+    );
+    extra.insert("source".into(), json!("SECURITIES"));
+    extra.insert("client".into(), json!("PC"));
+    let rows = fetch_securities_pages(
+        &http,
+        report_name,
+        main_columns,
+        &extra,
+        "0",
+        "SECURITIES",
+        "PC",
+    )?;
+    Df::from_json_rows_typed(&rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
