@@ -2364,15 +2364,21 @@ fn emweb_f10_company_type(http: &HttpClient, symbol: &str) -> Result<String> {
     ))
 }
 
-/// emweb F10 三大报表（资产负债表/利润表/现金流量表）按报告期/年度的公共拉取流程。
+/// emweb F10 三大报表（资产负债表/利润表/现金流量表）按报告期/年度/单季度的公共拉取流程。
 ///
-/// 先取 `companyType`，再拉报告期列表（`{date_endpoint}`），每 5 个报告期一批调用
-/// `{ajax_endpoint}` 取明细，拼接成多期宽表（原始字段键）。
-fn emweb_f10_financial(
+/// 先取 `companyType`，再拉报告期列表（`{date_endpoint}`，`date_report_date_type`），
+/// 每 5 个报告期一批调用 `{ajax_endpoint}`（`ajax_report_date_type` + `report_type`）取明细，
+/// 拼接成多期宽表（原始字段键，与 akshare 一致）。
+///
+/// 注：按报告期/年度时报告期列表与明细共用同一 `reportDateType`；按单季度时列表用
+/// `reportDateType=2` 而明细用 `reportDateType=0` + `reportType=2`（akshare 源码即如此）。
+fn emweb_f10_financial_ex(
     symbol: &str,
-    report_date_type: &str,
+    date_report_date_type: &str,
     date_endpoint: &str,
     ajax_endpoint: &str,
+    ajax_report_date_type: &str,
+    report_type: &str,
 ) -> Result<Df> {
     let http = HttpClient::default();
     let ctype = emweb_f10_company_type(&http, symbol)?;
@@ -2383,7 +2389,7 @@ fn emweb_f10_financial(
     );
     let mut dparams = Map::new();
     dparams.insert("companyType".into(), json!(ctype.clone()));
-    dparams.insert("reportDateType".into(), json!(report_date_type));
+    dparams.insert("reportDateType".into(), json!(date_report_date_type));
     dparams.insert("code".into(), json!(code.clone()));
     let dval = http.get_json(&durl, &dparams, None)?;
     let dates: Vec<String> = dval
@@ -2407,8 +2413,8 @@ fn emweb_f10_financial(
         );
         let mut aparams = Map::new();
         aparams.insert("companyType".into(), json!(ctype.clone()));
-        aparams.insert("reportDateType".into(), json!(report_date_type));
-        aparams.insert("reportType".into(), json!("1"));
+        aparams.insert("reportDateType".into(), json!(ajax_report_date_type));
+        aparams.insert("reportType".into(), json!(report_type));
         aparams.insert("dates".into(), json!(chunk.join(",")));
         aparams.insert("code".into(), json!(code.clone()));
         let aval = http.get_json(&aurl, &aparams, None)?;
@@ -2418,6 +2424,25 @@ fn emweb_f10_financial(
         }
     }
     emweb_financial_report_df(&rows)
+}
+
+/// 三大报表按报告期/年度（对应 akshare 各 `by_report_em` / `by_yearly_em`）。
+///
+/// 报告期列表与明细共用同一 `reportDateType`（`0`=报告期、`1`=年度），`reportType=1`。
+fn emweb_f10_financial(
+    symbol: &str,
+    report_date_type: &str,
+    date_endpoint: &str,
+    ajax_endpoint: &str,
+) -> Result<Df> {
+    emweb_f10_financial_ex(
+        symbol,
+        report_date_type,
+        date_endpoint,
+        ajax_endpoint,
+        report_date_type,
+        "1",
+    )
 }
 
 /// 个股资产负债表-按报告期（对应 akshare [`akshare.stock_balance_sheet_by_report_em`]）。
@@ -2476,6 +2501,28 @@ pub fn stock_cash_flow_sheet_by_report_em(symbol: &str) -> Result<Df> {
 /// - `symbol`：带市场标识的股票代码（如 `"SH600036"`，内部转大写）
 pub fn stock_cash_flow_sheet_by_yearly_em(symbol: &str) -> Result<Df> {
     emweb_f10_financial(symbol, "1", "xjllbDateAjaxNew", "xjllbAjaxNew")
+}
+
+/// 个股利润表-按单季度（对应 akshare [`akshare.stock_profit_sheet_by_quarterly_em`]）。
+///
+/// 走 emweb F10 `NewFinanceAnalysis` 流程（`lrbDateAjaxNew`/`lrbAjaxNew`）。与
+/// [`stock_profit_sheet_by_report_em`] 的差异（沿用 akshare 源码）：报告期列表用
+/// `reportDateType=2`，但明细用 `reportDateType=0` + `reportType=2`。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"SH600519"`，内部转大写）
+pub fn stock_profit_sheet_by_quarterly_em(symbol: &str) -> Result<Df> {
+    emweb_f10_financial_ex(symbol, "2", "lrbDateAjaxNew", "lrbAjaxNew", "0", "2")
+}
+
+/// 个股现金流量表-按单季度（对应 akshare [`akshare.stock_cash_flow_sheet_by_quarterly_em`]）。
+///
+/// 走 emweb F10 `NewFinanceAnalysis` 流程（`xjllbDateAjaxNew`/`xjllbAjaxNew`）。与
+/// [`stock_cash_flow_sheet_by_report_em`] 的差异（沿用 akshare 源码）：报告期列表用
+/// `reportDateType=2`，但明细用 `reportDateType=0` + `reportType=2`。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"SH600519"`，内部转大写）
+pub fn stock_cash_flow_sheet_by_quarterly_em(symbol: &str) -> Result<Df> {
+    emweb_f10_financial_ex(symbol, "2", "xjllbDateAjaxNew", "xjllbAjaxNew", "0", "2")
 }
 
 #[cfg(test)]
