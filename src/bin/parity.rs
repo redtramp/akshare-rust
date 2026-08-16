@@ -268,7 +268,10 @@ use akshare_rust::stock::{
     stock_zt_pool_sub_new_em,
     stock_zt_pool_zbgc_em,
 };
-use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
+use akshare_rust::stock::{
+    stock_balance_sheet_by_report_em, stock_balance_sheet_by_yearly_em, stock_hk_spot_em,
+    stock_zh_a_new_em, stock_zh_a_st_em,
+};
 use akshare_rust::stock_feature::{
     stock_account_statistics_em, stock_analyst_detail_em, stock_analyst_rank_em,
     stock_board_concept_info_ths, stock_board_concept_name_ths, stock_board_industry_info_ths,
@@ -279,20 +282,19 @@ use akshare_rust::stock_feature::{
     stock_esg_zd_sina, stock_fhps_detail_em, stock_fhps_detail_ths, stock_fhps_em, stock_gddh_em,
     stock_gdfx_free_holding_analyse_em, stock_gdfx_free_holding_change_em,
     stock_gdfx_free_holding_detail_em, stock_gdfx_free_holding_statistics_em,
-    stock_gdfx_free_top_10_em, stock_gdfx_free_holding_teamwork_em, stock_gdfx_holding_analyse_em,
+    stock_gdfx_free_holding_teamwork_em, stock_gdfx_free_top_10_em, stock_gdfx_holding_analyse_em,
     stock_gdfx_holding_change_em, stock_gdfx_holding_detail_em, stock_gdfx_holding_statistics_em,
     stock_gdfx_holding_teamwork_em, stock_gdfx_top_10_em, stock_ggcg_em,
-    stock_gpzy_distribute_statistics_bank_em,
-    stock_gpzy_distribute_statistics_company_em, stock_gpzy_individual_pledge_ratio_detail_em,
-    stock_gpzy_industry_data_em, stock_gpzy_pledge_ratio_detail_em, stock_gpzy_pledge_ratio_em,
-    stock_gpzy_profile_em, stock_hk_ggt_components_em, stock_hk_main_board_spot_em,
-    stock_hot_keyword_em, stock_hot_rank_detail_em, stock_hot_rank_detail_realtime_em,
-    stock_hot_rank_em, stock_hot_rank_latest_em, stock_hot_rank_relate_em, stock_hot_up_em,
-    stock_hsgt_board_rank_em, stock_hsgt_hist_em, stock_hsgt_hold_stock_em,
-    stock_hsgt_individual_detail_em, stock_hsgt_individual_em,
-    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_ipo_hk_ths,
-    stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
-    stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
+    stock_gpzy_distribute_statistics_bank_em, stock_gpzy_distribute_statistics_company_em,
+    stock_gpzy_individual_pledge_ratio_detail_em, stock_gpzy_industry_data_em,
+    stock_gpzy_pledge_ratio_detail_em, stock_gpzy_pledge_ratio_em, stock_gpzy_profile_em,
+    stock_hk_ggt_components_em, stock_hk_main_board_spot_em, stock_hot_keyword_em,
+    stock_hot_rank_detail_em, stock_hot_rank_detail_realtime_em, stock_hot_rank_em,
+    stock_hot_rank_latest_em, stock_hot_rank_relate_em, stock_hot_up_em, stock_hsgt_board_rank_em,
+    stock_hsgt_hist_em, stock_hsgt_hold_stock_em, stock_hsgt_individual_detail_em,
+    stock_hsgt_individual_em, stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em,
+    stock_ipo_hk_ths, stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em,
+    stock_lhb_detail_em, stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
     stock_lhb_stock_detail_date_em, stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em,
     stock_lhb_traderstatistic_em, stock_lhb_yyb_detail_em, stock_lhb_yybph_em, stock_lrb_em,
     stock_margin_account_info, stock_new_a_spot_em, stock_pg_em, stock_qbzf_em, stock_qsjy_em,
@@ -891,6 +893,14 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_xjll_em" => {
             let [d] = take1(func, args)?;
             Ok(stock_xjll_em(d)?)
+        }
+        "stock_balance_sheet_by_report_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_balance_sheet_by_report_em(s)?)
+        }
+        "stock_balance_sheet_by_yearly_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_balance_sheet_by_yearly_em(s)?)
         }
         "stock_gpzy_distribute_statistics_company_em" => {
             Ok(stock_gpzy_distribute_statistics_company_em()?)

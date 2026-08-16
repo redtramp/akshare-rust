@@ -1,0 +1,2007 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "SECUCODE",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_NAME_ABBR",
+      "dtype": "str"
+    },
+    {
+      "name": "ORG_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "ORG_TYPE",
+      "dtype": "str"
+    },
+    {
+      "name": "REPORT_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "REPORT_TYPE",
+      "dtype": "str"
+    },
+    {
+      "name": "REPORT_DATE_NAME",
+      "dtype": "str"
+    },
+    {
+      "name": "SECURITY_TYPE_CODE",
+      "dtype": "str"
+    },
+    {
+      "name": "NOTICE_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "UPDATE_DATE",
+      "dtype": "str"
+    },
+    {
+      "name": "CURRENCY",
+      "dtype": "str"
+    },
+    {
+      "name": "CASH_DEPOSIT_PBC",
+      "dtype": "int64"
+    },
+    {
+      "name": "DEPOSIT_INTERBANK",
+      "dtype": "int64"
+    },
+    {
+      "name": "PRECIOUS_METAL",
+      "dtype": "float64"
+    },
+    {
+      "name": "LEND_FUND",
+      "dtype": "int64"
+    },
+    {
+      "name": "FVTPL_FINASSET",
+      "dtype": "int64"
+    },
+    {
+      "name": "TRADE_FINASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "APPOINT_FVTPL_FINASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "DERIVE_FINASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "BUY_RESALE_FINASSET",
+      "dtype": "int64"
+    },
+    {
+      "name": "ACCOUNTS_RECE",
+      "dtype": "float64"
+    },
+    {
+      "name": "FINANCE_RECE",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTEREST_RECE",
+      "dtype": "float64"
+    },
+    {
+      "name": "LOAN_ADVANCE",
+      "dtype": "int64"
+    },
+    {
+      "name": "TRADE_FINASSET_NOTFVTPL",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDITOR_INVEST",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_CREDITOR_INVEST",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_EQUITY_INVEST",
+      "dtype": "float64"
+    },
+    {
+      "name": "AVAILABLE_SALE_FINASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "HOLD_MATURITY_INVEST",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_RECE",
+      "dtype": "float64"
+    },
+    {
+      "name": "AMORTIZE_COST_FINASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "FVTOCI_FINASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "HOLDSALE_ASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "LONG_EQUITY_INVEST",
+      "dtype": "int64"
+    },
+    {
+      "name": "INVEST_SUBSIDIARY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_JOINT",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_REALESTATE",
+      "dtype": "float64"
+    },
+    {
+      "name": "FIXED_ASSET",
+      "dtype": "int64"
+    },
+    {
+      "name": "CIP",
+      "dtype": "float64"
+    },
+    {
+      "name": "USERIGHT_ASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTANGIBLE_ASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "GOODWILL",
+      "dtype": "float64"
+    },
+    {
+      "name": "PEND_MORTGAGE_ASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "MORTGAGE_ASSET_IMPAIRMENT",
+      "dtype": "float64"
+    },
+    {
+      "name": "NET_PENDMORTGAGE_ASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEFER_TAX_ASSET",
+      "dtype": "int64"
+    },
+    {
+      "name": "LONG_PREPAID_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_ASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_ASSETS",
+      "dtype": "int64"
+    },
+    {
+      "name": "LOAN_PBC",
+      "dtype": "float64"
+    },
+    {
+      "name": "IOFI_DEPOSIT",
+      "dtype": "int64"
+    },
+    {
+      "name": "BORROW_FUND",
+      "dtype": "int64"
+    },
+    {
+      "name": "TRADE_FINLIAB_NOTFVTPL",
+      "dtype": "float64"
+    },
+    {
+      "name": "FVTPL_FINLIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "TRADE_FINLIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "APPOINT_FVTPL_FINLIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "DERIVE_FINLIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "SELL_REPO_FINASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACCEPT_DEPOSIT",
+      "dtype": "int64"
+    },
+    {
+      "name": "OUTWARD_REMIT",
+      "dtype": "float64"
+    },
+    {
+      "name": "CD_NOTE_PAYABLE",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEPOSIT_CERTIFICATE",
+      "dtype": "float64"
+    },
+    {
+      "name": "STAFF_SALARY_PAYABLE",
+      "dtype": "int64"
+    },
+    {
+      "name": "TAX_PAYABLE",
+      "dtype": "int64"
+    },
+    {
+      "name": "INTEREST_PAYABLE",
+      "dtype": "float64"
+    },
+    {
+      "name": "DIVIDEND_PAYABLE",
+      "dtype": "float64"
+    },
+    {
+      "name": "PREDICT_LIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEFER_TAX_LIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "AMORTIZE_COST_FINLIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "HOLDSALE_LIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "BOND_PAYABLE",
+      "dtype": "float64"
+    },
+    {
+      "name": "SUBBOND_PAYABLE",
+      "dtype": "float64"
+    },
+    {
+      "name": "PREFERRED_SHARES_PAYBALE",
+      "dtype": "float64"
+    },
+    {
+      "name": "PERPETUAL_BOND_PAYBALE",
+      "dtype": "float64"
+    },
+    {
+      "name": "LEASE_LIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_LIAB",
+      "dtype": "int64"
+    },
+    {
+      "name": "LIAB_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "LIAB_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_LIABILITIES",
+      "dtype": "int64"
+    },
+    {
+      "name": "SHARE_CAPITAL",
+      "dtype": "int64"
+    },
+    {
+      "name": "OTHER_EQUITY_TOOL",
+      "dtype": "float64"
+    },
+    {
+      "name": "PREFERRED_SHARES",
+      "dtype": "float64"
+    },
+    {
+      "name": "PERPETUAL_BOND",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_EQUITY_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "CAPITAL_RESERVE",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_REVALUE_RESERVE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TREASURY_SHARES",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_COMPRE_INCOME",
+      "dtype": "float64"
+    },
+    {
+      "name": "HEDGE_RESERVE",
+      "dtype": "float64"
+    },
+    {
+      "name": "SURPLUS_RESERVE",
+      "dtype": "int64"
+    },
+    {
+      "name": "GENERAL_RISK_RESERVE",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNASSIGN_RPOFIT",
+      "dtype": "int64"
+    },
+    {
+      "name": "ADVICE_ASSIGN_DIVIDEND",
+      "dtype": "float64"
+    },
+    {
+      "name": "CONVERT_DIFF",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_EQUITY_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_EQUITY_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_PARENT_EQUITY",
+      "dtype": "int64"
+    },
+    {
+      "name": "MINORITY_EQUITY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EQUITY_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "EQUITY_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_EQUITY",
+      "dtype": "int64"
+    },
+    {
+      "name": "LIAB_EQUITY_OTHER",
+      "dtype": "float64"
+    },
+    {
+      "name": "LIAB_EQUITY_BALANCE",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_LIAB_EQUITY",
+      "dtype": "int64"
+    },
+    {
+      "name": "AGENT_BUSINESS_ASSET",
+      "dtype": "float64"
+    },
+    {
+      "name": "AGENT_BUSINESS_LIAB",
+      "dtype": "float64"
+    },
+    {
+      "name": "SHORT_FIN_PAYABLE",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACCRUED_EXPENSE",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACCOUNTS_PAYABLE",
+      "dtype": "float64"
+    },
+    {
+      "name": "NOTE_PAYABLE",
+      "dtype": "float64"
+    },
+    {
+      "name": "NOTE_RECE",
+      "dtype": "float64"
+    },
+    {
+      "name": "OPINION_TYPE",
+      "dtype": "str"
+    },
+    {
+      "name": "OSOPINION_TYPE",
+      "dtype": "str"
+    },
+    {
+      "name": "CASH_DEPOSIT_PBC_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEPOSIT_INTERBANK_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PRECIOUS_METAL_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LEND_FUND_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FVTPL_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TRADE_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "APPOINT_FVTPL_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DERIVE_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "BUY_RESALE_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACCOUNTS_RECE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FINANCE_RECE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTEREST_RECE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LOAN_ADVANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TRADE_FINASSET_NOTFVTPL_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CREDITOR_INVEST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_CREDITOR_INVEST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_EQUITY_INVEST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "AVAILABLE_SALE_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "HOLD_MATURITY_INVEST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_RECE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "AMORTIZE_COST_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FVTOCI_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "HOLDSALE_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LONG_EQUITY_INVEST_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_SUBSIDIARY_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_JOINT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_REALESTATE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FIXED_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CIP_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "USERIGHT_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTANGIBLE_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "GOODWILL_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PEND_MORTGAGE_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "MORTGAGE_ASSET_IMPAIRMENT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NET_PENDMORTGAGE_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEFER_TAX_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LONG_PREPAID_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ASSET_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_ASSETS_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LOAN_PBC_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "IOFI_DEPOSIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "BORROW_FUND_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TRADE_FINLIAB_NOTFVTPL_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "FVTPL_FINLIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TRADE_FINLIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "APPOINT_FVTPL_FINLIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DERIVE_FINLIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "SELL_REPO_FINASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACCEPT_DEPOSIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OUTWARD_REMIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CD_NOTE_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEPOSIT_CERTIFICATE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "STAFF_SALARY_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TAX_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INTEREST_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DIVIDEND_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PREDICT_LIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "DEFER_TAX_LIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "AMORTIZE_COST_FINLIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "HOLDSALE_LIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "BOND_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "SUBBOND_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PREFERRED_SHARES_PAYBALE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PERPETUAL_BOND_PAYBALE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LEASE_LIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_LIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LIAB_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LIAB_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_LIABILITIES_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "SHARE_CAPITAL_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_EQUITY_TOOL_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PREFERRED_SHARES_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PERPETUAL_BOND_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_EQUITY_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CAPITAL_RESERVE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "INVEST_REVALUE_RESERVE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TREASURY_SHARES_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "OTHER_COMPRE_INCOME_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "HEDGE_RESERVE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "SURPLUS_RESERVE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "GENERAL_RISK_RESERVE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "UNASSIGN_RPOFIT_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ADVICE_ASSIGN_DIVIDEND_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "CONVERT_DIFF_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_EQUITY_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "PARENT_EQUITY_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_PARENT_EQUITY_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "MINORITY_EQUITY_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EQUITY_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "EQUITY_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_EQUITY_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LIAB_EQUITY_OTHER_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LIAB_EQUITY_BALANCE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "TOTAL_LIAB_EQUITY_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "AGENT_BUSINESS_ASSET_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "AGENT_BUSINESS_LIAB_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "SHORT_FIN_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACCRUED_EXPENSE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "ACCOUNTS_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NOTE_PAYABLE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "NOTE_RECE_YOY",
+      "dtype": "float64"
+    },
+    {
+      "name": "LISTING_STATE",
+      "dtype": "str"
+    }
+  ],
+  "height": 27,
+  "head": [
+    [
+      "600036.SH",
+      "600036",
+      "招商银行",
+      "10002271",
+      "银行",
+      "2025-12-31 00:00:00",
+      "年报",
+      "2025年报",
+      "058001001",
+      "2026-03-28 00:00:00",
+      "2026-04-29 00:00:00",
+      "CNY",
+      "575015000000",
+      "200399000000",
+      "38669000000.0",
+      "507439000000",
+      "647796000000",
+      null,
+      null,
+      "18823000000.0",
+      "258708000000",
+      null,
+      null,
+      null,
+      "7004238000000",
+      null,
+      null,
+      "1337950000000.0",
+      "24424000000.0",
+      null,
+      null,
+      null,
+      "2124951000000.0",
+      "1362374000000.0",
+      null,
+      "32914000000",
+      null,
+      null,
+      "997000000.0",
+      "130642000000",
+      "59000000.0",
+      "11212000000.0",
+      "6000000000.0",
+      "9954000000.0",
+      null,
+      null,
+      null,
+      "89856000000",
+      null,
+      "50477000000.0",
+      null,
+      "0.0",
+      "13070523000000",
+      "111077000000.0",
+      "911699000000",
+      "250701000000",
+      null,
+      "120499000000.0",
+      null,
+      null,
+      "18652000000.0",
+      "95410000000.0",
+      "9924558000000",
+      null,
+      null,
+      null,
+      "35959000000",
+      "14713000000",
+      null,
+      null,
+      "16919000000.0",
+      "1115000000.0",
+      null,
+      null,
+      "143487000000.0",
+      null,
+      null,
+      null,
+      "11253000000.0",
+      "130034000000",
+      "3548000000.0",
+      "0.0",
+      "11789624000000",
+      "25220000000",
+      "177457000000.0",
+      "27468000000.0",
+      "149989000000.0",
+      null,
+      "65409000000.0",
+      null,
+      null,
+      "25230000000.0",
+      null,
+      "136270000000",
+      "163481000000.0",
+      "679808000000",
+      "25296000000.0",
+      null,
+      null,
+      "0.0",
+      "1272875000000",
+      "8024000000.0",
+      null,
+      "0.0",
+      "1280899000000",
+      null,
+      null,
+      "13070523000000",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "标准无保留意见",
+      "标准无保留意见",
+      "0.1654864867",
+      "-9.0050901099",
+      "310.7169410515",
+      "24.0818671981",
+      "4.9881851097",
+      null,
+      null,
+      "-42.1418252236",
+      "-4.6515484891",
+      null,
+      null,
+      null,
+      "5.6040303063",
+      null,
+      null,
+      "22.5086459725",
+      "9.4510419001",
+      null,
+      null,
+      null,
+      "9.4444215536",
+      "22.2471873817",
+      null,
+      "6.1228437853",
+      null,
+      null,
+      "-10.7430617726",
+      "5.3640990072",
+      "-98.4575163399",
+      "-11.5772870662",
+      "-6.3378083047",
+      "0.0",
+      null,
+      null,
+      null,
+      "7.3881970505",
+      null,
+      "-11.8428865835",
+      null,
+      null,
+      "7.5582972269",
+      "-41.5181062896",
+      "30.2473659774",
+      "6.510859221",
+      null,
+      "78.6202398423",
+      null,
+      null,
+      "-40.9429123263",
+      "13.5265700483",
+      "7.9304285904",
+      null,
+      null,
+      null,
+      "4.1927445526",
+      "25.612567233",
+      null,
+      null,
+      "0.9366424054",
+      "-29.9623115578",
+      null,
+      null,
+      "-35.6332512415",
+      null,
+      null,
+      null,
+      "-11.9345750509",
+      "17.795090135",
+      "-15.3827808252",
+      null,
+      "7.9778186887",
+      "0.0",
+      "-1.6564512375",
+      "0.0",
+      "-1.9538757207",
+      null,
+      "-0.0305674854",
+      null,
+      null,
+      "-41.6741799015",
+      null,
+      "11.1029579624",
+      "5.5179046291",
+      "7.2120464675",
+      "-49.8493259318",
+      null,
+      null,
+      null,
+      "3.8222238898",
+      "7.5459053746",
+      null,
+      null,
+      "3.8447475628",
+      null,
+      null,
+      "7.5582972269",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "0"
+    ],
+    [
+      "600036.SH",
+      "600036",
+      "招商银行",
+      "10002271",
+      "银行",
+      "2024-12-31 00:00:00",
+      "年报",
+      "2024年报",
+      "058001001",
+      "2025-03-26 00:00:00",
+      "2026-03-28 00:00:00",
+      "CNY",
+      "574065000000",
+      "220231000000",
+      "9415000000.0",
+      "408955000000",
+      "617018000000",
+      null,
+      null,
+      "32533000000.0",
+      "271329000000",
+      null,
+      null,
+      null,
+      "6632548000000",
+      null,
+      null,
+      "1092127000000.0",
+      "22315000000.0",
+      null,
+      null,
+      null,
+      "1941580000000.0",
+      "1114442000000.0",
+      null,
+      "31015000000",
+      null,
+      null,
+      "1117000000.0",
+      "123991000000",
+      "3825000000.0",
+      "12680000000.0",
+      "6406000000.0",
+      "9954000000.0",
+      null,
+      null,
+      null,
+      "83674000000",
+      null,
+      "57258000000.0",
+      null,
+      "0.0",
+      "12152036000000",
+      "189934000000.0",
+      "699975000000",
+      "235376000000",
+      null,
+      "67461000000.0",
+      null,
+      null,
+      "31583000000.0",
+      "84042000000.0",
+      "9195329000000",
+      null,
+      null,
+      null,
+      "34512000000",
+      "11713000000",
+      null,
+      null,
+      "16762000000.0",
+      "1592000000.0",
+      null,
+      null,
+      "222921000000.0",
+      null,
+      null,
+      null,
+      "12778000000.0",
+      "110390000000",
+      "4193000000.0",
+      "0.0",
+      "10918561000000",
+      "25220000000",
+      "180446000000.0",
+      "27468000000.0",
+      "152978000000.0",
+      null,
+      "65429000000.0",
+      null,
+      null,
+      "43257000000.0",
+      null,
+      "122652000000",
+      "154932000000.0",
+      "634078000000",
+      "50440000000.0",
+      null,
+      null,
+      "0.0",
+      "1226014000000",
+      "7461000000.0",
+      null,
+      "0.0",
+      "1233475000000",
+      null,
+      null,
+      "12152036000000",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "标准无保留意见",
+      null,
+      "-15.9251144548",
+      "118.5503478252",
+      "305.6441189143",
+      "42.1492975175",
+      "17.2714745935",
+      null,
+      null,
+      "73.666791224",
+      "57.524122476",
+      null,
+      null,
+      null,
+      "6.0740105761",
+      null,
+      null,
+      "21.4686431573",
+      "13.568120515",
+      null,
+      null,
+      null,
+      "11.0093400662",
+      null,
+      null,
+      "16.6415945844",
+      null,
+      null,
+      "-3.7068965517",
+      "12.4359567272",
+      "-3.8944723618",
+      "0.1975503753",
+      "-9.7110641297",
+      "0.0",
+      null,
+      null,
+      null,
+      "-7.6007376569",
+      null,
+      "4.1527967258",
+      null,
+      null,
+      "10.1877384224",
+      "-49.8353234501",
+      "37.6879015221",
+      "-4.8212892086",
+      null,
+      "53.4669457209",
+      null,
+      null,
+      "81.0640371496",
+      "-37.7826144894",
+      "11.5870545688",
+      null,
+      null,
+      null,
+      "20.3389239513",
+      "-13.8559976465",
+      null,
+      null,
+      "-14.7492625369",
+      "-0.9334163037",
+      null,
+      null,
+      "26.2450588409",
+      null,
+      null,
+      null,
+      "0.8126232742",
+      "-2.4780246477",
+      "-23.5690849435",
+      null,
+      "9.8142526708",
+      "0.0",
+      "19.9407096234",
+      "0.0",
+      "24.3946071655",
+      null,
+      "-0.0045849126",
+      null,
+      null,
+      "159.3034408344",
+      null,
+      "12.796932047",
+      "9.5072836635",
+      "11.5603865074",
+      "1.4195520167",
+      null,
+      null,
+      null,
+      "13.9026542917",
+      "-20.2799444385",
+      null,
+      null,
+      "13.6079997863",
+      null,
+      null,
+      "10.1877384224",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "0"
+    ],
+    [
+      "600036.SH",
+      "600036",
+      "招商银行",
+      "10002271",
+      "银行",
+      "2023-12-31 00:00:00",
+      "年报",
+      "2023年报",
+      "058001001",
+      "2024-03-26 00:00:00",
+      "2025-03-26 00:00:00",
+      "CNY",
+      "682802000000",
+      "100769000000",
+      "2321000000.0",
+      "287694000000",
+      "526145000000",
+      null,
+      null,
+      "18733000000.0",
+      "172246000000",
+      null,
+      null,
+      null,
+      "6252755000000",
+      null,
+      null,
+      "899102000000.0",
+      "19649000000.0",
+      null,
+      null,
+      null,
+      "1749024000000.0",
+      null,
+      null,
+      "26590000000",
+      null,
+      null,
+      "1160000000.0",
+      "110277000000",
+      "3980000000.0",
+      "12655000000.0",
+      "7095000000.0",
+      "9954000000.0",
+      null,
+      null,
+      null,
+      "90557000000",
+      null,
+      "54975000000.0",
+      null,
+      "0.0",
+      "11028483000000",
+      "378621000000.0",
+      "508378000000",
+      "247299000000",
+      null,
+      "43958000000.0",
+      null,
+      null,
+      "17443000000.0",
+      "135078000000.0",
+      "8240498000000",
+      null,
+      null,
+      null,
+      "28679000000",
+      "13597000000",
+      null,
+      null,
+      "19662000000.0",
+      "1607000000.0",
+      null,
+      null,
+      "176578000000.0",
+      null,
+      null,
+      null,
+      "12675000000.0",
+      "113195000000",
+      "5486000000.0",
+      "0.0",
+      "9942754000000",
+      "25220000000",
+      "150446000000.0",
+      "27468000000.0",
+      "122978000000.0",
+      null,
+      "65432000000.0",
+      null,
+      null,
+      "16682000000.0",
+      null,
+      "108737000000",
+      "141481000000.0",
+      "568372000000",
+      "49734000000.0",
+      null,
+      null,
+      "0.0",
+      "1076370000000",
+      "9359000000.0",
+      null,
+      "0.0",
+      "1085729000000",
+      null,
+      null,
+      "11028483000000",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "标准无保留意见",
+      null,
+      "13.2290925614",
+      "10.315722637",
+      "-0.3434950623",
+      "8.8887963695",
+      "24.24698973",
+      null,
+      null,
+      "0.3320657704",
+      "-37.7445098238",
+      null,
+      null,
+      null,
+      "7.6733112296",
+      null,
+      null,
+      "15.2179345395",
+      "46.4594514013",
+      null,
+      null,
+      null,
+      "12.4443812976",
+      null,
+      null,
+      "11.5165240731",
+      null,
+      null,
+      "-8.5173501577",
+      "16.0834964947",
+      "5.0963823607",
+      "-2.5564025564",
+      "-10.9563253012",
+      "-0.4500450045",
+      null,
+      null,
+      null,
+      "-0.3203152518",
+      null,
+      "-3.7417705561",
+      null,
+      null,
+      "8.7738309594",
+      "191.8193379321",
+      "-21.2639815139",
+      "19.4525351766",
+      null,
+      "-10.552661566",
+      null,
+      null,
+      "-6.4015883237",
+      "26.1314931882",
+      "8.5621795123",
+      null,
+      null,
+      null,
+      "20.1667644348",
+      "-30.1212868743",
+      null,
+      null,
+      "-12.5783646792",
+      "6.4238410596",
+      null,
+      null,
+      "-21.1074921477",
+      null,
+      null,
+      null,
+      "-2.5974025974",
+      "-10.1184709937",
+      "-17.8619553825",
+      null,
+      "8.2537496704",
+      "0.0",
+      "24.9074273948",
+      "0.0",
+      "32.2656972617",
+      null,
+      "-0.0045847024",
+      null,
+      null,
+      "19.3703041145",
+      null,
+      "14.4780754856",
+      "6.8014886277",
+      "15.2952202057",
+      "13.4650483665",
+      null,
+      null,
+      null,
+      "13.8409925722",
+      "7.1436748712",
+      null,
+      null,
+      "13.7796859903",
+      null,
+      null,
+      "8.7738309594",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "0"
+    ],
+    [
+      "600036.SH",
+      "600036",
+      "招商银行",
+      "10002271",
+      "银行",
+      "2022-12-31 00:00:00",
+      "年报",
+      "2022年报",
+      "058001001",
+      "2023-03-25 00:00:00",
+      "2024-03-26 00:00:00",
+      "CNY",
+      "603027000000",
+      "91346000000",
+      "2329000000.0",
+      "264209000000",
+      "423467000000",
+      null,
+      null,
+      "18671000000.0",
+      "276676000000",
+      null,
+      null,
+      null,
+      "5807154000000",
+      null,
+      null,
+      "780349000000.0",
+      "13416000000.0",
+      null,
+      null,
+      null,
+      "1555457000000.0",
+      null,
+      null,
+      "23844000000",
+      null,
+      null,
+      "1268000000.0",
+      "94998000000",
+      "3787000000.0",
+      "12987000000.0",
+      "7968000000.0",
+      "9999000000.0",
+      null,
+      null,
+      null,
+      "90848000000",
+      null,
+      "57112000000.0",
+      null,
+      "0.0",
+      "10138912000000",
+      "129745000000.0",
+      "645674000000",
+      "207027000000",
+      null,
+      "49144000000.0",
+      null,
+      null,
+      "18636000000.0",
+      "107093000000.0",
+      "7590579000000",
+      null,
+      null,
+      null,
+      "23866000000",
+      "19458000000",
+      null,
+      null,
+      "22491000000.0",
+      "1510000000.0",
+      null,
+      null,
+      "223821000000.0",
+      null,
+      null,
+      null,
+      "13013000000.0",
+      "125938000000",
+      "6679000000.0",
+      "0.0",
+      "9184674000000",
+      "25220000000",
+      "120446000000.0",
+      "27468000000.0",
+      "92978000000.0",
+      null,
+      "65435000000.0",
+      null,
+      null,
+      "13975000000.0",
+      null,
+      "94985000000",
+      "132471000000.0",
+      "492971000000",
+      "43832000000.0",
+      null,
+      null,
+      "0.0",
+      "945503000000",
+      "8735000000.0",
+      null,
+      "0.0",
+      "954238000000",
+      null,
+      null,
+      "10138912000000",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "标准无保留意见",
+      null,
+      "6.3149673488",
+      "13.6851275669",
+      "-49.7952144859",
+      "35.8952993761",
+      "21.6429250581",
+      null,
+      null,
+      "-20.1752885849",
+      "-47.2597269163",
+      null,
+      null,
+      null,
+      "8.84214484",
+      null,
+      null,
+      "22.6890531698",
+      "91.7941386705",
+      null,
+      null,
+      null,
+      "31.1691027718",
+      null,
+      null,
+      "0.8032468082",
+      null,
+      null,
+      "-7.5801749271",
+      "25.7935089183",
+      "8.138206739",
+      "-4.9754884027",
+      "-9.4751192911",
+      "0.452079566",
+      null,
+      null,
+      null,
+      "11.2801479685",
+      null,
+      "-53.9103417665",
+      null,
+      null,
+      "9.6214615579",
+      "-18.9027858514",
+      "-14.2551705271",
+      "21.3167301494",
+      null,
+      "-22.9246718213",
+      null,
+      null,
+      "-31.6912249835",
+      "-32.0734491945",
+      "18.87855798",
+      null,
+      null,
+      null,
+      "20.7732402206",
+      "-13.4853941577",
+      null,
+      null,
+      "53.4174624829",
+      "11.6038433112",
+      null,
+      null,
+      "-49.8883901085",
+      null,
+      null,
+      null,
+      "-5.78482479",
+      "-9.7671419359",
+      "-11.3720806794",
+      null,
+      "9.5586484623",
+      "0.0",
+      "-5.1927300205",
+      "-19.3659180978",
+      "0.0",
+      null,
+      "-3.0922796677",
+      null,
+      null,
+      "7.9817647968",
+      null,
+      "15.6421588322",
+      "14.9044132954",
+      "15.0210456565",
+      "14.1904389736",
+      null,
+      null,
+      null,
+      "10.1028826951",
+      "25.9371395617",
+      null,
+      null,
+      "10.2297497577",
+      null,
+      null,
+      "9.6214615579",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "0"
+    ],
+    [
+      "600036.SH",
+      "600036",
+      "招商银行",
+      "10002271",
+      "银行",
+      "2021-12-31 00:00:00",
+      "年报",
+      "2021年报",
+      "058001001",
+      "2022-03-19 00:00:00",
+      "2023-03-25 00:00:00",
+      "CNY",
+      "567208000000",
+      "80350000000",
+      "4639000000.0",
+      "194421000000",
+      "348123000000",
+      null,
+      null,
+      "23390000000.0",
+      "524601000000",
+      null,
+      null,
+      null,
+      "5335391000000",
+      null,
+      null,
+      "636038000000.0",
+      "6995000000.0",
+      null,
+      null,
+      null,
+      "1185841000000.0",
+      null,
+      null,
+      "23654000000",
+      null,
+      null,
+      "1372000000.0",
+      "75519000000",
+      "3502000000.0",
+      "13667000000.0",
+      "8802000000.0",
+      "9954000000.0",
+      null,
+      null,
+      null,
+      "81639000000",
+      null,
+      "123915000000.0",
+      null,
+      "0.0",
+      "9249021000000",
+      "159987000000.0",
+      "753018000000",
+      "170650000000",
+      null,
+      "63761000000.0",
+      null,
+      null,
+      "27282000000.0",
+      "157660000000.0",
+      "6385154000000",
+      null,
+      null,
+      null,
+      "19761000000",
+      "22491000000",
+      null,
+      null,
+      "14660000000.0",
+      "1353000000.0",
+      null,
+      null,
+      "446645000000.0",
+      null,
+      null,
+      null,
+      "13812000000.0",
+      "139570000000",
+      "7536000000.0",
+      "0.0",
+      "8383340000000",
+      "25220000000",
+      "127043000000.0",
+      "34065000000.0",
+      "92978000000.0",
+      null,
+      "67523000000.0",
+      null,
+      null,
+      "12942000000.0",
+      null,
+      "82137000000",
+      "115288000000.0",
+      "428592000000",
+      "38385000000.0",
+      null,
+      null,
+      "0.0",
+      "858745000000",
+      "6936000000.0",
+      null,
+      "0.0",
+      "865681000000",
+      null,
+      null,
+      "9249021000000",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "标准无保留意见",
+      null,
+      "5.341668431",
+      "-22.243189626",
+      "-41.7942283563",
+      "-14.3214098423",
+      "-29.7746927215",
+      null,
+      null,
+      "-50.5203926214",
+      "83.2590424157",
+      null,
+      null,
+      null,
+      "11.0530828137",
+      null,
+      null,
+      "23.1312179002",
+      "-2.0170892282",
+      null,
+      null,
+      null,
+      "13.0147339128",
+      null,
+      null,
+      "58.5176249832",
+      null,
+      null,
+      "-15.4651879236",
+      "10.8080348627",
+      null,
+      "-3.45436564",
+      "-9.3605189991",
+      "0.0",
+      null,
+      null,
+      null,
+      "11.9984086263",
+      null,
+      "42.7987001014",
+      null,
+      null,
+      "10.615063324",
+      "-51.7562164151",
+      "4.0939892342",
+      "18.9057742288",
+      null,
+      "5.6502792",
+      null,
+      null,
+      "-45.5024869659",
+      "10.308059359",
+      "12.7295518204",
+      null,
+      null,
+      null,
+      "27.8036476523",
+      "20.6081081081",
+      null,
+      null,
+      "78.1504435533",
+      "26.0950605778",
+      null,
+      null,
+      "29.035566431",
+      null,
+      null,
+      null,
+      "-3.0192388709",
+      "33.617347183",
+      "10.3529067213",
+      null,
+      "9.8576429539",
+      "0.0",
+      "51.1445023437",
+      "0.0",
+      "85.9969193223",
+      null,
+      "0.0",
+      null,
+      null,
+      "73.7647690655",
+      null,
+      "15.4290452233",
+      "17.5424644685",
+      "15.7527716635",
+      "21.4676750736",
+      null,
+      null,
+      null,
+      "18.6521588946",
+      "5.0272562084",
+      null,
+      null,
+      "18.528959929",
+      null,
+      null,
+      "10.615063324",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "0"
+    ]
+  ]
+}

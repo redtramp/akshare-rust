@@ -18,6 +18,7 @@ use crate::sources::eastmoney::{
     ZT_POOL_SELECT, ZT_POOL_STRONG_SELECT, ZT_POOL_SUB_NEW_SELECT, ZT_POOL_ZBGC_SELECT,
 };
 use crate::stock_feature::{datacenter, report_extra};
+use scraper::{Html, Selector};
 use serde_json::{json, Map, Value};
 
 /// 东财 A 股历史行情。
@@ -2311,6 +2312,133 @@ mod kcb_report_tests {
     }
 }
 
+// ============ 10. emweb F10 三大报表（按报告期/年度，原始字段键） ============
+// 对应 akshare `stock_balance_sheet_by_report_em` / `by_yearly_em` 等。这一类走
+// emweb F10 `NewFinanceAnalysis` 的 `zcfzb/lrb/xjllb` + `DateAjaxNew` 端点，akshare
+// 对返回数据**不做中文 rename**（直接 `pd.DataFrame(data_json["data"])`），故本实现
+// 列名保持 emweb 原始字段键（如 `REPORT_DATE`/`TOTAL_ASSETS`），与 akshare 列契约一致；
+// 行 = 各报告期，宽表。
+
+/// 把 emweb F10 三大报表的多期行（宽表、原始字段键）转成 [`Df`]。
+///
+/// 列名保持 emweb 原始键（与 akshare 一致）；首行键序决定列序；空表返回零行零列。
+fn emweb_financial_report_df(rows: &[Value]) -> Result<Df> {
+    let mut df = Df::from_json_rows_typed(rows)?;
+    // 模拟 akshare：全空列 `pd.to_numeric(errors="coerce")` → Float64。
+    // `from_json_rows_typed` 对全空列推断为 String，故需补齐这一步以保持 dtype 一致。
+    let h = df.height();
+    if h > 0 {
+        let targets: Vec<String> = df
+            .column_names()
+            .into_iter()
+            .filter(|name| {
+                df.inner()
+                    .column(name)
+                    .map(|s| s.null_count() == h)
+                    .unwrap_or(false)
+            })
+            .collect();
+        let refs: Vec<&str> = targets.iter().map(String::as_str).collect();
+        df.cast_numeric(&refs)?;
+    }
+    Ok(df)
+}
+
+/// 抓 emweb F10 个股页 `#hidctype` 隐藏域，得到 `companyType`。
+fn emweb_f10_company_type(http: &HttpClient, symbol: &str) -> Result<String> {
+    let url = "https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index";
+    let mut params = Map::new();
+    params.insert("type".into(), json!("web"));
+    params.insert("code".into(), json!(symbol.to_lowercase()));
+    let html = http.get_text(url, &params, None)?;
+    let doc = Html::parse_document(&html);
+    let sel = Selector::parse(r#"input[id="hidctype"]"#)
+        .map_err(|e| AkshareError::Empty(format!("hidctype 选择器无效: {e}")))?;
+    for el in doc.select(&sel) {
+        if let Some(v) = el.value().attr("value") {
+            return Ok(v.to_string());
+        }
+    }
+    Err(AkshareError::Empty(
+        "emweb 未返回 hidctype（公司类型）".into(),
+    ))
+}
+
+/// emweb F10 三大报表（资产负债表/利润表/现金流量表）按报告期/年度的公共拉取流程。
+///
+/// 先取 `companyType`，再拉报告期列表（`{date_endpoint}`），每 5 个报告期一批调用
+/// `{ajax_endpoint}` 取明细，拼接成多期宽表（原始字段键）。
+fn emweb_f10_financial(
+    symbol: &str,
+    report_date_type: &str,
+    date_endpoint: &str,
+    ajax_endpoint: &str,
+) -> Result<Df> {
+    let http = HttpClient::default();
+    let ctype = emweb_f10_company_type(&http, symbol)?;
+    let code = symbol.to_uppercase();
+    // 1) 报告期列表
+    let durl = format!(
+        "https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/{date_endpoint}"
+    );
+    let mut dparams = Map::new();
+    dparams.insert("companyType".into(), json!(ctype.clone()));
+    dparams.insert("reportDateType".into(), json!(report_date_type));
+    dparams.insert("code".into(), json!(code.clone()));
+    let dval = http.get_json(&durl, &dparams, None)?;
+    let dates: Vec<String> = dval
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|o| {
+                    o.get("REPORT_DATE")
+                        .and_then(Value::as_str)
+                        .map(String::from)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    // 2) 每 5 个报告期一批拉明细
+    let mut rows: Vec<Value> = Vec::new();
+    for chunk in dates.chunks(5) {
+        let aurl = format!(
+            "https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/{ajax_endpoint}"
+        );
+        let mut aparams = Map::new();
+        aparams.insert("companyType".into(), json!(ctype.clone()));
+        aparams.insert("reportDateType".into(), json!(report_date_type));
+        aparams.insert("reportType".into(), json!("1"));
+        aparams.insert("dates".into(), json!(chunk.join(",")));
+        aparams.insert("code".into(), json!(code.clone()));
+        let aval = http.get_json(&aurl, &aparams, None)?;
+        match aval.get("data").and_then(Value::as_array) {
+            Some(arr) if !arr.is_empty() => rows.extend(arr.iter().cloned()),
+            _ => break,
+        }
+    }
+    emweb_financial_report_df(&rows)
+}
+
+/// 个股资产负债表-按报告期（对应 akshare [`akshare.stock_balance_sheet_by_report_em`]）。
+///
+/// 走 emweb F10 `NewFinanceAnalysis/zcfzbDateAjaxNew` + `zcfzbAjaxNew`，列名保持 emweb
+/// 原始字段键（如 `REPORT_DATE`/`TOTAL_ASSETS` 等），行 = 各报告期，与 akshare 一致。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"SH600519"`，内部转大写）
+pub fn stock_balance_sheet_by_report_em(symbol: &str) -> Result<Df> {
+    emweb_f10_financial(symbol, "0", "zcfzbDateAjaxNew", "zcfzbAjaxNew")
+}
+
+/// 个股资产负债表-按年度（对应 akshare [`akshare.stock_balance_sheet_by_yearly_em`]）。
+///
+/// 与 [`stock_balance_sheet_by_report_em`] 仅 `reportDateType` 不同（`1`=年度）。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"SH600036"`，内部转大写）
+pub fn stock_balance_sheet_by_yearly_em(symbol: &str) -> Result<Df> {
+    emweb_f10_financial(symbol, "1", "zcfzbDateAjaxNew", "zcfzbAjaxNew")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2399,6 +2527,23 @@ mod tests {
         assert_eq!(idx.get(0), Some(1));
         let pct = df.inner().column("涨跌幅").unwrap().f64().unwrap();
         assert_eq!(pct.get(0), Some(10.0));
+    }
+
+    #[test]
+    fn financial_report_raw_df_offline() {
+        // emweb F10 三大报表返回宽表（原始字段键），与 akshare 不做中文 rename 一致；
+        // Df::from_json_rows 以首行键序建列。
+        let rows = json!([
+            {"REPORT_DATE":"2024-03-31","SECUCODE":"600519.SH","TOTAL_ASSETS":"123.0","EQUITY_BALANCE":"50.0"},
+            {"REPORT_DATE":"2023-12-31","SECUCODE":"600519.SH","TOTAL_ASSETS":"120.0","EQUITY_BALANCE":"48.0"}
+        ]);
+        let df = emweb_financial_report_df(rows.as_array().unwrap()).unwrap();
+        assert_eq!(df.height(), 2);
+        let cols = df.column_names();
+        assert_eq!(cols[0], "REPORT_DATE");
+        assert!(cols.iter().any(|c| *c == "SECUCODE"));
+        assert!(cols.iter().any(|c| *c == "TOTAL_ASSETS"));
+        assert!(cols.iter().any(|c| *c == "EQUITY_BALANCE"));
     }
 }
 

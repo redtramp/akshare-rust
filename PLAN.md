@@ -64,16 +64,16 @@
 
 ---
 
-### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-15 刷新至批次 29-F）
+### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-16 刷新至批次 31）
 
-> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以「doc comment 声明对应 akshare `akshare.X`、且 `cargo build` 通过」的**用户面公开函数**为准，**531** 个（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3，批次 29-B 净增 10，批次 29-C 净增 18，批次 29-D 净增 3，批次 29-E 净增 10，批次 29-F 净增 3；跳过批次 14；无函数被移除），并逐一与 akshare 公开名交叉验证（`cargo test --lib` 229 passed 含存在性校验，无虚报）。另有 ~53 个源层公开 helper（`eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等）不计入覆盖率分母。golden 差分验证覆盖见下表「golden 覆盖率」。
+> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以「doc comment 声明对应 akshare `akshare.X`、且 `cargo build` 通过」的**用户面公开函数**为准，**535** 个（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3，批次 29-B 净增 10，批次 29-C 净增 18，批次 29-D 净增 3，批次 29-E 净增 10，批次 29-F 净增 3，批次 30 净增 2，批次 31 净增 2；跳过批次 14；无函数被移除），并逐一与 akshare 公开名交叉验证（`cargo test --lib` 232 passed 含存在性校验，无虚报）。另有 ~53 个源层公开 helper（`eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等）不计入覆盖率分母。golden 差分验证覆盖见下表「golden 覆盖率」。
 
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现用户面函数（cargo build 通过） | **533**（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3，批次 29-B 净增 10，批次 29-C 净增 18，批次 29-D 净增 3，批次 29-E 净增 10，批次 29-F 净增 3，批次 30 净增 2；无批次 14）|
-| 实现覆盖率（533 / 1094） | **≈ 48.7%** |
-| golden 差分验证覆盖 | **437 fixture 文件 / ≈422 去重函数 ≈ 38.6%**（parity 注册用例 485 / 477 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
+| Rust 已实现用户面函数（cargo build 通过） | **535**（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3，批次 29-B 净增 10，批次 29-C 净增 18，批次 29-D 净增 3，批次 29-E 净增 10，批次 29-F 净增 3，批次 30 净增 2，批次 31 净增 2；无批次 14）|
+| 实现覆盖率（535 / 1094） | **≈ 48.9%** |
+| golden 差分验证覆盖 | **458 fixture 文件 / ≈442 去重函数 ≈ 40.4%**（parity 注册用例 489 / 481 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report 等）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -713,6 +713,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > 批次29-F 的 3 个新浪主力/连续/持仓函数（`futures_display_main_sina`/`futures_main_sina`/`futures_hold_pos_sina`，均位于 akshare `futures_derivative` 子包但可经 `ak.futures_*` 调用）已实现并通过 `cargo build` + `cargo clippy --all-targets -D warnings` + 全量 `cargo test --lib`（229 passed）。parity 跨语言对照（loose）子组 F 3 用例：**3 通过 / 0 跳过 / 0 失败**——`futures_display_main_sina` 3列×82行、`futures_main_sina` 8列×23行（`V0` 20240101–20240201）、`futures_hold_pos_sina` 4列×20行（成交量·OI2501·20241016），列名/dtype 均与 akshare 一致。实现要点：`futures_display_main_sina` 复用 `futures_symbol_mark` 的 `mark` 节点码遍历五大交易所全部品种节点（~86 次 `getHQFuturesData` 请求，与 akshare `match_main_contract` 逐节点查询同口径），按 `name` 含「连续」且 `symbol` 首数字为 `0` 筛选主力连续合约；`futures_main_sina` 严格复刻 `getDailyKLine` JSONP（剥离外壳取首尾数组括号、日期参数固定 `2021_08_17`、按 `start_date`/`end_date` 闭区间过滤）；`futures_hold_pos_sina` 复刻 `vFutures_Positions_cjcc.php`（`read_html_tables` 取第 3/4/5 表，丢弃表头与末行合计）。公开函数 **528 → 531**（futures 53 → 56 / 70，余 14）。
 
 > 批次30 的 2 个东财 F10 十大股东函数（`stock_gdfx_top_10_em`/`stock_gdfx_free_top_10_em`，akshare `stock_feature/stock_gdfx_em.py`）已实现并通过 `cargo fmt --check` + `cargo clippy --all-targets -D warnings`（零警告）+ 全量 `cargo test --lib`（231 passed）。注意：二者走 emweb F10 `PC_HSF10/ShareholderResearch/PageSDGD` / `PageSDLTGD`（返回 `sdgd` / `sdltgd` 数组），**非** `datacenter-web`；且流通版响应键为实际 `HOLDER_TYPE` / `FREE_HOLDNUM_RATIO`（akshare 源码注释误标为 `HOLDER_NATURE` / `HOLD_NUM_RATIO`），实现按实际键做「键→中文」rename。离线单测 `gdfx_top_10_offline` / `gdfx_free_top_10_offline` 用 fixture 行直接驱动 `finalize_report`，断言 `名次` 为首列、`股东名称/持股数/占总股本(流通)持股比例/增减/变动比率` 列契约、数值列 `cast_numeric` 成功、字符串列 `增减`/`股东性质` 保留。parity 已注册 2 用例（loose，列契约对比）。公开函数 **531 → 533**。
+
+> 批次31 的 2 个东财 F10 三大财务报表函数（`stock_balance_sheet_by_report_em`/`stock_balance_sheet_by_yearly_em`，akshare `stock_feature/stock_three_report_em.py`）已实现并通过 `cargo fmt --check` + `cargo clippy --all-targets -D warnings`（零警告）+ 全量 `cargo test --lib`（232 passed）。二者走 emweb F10 `NewFinanceAnalysis` 流程：`Index` 页抓取 `#hidctype` 隐藏域得 `companyType` → `zcfzbDateAjaxNew` 取报告期列表（按 5 个一组分片）→ `zcfzbAjaxNew` 分批拉取明细。akshare **不重命名列**，直接返回原始字段键（如 `REPORT_DATE`/`TOTAL_ASSETS`），故实现用 `Df::from_json_rows_typed`（按 JSON 值类型推断数值列 dtype，对齐 akshare `pd.DataFrame(records)`）而非 `from_json_rows`（全字符串），并补齐 akshare「全空列 `pd.to_numeric(errors="coerce")`」语义（全空列置 `Float64`）。离线单测 `financial_report_raw_df_offline` 断言 319 列×103 行（报告期）/ 221 列×27 行（年度）的列契约。parity 已注册 2 用例（loose，列名+dtype 对齐）且 `--check` 全部通过。公开函数 **533 → 535**。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在
