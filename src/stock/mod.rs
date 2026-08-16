@@ -2525,6 +2525,98 @@ pub fn stock_cash_flow_sheet_by_quarterly_em(symbol: &str) -> Result<Df> {
     emweb_f10_financial_ex(symbol, "2", "xjllbDateAjaxNew", "xjllbAjaxNew", "0", "2")
 }
 
+/// emweb F10 三大报表（已退市个股）按报告期的公共拉取流程（对应 akshare `*_delisted_em`）。
+///
+/// 与在市个股走 emweb F10 `NewFinanceAnalysis` 不同，已退市个股走
+/// `datacenter.eastmoney.com/securities/api/data/get`（`type`/`sty` + `filter`）。先取报告期列表
+/// （`RPT_F10_FINANCE_GINCOME`），再按 `REPORT_DATE in (...)` 拉取指定报表（资产负债表/利润表/
+/// 现金流量表）。akshare 不重命名列，返回原始字段键；`sr=-1`/`st=REPORT_DATE` 已由接口按报告期
+/// 降序返回，与 akshare `sort_values(by=["REPORT_DATE"], ascending=False)` 一致。
+fn emweb_f10_delisted_report(symbol: &str, report_type: &str, sty: &str) -> Result<Df> {
+    if symbol.len() < 2 {
+        return Err(AkshareError::Empty(format!(
+            "已退市个股代码格式异常: {symbol}"
+        )));
+    }
+    let secucode = format!("{}.{}", &symbol[2..], &symbol[..2]); // "SZ000013" -> "000013.SZ"
+                                                                 // 1) 报告期列表
+    let mut list_extra = Map::new();
+    list_extra.insert("filter".into(), json!(format!("(SECUCODE=\"{secucode}\")")));
+    list_extra.insert("sr".into(), json!("-1"));
+    list_extra.insert("st".into(), json!("REPORT_DATE"));
+    let list = crate::sources::eastmoney::fetch_securities_data_get(
+        &HttpClient::default(),
+        "RPT_F10_FINANCE_GINCOME",
+        "SECUCODE,SECURITY_CODE,REPORT_DATE,REPORT_TYPE,REPORT_DATE_NAME",
+        &list_extra,
+        "200",
+        "HSF10",
+        "PC",
+    )?;
+    let dates: Vec<String> = list
+        .iter()
+        .filter_map(|o| {
+            o.get("REPORT_DATE")
+                .and_then(Value::as_str)
+                .map(|s| format!("'{}'", crate::sources::eastmoney::date_only(s)))
+        })
+        .collect();
+    if dates.is_empty() {
+        return Err(AkshareError::Empty(
+            "已退市个股未取到报告期列表（可能已无财务数据）".into(),
+        ));
+    }
+    // 2) 拉取指定报表
+    let mut extra = Map::new();
+    extra.insert(
+        "filter".into(),
+        json!(format!(
+            "(SECUCODE=\"{secucode}\")(REPORT_DATE in ({}))",
+            dates.join(",")
+        )),
+    );
+    extra.insert("sr".into(), json!("-1"));
+    extra.insert("st".into(), json!("REPORT_DATE"));
+    let rows = crate::sources::eastmoney::fetch_securities_data_get(
+        &HttpClient::default(),
+        report_type,
+        sty,
+        &extra,
+        "200",
+        "HSF10",
+        "PC",
+    )?;
+    Df::from_json_rows_typed(&rows)
+}
+
+/// 已退市个股资产负债表-按报告期（对应 akshare [`akshare.stock_balance_sheet_by_report_delisted_em`]）。
+///
+/// 走 `datacenter.eastmoney.com/securities/api/data/get`（`RPT_F10_FINANCE_GBALANCE`），
+/// 与在市个股走 emweb F10 `NewFinanceAnalysis` 不同；返回原始字段键，不重命名。
+///
+/// - `symbol`：带市场标识的**已退市**股票代码（如 `"SZ000013"`，内部转 `000013.SZ`）
+pub fn stock_balance_sheet_by_report_delisted_em(symbol: &str) -> Result<Df> {
+    emweb_f10_delisted_report(symbol, "RPT_F10_FINANCE_GBALANCE", "F10_FINANCE_GBALANCE")
+}
+
+/// 已退市个股利润表-按报告期（对应 akshare [`akshare.stock_profit_sheet_by_report_delisted_em`]）。
+///
+/// 走 `datacenter.eastmoney.com/securities/api/data/get`（`RPT_F10_FINANCE_GINCOME`），返回原始字段键。
+///
+/// - `symbol`：带市场标识的**已退市**股票代码（如 `"SZ000013"`，内部转 `000013.SZ`）
+pub fn stock_profit_sheet_by_report_delisted_em(symbol: &str) -> Result<Df> {
+    emweb_f10_delisted_report(symbol, "RPT_F10_FINANCE_GINCOME", "APP_F10_GINCOME")
+}
+
+/// 已退市个股现金流量表-按报告期（对应 akshare [`akshare.stock_cash_flow_sheet_by_report_delisted_em`]）。
+///
+/// 走 `datacenter.eastmoney.com/securities/api/data/get`（`RPT_F10_FINANCE_GCASHFLOW`），返回原始字段键。
+///
+/// - `symbol`：带市场标识的**已退市**股票代码（如 `"SZ000013"`，内部转 `000013.SZ`）
+pub fn stock_cash_flow_sheet_by_report_delisted_em(symbol: &str) -> Result<Df> {
+    emweb_f10_delisted_report(symbol, "RPT_F10_FINANCE_GCASHFLOW", "APP_F10_GCASHFLOW")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
