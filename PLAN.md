@@ -64,46 +64,62 @@
 
 ---
 
-### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-16 刷新至批次 35）
+### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-16 刷新至批次 35；2026-08-16 按 akshare 同名可调用函数 1:1 校正实现计数）
 
-> 口径：以 akshare `akshare/__init__.py` 实际导出的**公开 API 名**为准（AST 解析去重 = **1094** 个，与 PLAN 目标 1099 基本一致）；Rust 侧以「doc comment 声明对应 akshare `akshare.X`、且 `cargo build` 通过」的**用户面公开函数**为准，**546** 个（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3，批次 29-B 净增 10，批次 29-C 净增 18，批次 29-D 净增 3，批次 29-E 净增 10，批次 29-F 净增 3，批次 30 净增 2，批次 31 净增 2，批次 32 净增 4，批次 33 净增 2，批次 34 净增 3，批次 35 净增 2；跳过批次 14；无函数被移除），并逐一与 akshare 公开名交叉验证（`cargo test --lib` 233 passed 含存在性校验，无虚报）。另有 ~53 个源层公开 helper（`eastmoney`/`soozhu`/`chinamoney`/`jisilu`/`carbon` 等）不计入覆盖率分母。golden 差分验证覆盖见下表「golden 覆盖率」。
+> 口径（2026-08-16 校正）：akshare 侧以 `dir(akshare)` 中**可调用函数**（含 `functools.partial`/Cython 函数，排除类与子模块）为准，共 **1080** 个（另有 19 个为类/客户端对象，非函数式 API；`__init__` 导出名约 1099）。Rust 侧以「源码中存在与 akshare **同名** `pub fn`（非 `#[cfg(test)]` 内部 helper）」为准，共 **438** 个。**此前批次日志的累计数（批次 34 = 544、批次 35 = 546）偏高约 108**：其按「doc comment 声明对应 akshare + cargo build 通过」计数，误将 `fetch_*`/`build_*`/`finalize_*`/`cast_*` 等 ~104 个内部 helper 及少数命名不一致条目计入用户面。本快照改以「akshare 同名可调用函数 1:1 匹配」重核，结果更贴近真实覆盖率。（`cargo test --lib` 233 passed 含存在性校验，无虚报；另有 ~53 个源层公开 helper 不计入覆盖率分母。）
 
 | 指标 | 数值 |
 |---|---|
-| akshare 公开 API 总数 | **1094** |
-| Rust 已实现用户面函数（cargo build 通过） | **546**（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3，批次 29-B 净增 10，批次 29-C 净增 18，批次 29-D 净增 3，批次 29-E 净增 10，批次 29-F 净增 3，批次 30 净增 2，批次 31 净增 2，批次 32 净增 4，批次 33 净增 2，批次 34 净增 3，批次 35 净增 2；无批次 14）|
-| 实现覆盖率（546 / 1094） | **≈ 49.9%** |
-| golden 差分验证覆盖 | **473 fixture 文件 / ≈453 去重函数 ≈ 41.4%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
-| 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report 等）|
+| akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **438**（此前批次累计口径偏高已校正；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（438 / 1080） | **≈ 40.6%** |
+| golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
+| 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
-**已覆盖大类（纵深够、但窄）：**
+**按 akshare 子模块分组的实现进度（2026-08-16 校正，差距降序）：**
 
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
-|---|---|---|---|
-| stock | 32 | 407 | 7.9% |
-| fund | 4 | 74 | 5.4% |
-| index | 3 | 79 | 3.8% |
-| stock_feature | 95 | 211 | 45.0% |
-| stock_fundamental | 30 | 57 | 52.6% |
-| economic | 31 | 226 | 13.7% |
-| futures | 56 | 70 | 80.0% |
-| option | 46 | 47 | 97.9% |
-| bond | 36 | 46 | 78.3% |
-| currency | 2 | ~数十 | 长尾 |
-| energy | 7 | ~数十 | 长尾 |
-| news | 5 | ~数十 | 长尾 |
-| fortune | 1 | ~10 | 长尾 |
-| spot | 3 | ~数十 | 长尾 |
-| cninfo | 10 | — | 巨潮系 |
-| sina | 2 | — | 新浪系 |
-| legu | 14 | — | 乐咕系 |
-| xueqiu | 2 | — | 雪球系 |
-| exchange | 3 | — | 交易所系 |
+|---|---:|---:|---:|
+| economic | 30 | 225 | 13.3% |
+| index | 3 | 94 | 3.2% |
+| fund | 8 | 88 | 9.1% |
+| stock | 49 | 125 | 39.2% |
+| stock_feature | 145 | 208 | 69.7% |
+| futures | 45 | 69 | 65.2% |
+| stock_fundamental | 35 | 57 | 61.4% |
+| bond | 37 | 42 | 88.1% |
+| fx | 4 | 6 | 66.7% |
+| news | 5 | 6 | 83.3% |
+| futures_derivative | 10 | 13 | 76.9% |
+| energy | 4 | 8 | 50.0% |
+| currency | 2 | 7 | 28.6% |
+| fortune | 1 | 5 | 20.0% |
+| movie | 0 | 12 | 0.0% |
+| other | 0 | 8 | 0.0% |
+| qhkc_web | 0 | 8 | 0.0% |
+| air | 0 | 7 | 0.0% |
+| article | 0 | 7 | 0.0% |
+| qdii | 0 | 3 | 0.0% |
+| reits | 0 | 3 | 0.0% |
+| cal | 0 | 3 | 0.0% |
+| crypto | 0 | 2 | 0.0% |
+| forex | 0 | 2 | 0.0% |
+| utils | 0 | 2 | 0.0% |
+| event | 0 | 2 | 0.0% |
+| nlp | 0 | 2 | 0.0% |
+| rate | 0 | 2 | 0.0% |
+| bank | 0 | 1 | 0.0% |
+| hf | 0 | 1 | 0.0% |
+| pro | 0 | 1 | 0.0% |
+| tool | 0 | 1 | 0.0% |
+| option | 44 | 44 | 100.0% |
+| interest_rate | 1 | 1 | 100.0% |
+| spot | 15 | 15 | 100.0% |
 
-**完全未覆盖大类（0%）：** 余下 28 类（futures_derivative/movie/cal/qdii/reits/event/forex/crypto/rate/nlp/tool/hf/interest_rate/bank/pro/other/article/air/qhkc_web 等）全部为 0；option/bond 已由批次 2/4 覆盖，currency/energy/news/fortune/spot 长尾由批次 5 起步。
+> 合计：akshare **1080** 个可调用函数，Rust 已实现 **438（40.6%）**；17 个大类已有实现、18 个大类仍为 0%。最大缺口在 **economic / index / fund / stock**（合计 442，占全部缺口 642 的 69%）。
 
-**已落地的 195 个函数（按类别）：**
+**已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
 - **stock（35）**：`stock_zh_a_hist`、`stock_zh_a_spot_em`、`stock_sh_a_spot_em`、`stock_sz_a_spot_em`、`stock_bj_a_spot_em`、`stock_zh_a_hist_min_em`、`stock_individual_info_em`、`stock_bid_ask_em`、`stock_board_industry_name_em`、`stock_board_concept_name_em`、`stock_board_industry_cons_em`、`stock_board_concept_cons_em`、`stock_board_industry_hist_em`、`stock_board_concept_hist_em`、`stock_zt_pool_em`、`stock_individual_fund_flow`、`stock_hsgt_fund_flow_summary_em`、`stock_zh_a_st_em`、`stock_zh_a_new_em`、`stock_hk_spot_em`、`stock_profile_cninfo`、`stock_ipo_summary_cninfo`、`stock_dividend_cninfo`、`stock_new_ipo_cninfo`、`stock_new_gh_cninfo`、`stock_margin_sse`、`stock_margin_detail_sse`、`stock_margin_szse`、`stock_hot_follow_xq`、`stock_hot_tweet_xq`、`stock_hk_spot`、`stock_zh_a_minute`、`stock_a_gxl_lg`、`stock_hk_gxl_lg`、`stock_a_ttm_lyr`
 - **stock_feature（48 · 批次 1 阶段 1a + 1b + 1c + 1d + 1e + 1f + 1g）**：`stock_cy_a_spot_em`、`stock_kc_a_spot_em`、`stock_zh_b_spot_em`、`stock_new_a_spot_em`、`stock_hk_main_board_spot_em`、`stock_hk_ggt_components_em`、`stock_zh_a_gdhs`（阶段 1a，7 个）；`stock_margin_account_info`、`stock_gdfx_free_holding_detail_em`、`stock_gdfx_holding_detail_em`、`stock_gdfx_free_holding_analyse_em`、`stock_gdfx_holding_analyse_em`、`stock_qsjy_em`、`stock_gpzy_profile_em`、`stock_gpzy_pledge_ratio_em`、`stock_gpzy_industry_data_em`、`stock_value_em`、`stock_gddh_em`、`stock_zdhtmx_em`、`stock_dxsyl_em`、`stock_sy_profile_em`（阶段 1b，14 个；其中 `stock_gpzy_profile_em` 由 `stock` 模块迁入，非净新增）；`stock_gpzy_pledge_ratio_detail_em`、`stock_gpzy_individual_pledge_ratio_detail_em`、`stock_ggcg_em`（阶段 1c，3 个）；`stock_jgdy_tj_em`、`stock_jgdy_detail_em`、`stock_fhps_em`、`stock_fhps_detail_em`、`stock_tfp_em`、`stock_qbzf_em`、`stock_pg_em`、`stock_account_statistics_em`（阶段 1d，8 个）；`stock_yjbb_em`、`stock_yjkb_em`、`stock_yjyg_em`、`stock_yysj_em`（阶段 1e，4 个）；`stock_comment_em`、`stock_lhb_stock_statistic_em`、`stock_lhb_jgmmtj_em`、`stock_gdfx_free_holding_statistics_em`、`stock_gdfx_holding_statistics_em`、`stock_gdfx_free_holding_change_em`、`stock_gdfx_holding_change_em`（阶段 1f，7 个）；`stock_comment_detail_zlkp_jgcyd_em`、`stock_comment_detail_zhpj_lspf_em`、`stock_hsgt_stock_statistics_em`、`stock_sy_yq_em`、`stock_sy_jz_em`（阶段 1g，5 个）；`stock_zcfz_em`、`stock_zcfz_bj_em`、`stock_lrb_em`、`stock_xjll_em`（阶段 1h，4 个）；`stock_gpzy_distribute_statistics_company_em`、`stock_gpzy_distribute_statistics_bank_em`、`stock_zh_a_gdhs_detail_em`、`stock_gdfx_free_holding_teamwork_em`、`stock_gdfx_holding_teamwork_em`、`stock_comment_detail_scrd_focus_em`、`stock_comment_detail_scrd_desire_em`、`stock_sy_hy_em`（阶段 1i，8 个）；`stock_lhb_detail_em`（由 `stock` 模块迁入，阶段 1j）、`stock_lhb_jgstatistic_em`、`stock_lhb_hyyyb_em`、`stock_lhb_yybph_em`、`stock_lhb_traderstatistic_em`、`stock_lhb_stock_detail_date_em`、`stock_lhb_stock_detail_em`、`stock_lhb_yyb_detail_em`（阶段 1j，龙虎榜 8 个，其中 detail_em 为迁入）；`stock_hsgt_hold_stock_em`、`stock_hsgt_institution_statistics_em`、`stock_hsgt_hist_em`、`stock_hsgt_board_rank_em`、`stock_hsgt_individual_em`、`stock_hsgt_individual_detail_em`（阶段 1k，沪深港通 6 个）；`stock_xgsglb_em`、`stock_analyst_rank_em`、`stock_analyst_detail_em`（阶段 1l，新股申购/分析师 3 个）；`stock_rank_cxg_ths`、`stock_rank_cxd_ths`、`stock_rank_lxsz_ths`、`stock_rank_lxxd_ths`、`stock_rank_cxfl_ths`、`stock_rank_cxsl_ths`、`stock_rank_ljqd_ths`、`stock_rank_ljqs_ths`、`stock_rank_xstp_ths`、`stock_rank_xxtp_ths`、`stock_rank_xzjp_ths`（阶段 1m，同花顺技术选股 11 个）
@@ -181,7 +197,7 @@
 3. **质量高于数量**：每个实现均列名/列序逐字对齐、离线单测、JS 引擎验证，满足 §9 生产级标准（clippy `-D warnings`、无 unwrap）。
 4. **真实网络验证有缺口**（见 README「已知限制」）：legulegu 当前返回 403、部分东财 clist 接口因限流未能真实验证，靠键名映射 + 离线单测保障正确性——这部分计入「已实现」但需在环境恢复后补真实对账。
 
-**结论：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–28 集成，已实现用户面函数 **484** 个（约 **44.2%** 公开函数），其中 **≈407** 个函数经 golden 差分验证（**≈37.2%**），覆盖 24/47 功能大类（stock/fund/index/stock_feature/stock_fundamental/economic/futures/option/bond/currency/energy/news/fortune/spot/cninfo/sina/legu/xueqiu/exchange + 海外宏观 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report）。距 1094 全量目标，剩余 ~56% 主要是**同类数据源下的广度扩展**（economic 余 195、stock_feature 余 116、futures 余 63、bond 余 10、option 余 1 及 28 个长尾大类），底层能力基本已就位，属可批量推进区间。
+**结论（2026-08-16 校正）：** 已完成一条纵深的「样板通路」（8 类数据源 + 完整管线）+ 批次 2–35 集成，按 akshare 同名可调用函数 1:1 匹配已实现用户面函数 **438** 个（**40.6%**，公开可调用函数共 1080），其中 **453** 个函数经 golden 差分验证（**41.9%**），覆盖 17/35 功能大类。距 1080 全量目标，剩余 **642** 个（约 59%）主要是**同类数据源下的广度扩展**（economic 余 195、stock 余 76、stock_feature 余 63、index 余 91、fund 余 80、futures 余 24、stock_fundamental 余 22 及 18 个长尾大类），底层能力基本已就位，属可批量推进区间。
 
 ---
 
@@ -667,6 +683,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 
 > 差分测试守护：每批次函数均在 `tools/parity_runner.py` 注册 CASES + 生成 golden fixture，
 > 并以 `--check`（loose：列名 + dtype 类）与 akshare 1.18.83 实测对齐。下列批次均已提交。
+
+> **计数校正（2026-08-16）**：§9 各批次日志中的「公开函数 N → M」累计数偏高约 108——其按 doc-comment 对应 + cargo build 计数，误将内部 helper（`fetch_*`/`build_*`/`finalize_*`/`cast_*` 等 ~104 个）及少数命名不一致条目计入用户面。按 akshare **同名可调用函数 1:1 匹配**重核，当前真实用户面实现为 **438 / 1080（≈ 40.6%）**。批次日志保留作历史提交记录，但累计总数以 §1.2 校正值为准。
 
 | 批次 | 模块 / 数据源 | 函数（akshare 同名） | 报表 | parity |
 |---|---|---|---|---|
