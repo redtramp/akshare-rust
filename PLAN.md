@@ -71,8 +71,8 @@
 | 指标 | 数值 |
 |---|---|
 | akshare 公开 API 总数 | **1094** |
-| Rust 已实现用户面函数（cargo build 通过） | **531**（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3，批次 29-B 净增 10，批次 29-C 净增 18，批次 29-D 净增 3，批次 29-E 净增 10，批次 29-F 净增 3；无批次 14）|
-| 实现覆盖率（531 / 1094） | **≈ 48.5%** |
+| Rust 已实现用户面函数（cargo build 通过） | **533**（批次 13 = 436，批次 15–28 净增 48，批次 29-A 净增 3，批次 29-B 净增 10，批次 29-C 净增 18，批次 29-D 净增 3，批次 29-E 净增 10，批次 29-F 净增 3，批次 30 净增 2；无批次 14）|
+| 实现覆盖率（533 / 1094） | **≈ 48.7%** |
 | golden 差分验证覆盖 | **437 fixture 文件 / ≈422 去重函数 ≈ 38.6%**（parity 注册用例 485 / 477 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **24 / 47**（按 API 前缀分类；新增宏观海外 australia/canada/germany/japan/swiss/uk + stock_fund_flow(ths)/esg(sina)/zt_pool 变体/notice/report 等）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -711,6 +711,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > 批次29-E 的 10 个期货杂项/独立数据源函数（`futures_comm_info`/`futures_comm_js`/`futures_fees_info`/`futures_rule`/`futures_news_shmet`/`futures_inventory_99`/`futures_spot_stock`/`futures_stock_shfe_js`/`futures_spot_sys`/`futures_contract_detail_em`）已实现并通过 `cargo build` + `cargo clippy --all-targets -D warnings` + 全量 `cargo test --lib`（229 passed）。parity 跨语言对照（loose）子组 E 10 用例：**8 通过 / 2 跳过 / 0 失败**——8 个有 golden（`comm_info` 21列×828行、`comm_js` 18列×78行、`fees_info` 38列×862行、`rule` 10列×122行、`news_shmet` 2列×10行、`inventory_99` 3列×4349行、`spot_stock` 10列×5行、`stock_shfe_js` 0列×0行）；2 个无 golden 自动跳过（`spot_sys`/`contract_detail_em` 上游 akshare 抛 `NoneType` 异常无法产出 golden，直连 akshare 同错，非代码缺陷）。关键修复：`Df::infer_numeric` 空/纯空白单元格视为缺失（对齐 akshare `pd.read_html`/`pd.to_numeric(errors="coerce")`，修复 `futures_rule` 含 `--`/空单元格列误判为 str）；`futures_spot_stock` 日期列数据取自 item 的 `v1`..`v5`（非 MM-DD 标签），且仅前 4 个日期列 + 最新价格 + 近半年涨跌幅 做数值化、末日期列保持 str（对齐 akshare 源码）；`futures_comm_js` 列序修正为 开仓/平今/平昨/每手跳数。基础设施：新增 `chrono = "0.4"`（`futures_news_shmet` 毫秒时间戳→`Asia/Shanghai`）。公开函数 **518 → 528**（futures 43 → 53 / 70，余 17）。注：`futures_derivative` 在 akshare 中是子包模块、非可调用函数，不计入 1094 目标；但其下的可调用函数（`ak.futures_display_main_sina` 等）已在批次29-F 落地。
 
 > 批次29-F 的 3 个新浪主力/连续/持仓函数（`futures_display_main_sina`/`futures_main_sina`/`futures_hold_pos_sina`，均位于 akshare `futures_derivative` 子包但可经 `ak.futures_*` 调用）已实现并通过 `cargo build` + `cargo clippy --all-targets -D warnings` + 全量 `cargo test --lib`（229 passed）。parity 跨语言对照（loose）子组 F 3 用例：**3 通过 / 0 跳过 / 0 失败**——`futures_display_main_sina` 3列×82行、`futures_main_sina` 8列×23行（`V0` 20240101–20240201）、`futures_hold_pos_sina` 4列×20行（成交量·OI2501·20241016），列名/dtype 均与 akshare 一致。实现要点：`futures_display_main_sina` 复用 `futures_symbol_mark` 的 `mark` 节点码遍历五大交易所全部品种节点（~86 次 `getHQFuturesData` 请求，与 akshare `match_main_contract` 逐节点查询同口径），按 `name` 含「连续」且 `symbol` 首数字为 `0` 筛选主力连续合约；`futures_main_sina` 严格复刻 `getDailyKLine` JSONP（剥离外壳取首尾数组括号、日期参数固定 `2021_08_17`、按 `start_date`/`end_date` 闭区间过滤）；`futures_hold_pos_sina` 复刻 `vFutures_Positions_cjcc.php`（`read_html_tables` 取第 3/4/5 表，丢弃表头与末行合计）。公开函数 **528 → 531**（futures 53 → 56 / 70，余 14）。
+
+> 批次30 的 2 个东财 F10 十大股东函数（`stock_gdfx_top_10_em`/`stock_gdfx_free_top_10_em`，akshare `stock_feature/stock_gdfx_em.py`）已实现并通过 `cargo fmt --check` + `cargo clippy --all-targets -D warnings`（零警告）+ 全量 `cargo test --lib`（231 passed）。注意：二者走 emweb F10 `PC_HSF10/ShareholderResearch/PageSDGD` / `PageSDLTGD`（返回 `sdgd` / `sdltgd` 数组），**非** `datacenter-web`；且流通版响应键为实际 `HOLDER_TYPE` / `FREE_HOLDNUM_RATIO`（akshare 源码注释误标为 `HOLDER_NATURE` / `HOLD_NUM_RATIO`），实现按实际键做「键→中文」rename。离线单测 `gdfx_top_10_offline` / `gdfx_free_top_10_offline` 用 fixture 行直接驱动 `finalize_report`，断言 `名次` 为首列、`股东名称/持股数/占总股本(流通)持股比例/增减/变动比率` 列契约、数值列 `cast_numeric` 成功、字符串列 `增减`/`股东性质` 保留。parity 已注册 2 用例（loose，列契约对比）。公开函数 **531 → 533**。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在

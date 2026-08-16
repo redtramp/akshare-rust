@@ -1153,6 +1153,75 @@ pub fn stock_gdfx_free_holding_detail_em(date: &str) -> Result<Df> {
     Ok(df)
 }
 
+/// 个股十大股东（对应 akshare [`akshare.stock_gdfx_top_10_em`]）。
+///
+/// 走东财 emweb F10 `PC_HSF10/ShareholderResearch/PageSDGD`，返回 `sdgd` 数组；
+/// 响应键序与 akshare 位置式列映射一致，故按实际键做「键→中文」rename。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"sh688686"`，内部转大写）
+/// - `date`：报告期 `YYYYMMDD`（如 `"20210630"`）
+///
+/// # 返回列
+/// `名次, 股东名称, 股份类型, 持股数, 占总股本持股比例, 增减, 变动比率`
+pub fn stock_gdfx_top_10_em(symbol: &str, date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let mut params = Map::new();
+    params.insert("code".into(), Value::String(symbol.to_uppercase()));
+    params.insert("date".into(), Value::String(d));
+    let http = HttpClient::default();
+    let value = http.get_json(
+        "https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageSDGD",
+        &params,
+        None,
+    )?;
+    let rows = value
+        .get("sdgd")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AkshareError::Empty("emweb 未返回 sgd 数据".into()))?;
+    finalize_report(
+        rows,
+        &GDFX_TOP10_RENAME,
+        &GDFX_TOP10_SELECT,
+        &GDFX_TOP10_NUMERIC,
+        Some("名次"),
+    )
+}
+
+/// 个股十大流通股东（对应 akshare [`akshare.stock_gdfx_free_top_10_em`]）。
+///
+/// 走东财 emweb F10 `PC_HSF10/ShareholderResearch/PageSDLTGD`，返回 `sdltgd` 数组；
+/// 响应键序与 akshare 位置式列映射一致，故按实际键（注意为 `HOLDER_TYPE` /
+/// `FREE_HOLDNUM_RATIO`，而非源码注释里的 `HOLDER_NATURE` / `HOLD_NUM_RATIO`）做 rename。
+///
+/// - `symbol`：带市场标识的股票代码（如 `"sh688686"`，内部转大写）
+/// - `date`：报告期 `YYYYMMDD`（如 `"20240930"`）
+///
+/// # 返回列
+/// `名次, 股东名称, 股东性质, 股份类型, 持股数, 占总流通股本持股比例, 增减, 变动比率`
+pub fn stock_gdfx_free_top_10_em(symbol: &str, date: &str) -> Result<Df> {
+    let d = fmt_ymd(date)?;
+    let mut params = Map::new();
+    params.insert("code".into(), Value::String(symbol.to_uppercase()));
+    params.insert("date".into(), Value::String(d));
+    let http = HttpClient::default();
+    let value = http.get_json(
+        "https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageSDLTGD",
+        &params,
+        None,
+    )?;
+    let rows = value
+        .get("sdltgd")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AkshareError::Empty("emweb 未返回 sdltgd 数据".into()))?;
+    finalize_report(
+        rows,
+        &GDFX_FREE_TOP10_RENAME,
+        &GDFX_FREE_TOP10_SELECT,
+        &GDFX_FREE_TOP10_NUMERIC,
+        Some("名次"),
+    )
+}
+
 /// 股东持股明细（对应 akshare [`akshare.stock_gdfx_holding_detail_em`]）。
 ///
 /// `date`：报告期 `YYYYMMDD`；`indicator`：股东类型（如 `"个人"`）；`symbol`：持股变动（如 `"新进"`）。
@@ -3209,6 +3278,47 @@ pub fn stock_lhb_yyb_detail_em(symbol: &str) -> Result<Df> {
 // ===== 股东持股统计-十大流通股东/十大股东（RPT_COOPFREEHOLDERS_ANALYSIS / RPT_COOPHOLDERS_ANALYSIS）=====
 // 序号由 Rust 生成。两报表 JSON 键序一致，共用同一套 RENAME/SELECT/NUMERIC。
 // 列序参照 akshare `big_df.columns` 与实时拉取 JSON 键序逐位对齐。无日期列。
+// ===== 个股十大股东 / 十大流通股东（emweb F10 PageSDGD / PageSDLTGD）=====
+// 响应键序与 akshare 位置式列映射逐位对齐；free 版实际键为 HOLDER_TYPE /
+// FREE_HOLDNUM_RATIO（非源码注释里的 HOLDER_NATURE / HOLD_NUM_RATIO）。
+const GDFX_TOP10_RENAME: [(&str, &str); 6] = [
+    ("HOLDER_NAME", "股东名称"),
+    ("SHARES_TYPE", "股份类型"),
+    ("HOLD_NUM", "持股数"),
+    ("HOLD_NUM_RATIO", "占总股本持股比例"),
+    ("HOLD_NUM_CHANGE", "增减"),
+    ("CHANGE_RATIO", "变动比率"),
+];
+const GDFX_TOP10_SELECT: [&str; 6] = [
+    "股东名称",
+    "股份类型",
+    "持股数",
+    "占总股本持股比例",
+    "增减",
+    "变动比率",
+];
+const GDFX_TOP10_NUMERIC: [&str; 3] = ["持股数", "占总股本持股比例", "变动比率"];
+
+const GDFX_FREE_TOP10_RENAME: [(&str, &str); 7] = [
+    ("HOLDER_NAME", "股东名称"),
+    ("HOLDER_TYPE", "股东性质"),
+    ("SHARES_TYPE", "股份类型"),
+    ("HOLD_NUM", "持股数"),
+    ("FREE_HOLDNUM_RATIO", "占总流通股本持股比例"),
+    ("HOLD_NUM_CHANGE", "增减"),
+    ("CHANGE_RATIO", "变动比率"),
+];
+const GDFX_FREE_TOP10_SELECT: [&str; 7] = [
+    "股东名称",
+    "股东性质",
+    "股份类型",
+    "持股数",
+    "占总流通股本持股比例",
+    "增减",
+    "变动比率",
+];
+const GDFX_FREE_TOP10_NUMERIC: [&str; 3] = ["持股数", "占总流通股本持股比例", "变动比率"];
+
 const GDFX_STAT_RENAME: [(&str, &str); 13] = [
     ("HOLDER_NAME", "股东名称"),
     ("HOLDER_TYPE", "股东类型"),
@@ -5466,7 +5576,16 @@ pub fn stock_rank_cxg_ths(symbol: &str) -> Result<Df> {
     let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
     finalize_ths_rank(
         rows,
-        &["序号", "股票代码", "股票简称", "涨跌幅", "换手率", "最新价", "前期高点", "前期高点日期"],
+        &[
+            "序号",
+            "股票代码",
+            "股票简称",
+            "涨跌幅",
+            "换手率",
+            "最新价",
+            "前期高点",
+            "前期高点日期",
+        ],
         &["序号", "涨跌幅", "换手率", "最新价", "前期高点"],
         &["前期高点日期"],
         &["涨跌幅", "换手率"],
@@ -5500,7 +5619,16 @@ pub fn stock_rank_cxd_ths(symbol: &str) -> Result<Df> {
     let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
     finalize_ths_rank(
         rows,
-        &["序号", "股票代码", "股票简称", "涨跌幅", "换手率", "最新价", "前期低点", "前期低点日期"],
+        &[
+            "序号",
+            "股票代码",
+            "股票简称",
+            "涨跌幅",
+            "换手率",
+            "最新价",
+            "前期低点",
+            "前期低点日期",
+        ],
         &["序号", "涨跌幅", "换手率", "最新价", "前期低点"],
         &["前期低点日期"],
         &["涨跌幅", "换手率"],
@@ -5523,10 +5651,26 @@ pub fn stock_rank_lxsz_ths() -> Result<Df> {
     finalize_ths_rank(
         rows,
         &[
-            "序号", "股票代码", "股票简称", "收盘价", "最高价", "最低价", "连涨天数",
-            "连续涨跌幅", "累计换手率", "所属行业",
+            "序号",
+            "股票代码",
+            "股票简称",
+            "收盘价",
+            "最高价",
+            "最低价",
+            "连涨天数",
+            "连续涨跌幅",
+            "累计换手率",
+            "所属行业",
         ],
-        &["序号", "收盘价", "最高价", "最低价", "连涨天数", "连续涨跌幅", "累计换手率"],
+        &[
+            "序号",
+            "收盘价",
+            "最高价",
+            "最低价",
+            "连涨天数",
+            "连续涨跌幅",
+            "累计换手率",
+        ],
         &[],
         &["连续涨跌幅", "累计换手率"],
         false,
@@ -5547,10 +5691,26 @@ pub fn stock_rank_lxxd_ths() -> Result<Df> {
     finalize_ths_rank(
         rows,
         &[
-            "序号", "股票代码", "股票简称", "收盘价", "最高价", "最低价", "连涨天数",
-            "连续涨跌幅", "累计换手率", "所属行业",
+            "序号",
+            "股票代码",
+            "股票简称",
+            "收盘价",
+            "最高价",
+            "最低价",
+            "连涨天数",
+            "连续涨跌幅",
+            "累计换手率",
+            "所属行业",
         ],
-        &["序号", "收盘价", "最高价", "最低价", "连涨天数", "连续涨跌幅", "累计换手率"],
+        &[
+            "序号",
+            "收盘价",
+            "最高价",
+            "最低价",
+            "连涨天数",
+            "连续涨跌幅",
+            "累计换手率",
+        ],
         &[],
         &["连续涨跌幅", "累计换手率"],
         false,
@@ -5572,8 +5732,16 @@ pub fn stock_rank_cxfl_ths() -> Result<Df> {
     finalize_ths_rank(
         rows,
         &[
-            "序号", "股票代码", "股票简称", "涨跌幅", "最新价", "成交量", "基准日成交量",
-            "放量天数", "阶段涨跌幅", "所属行业",
+            "序号",
+            "股票代码",
+            "股票简称",
+            "涨跌幅",
+            "最新价",
+            "成交量",
+            "基准日成交量",
+            "放量天数",
+            "阶段涨跌幅",
+            "所属行业",
         ],
         &["涨跌幅", "最新价", "放量天数", "阶段涨跌幅"],
         &[],
@@ -5597,8 +5765,16 @@ pub fn stock_rank_cxsl_ths() -> Result<Df> {
     finalize_ths_rank(
         rows,
         &[
-            "序号", "股票代码", "股票简称", "涨跌幅", "最新价", "成交量", "基准日成交量",
-            "缩量天数", "阶段涨跌幅", "所属行业",
+            "序号",
+            "股票代码",
+            "股票简称",
+            "涨跌幅",
+            "最新价",
+            "成交量",
+            "基准日成交量",
+            "缩量天数",
+            "阶段涨跌幅",
+            "所属行业",
         ],
         &["涨跌幅", "最新价", "缩量天数", "阶段涨跌幅"],
         &[],
@@ -5637,7 +5813,16 @@ pub fn stock_rank_xstp_ths(symbol: &str) -> Result<Df> {
     let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
     finalize_ths_rank(
         rows,
-        &["序号", "股票代码", "股票简称", "最新价", "成交额", "成交量", "涨跌幅", "换手率"],
+        &[
+            "序号",
+            "股票代码",
+            "股票简称",
+            "最新价",
+            "成交额",
+            "成交量",
+            "涨跌幅",
+            "换手率",
+        ],
         &["最新价", "涨跌幅", "换手率"],
         &[],
         &["涨跌幅", "换手率"],
@@ -5675,7 +5860,16 @@ pub fn stock_rank_xxtp_ths(symbol: &str) -> Result<Df> {
     let rows = crate::sources::ths::fetch_ths_rank(&url_for_page)?;
     finalize_ths_rank(
         rows,
-        &["序号", "股票代码", "股票简称", "最新价", "成交额", "成交量", "涨跌幅", "换手率"],
+        &[
+            "序号",
+            "股票代码",
+            "股票简称",
+            "最新价",
+            "成交额",
+            "成交量",
+            "涨跌幅",
+            "换手率",
+        ],
         &["最新价", "涨跌幅", "换手率"],
         &[],
         &["涨跌幅", "换手率"],
@@ -5697,8 +5891,14 @@ pub fn stock_rank_ljqs_ths() -> Result<Df> {
     finalize_ths_rank(
         rows,
         &[
-            "序号", "股票代码", "股票简称", "最新价", "量价齐升天数", "阶段涨幅",
-            "累计换手率", "所属行业",
+            "序号",
+            "股票代码",
+            "股票简称",
+            "最新价",
+            "量价齐升天数",
+            "阶段涨幅",
+            "累计换手率",
+            "所属行业",
         ],
         &["最新价", "量价齐升天数", "阶段涨幅", "累计换手率"],
         &[],
@@ -5721,8 +5921,14 @@ pub fn stock_rank_ljqd_ths() -> Result<Df> {
     finalize_ths_rank(
         rows,
         &[
-            "序号", "股票代码", "股票简称", "最新价", "量价齐跌天数", "阶段涨幅",
-            "累计换手率", "所属行业",
+            "序号",
+            "股票代码",
+            "股票简称",
+            "最新价",
+            "量价齐跌天数",
+            "阶段涨幅",
+            "累计换手率",
+            "所属行业",
         ],
         &["最新价", "量价齐跌天数", "阶段涨幅", "累计换手率"],
         &[],
@@ -5739,18 +5945,32 @@ pub fn stock_rank_ljqd_ths() -> Result<Df> {
 /// `序号, 举牌公告日, 股票代码, 股票简称, 现价, 涨跌幅, 举牌方, 增持数量,
 /// 交易均价, 增持数量占总股本比例, 变动后持股总数, 变动后持股比例`
 pub fn stock_rank_xzjp_ths() -> Result<Df> {
-    let url =
-        "http://data.10jqka.com.cn/ajax/xzjp/field/DECLAREDATE/order/desc/ajax/1/free/1/";
+    let url = "http://data.10jqka.com.cn/ajax/xzjp/field/DECLAREDATE/order/desc/ajax/1/free/1/";
     let html = crate::sources::ths::fetch_ths(url)?;
     let rows = crate::sources::ths::parse_ths_table(&html)?;
     finalize_ths_rank(
         rows,
         &[
-            "序号", "举牌公告日", "股票代码", "股票简称", "现价", "涨跌幅", "举牌方",
-            "增持数量", "交易均价", "增持数量占总股本比例", "变动后持股总数",
+            "序号",
+            "举牌公告日",
+            "股票代码",
+            "股票简称",
+            "现价",
+            "涨跌幅",
+            "举牌方",
+            "增持数量",
+            "交易均价",
+            "增持数量占总股本比例",
+            "变动后持股总数",
             "变动后持股比例",
         ],
-        &["现价", "涨跌幅", "交易均价", "增持数量占总股本比例", "变动后持股比例"],
+        &[
+            "现价",
+            "涨跌幅",
+            "交易均价",
+            "增持数量占总股本比例",
+            "变动后持股比例",
+        ],
         &["举牌公告日"],
         &["增持数量占总股本比例", "变动后持股比例"],
         true,
@@ -5766,8 +5986,7 @@ pub fn stock_rank_xzjp_ths() -> Result<Df> {
 /// # 返回列
 /// `name, code`（均为字符串，代码为 6 位数字串）
 pub fn stock_board_industry_name_ths() -> Result<Df> {
-    let html =
-        crate::sources::ths::fetch_ths("https://q.10jqka.com.cn/thshy/detail/code/881272/")?;
+    let html = crate::sources::ths::fetch_ths("https://q.10jqka.com.cn/thshy/detail/code/881272/")?;
     let pairs = crate::sources::ths::parse_cate_inner(&html)?;
     let rows: Vec<Vec<Option<String>>> = pairs
         .iter()
@@ -5804,8 +6023,7 @@ pub fn stock_board_industry_info_ths(symbol: &str) -> Result<Df> {
 /// # 返回列
 /// `name, code`
 pub fn stock_board_concept_name_ths() -> Result<Df> {
-    let html =
-        crate::sources::ths::fetch_ths("https://q.10jqka.com.cn/gn/detail/code/307822/")?;
+    let html = crate::sources::ths::fetch_ths("https://q.10jqka.com.cn/gn/detail/code/307822/")?;
     let mut pairs = crate::sources::ths::parse_cate_inner(&html)?;
     let summary = crate::sources::ths::fetch_ths_summary(&|page: u32| {
         format!("http://q.10jqka.com.cn/gn/index/field/addtime/order/desc/page/{page}/ajax/1/")
@@ -5846,8 +6064,16 @@ pub fn stock_board_concept_info_ths(symbol: &str) -> Result<Df> {
 /// 板块名称 → 代码（在 `name/code` 双列表中按名称查找）。
 fn board_name_to_code(name_df: &Df, symbol: &str) -> Result<String> {
     let (Some(names), Some(codes)) = (
-        name_df.inner().column("name").ok().and_then(|c| c.str().ok()),
-        name_df.inner().column("code").ok().and_then(|c| c.str().ok()),
+        name_df
+            .inner()
+            .column("name")
+            .ok()
+            .and_then(|c| c.str().ok()),
+        name_df
+            .inner()
+            .column("code")
+            .ok()
+            .and_then(|c| c.str().ok()),
     ) else {
         return Err(AkshareError::Empty("板块名称列表为空".into()));
     };
@@ -6109,11 +6335,7 @@ pub fn stock_hot_up_em() -> Result<Df> {
 }
 
 /// 历史趋势及粉丝特征行构建（I/O 无关，便于离线单测）。
-fn hot_rank_detail_em_build(
-    rank_arr: &[Value],
-    profile_arr: &[Value],
-    symbol: &str,
-) -> Result<Df> {
+fn hot_rank_detail_em_build(rank_arr: &[Value], profile_arr: &[Value], symbol: &str) -> Result<Df> {
     let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(rank_arr.len());
     for (r, p) in rank_arr.iter().zip(profile_arr.iter()) {
         let new_fan = hot_pct_frac(&hot_jstr(p.get("newUidRate")).unwrap_or_default());
@@ -6350,7 +6572,10 @@ fn esg_rate_fetch() -> Result<Vec<Value>> {
     for page in 2..=total_pages {
         params.insert("page".into(), json!(page));
         let j = http.get_json(&url, &params, Some("https://finance.sina.com.cn/"))?;
-        if let Some(stocks) = j.pointer("/result/data/info/stocks").and_then(Value::as_array) {
+        if let Some(stocks) = j
+            .pointer("/result/data/info/stocks")
+            .and_then(Value::as_array)
+        {
             append_esg_info(&mut rows, stocks);
         }
         http.random_delay();
@@ -7346,6 +7571,77 @@ mod tests {
             .f64()
             .unwrap();
         assert_eq!(add.get(0), None);
+    }
+
+    /// 离线验证个股十大股东列契约（名次 + 数值化；增减保留字符串）。
+    #[test]
+    fn gdfx_top_10_offline() {
+        let rows = json!([
+            {
+                "SECUCODE":"688686.SH","SECURITY_CODE":"688686",
+                "END_DATE":"2021-06-30 00:00:00","HOLDER_RANK":1,
+                "HOLDER_NAME":"卢治临","SHARES_TYPE":"限售流通A股",
+                "HOLD_NUM":24570000,"HOLD_NUM_RATIO":29.79,
+                "HOLD_NUM_CHANGE":"不变","CHANGE_RATIO":null
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &GDFX_TOP10_RENAME,
+            &GDFX_TOP10_SELECT,
+            &GDFX_TOP10_NUMERIC,
+            Some("名次"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "名次");
+        assert_eq!(df.column_names()[1..], GDFX_TOP10_SELECT);
+        let hold = df.inner().column("持股数").unwrap().f64().unwrap();
+        assert_eq!(hold.get(0), Some(24570000.0));
+        let ratio = df
+            .inner()
+            .column("占总股本持股比例")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(ratio.get(0), Some(29.79));
+        let chg = df.inner().column("增减").unwrap().str().unwrap();
+        assert_eq!(chg.get(0), Some("不变"));
+    }
+
+    /// 离线验证个股十大流通股东列契约（名次 + 数值化；股东性质来自 HOLDER_TYPE）。
+    #[test]
+    fn gdfx_free_top_10_offline() {
+        let rows = json!([
+            {
+                "SECUCODE":"000420.SZ","SECURITY_CODE":"000420",
+                "END_DATE":"2022-03-31 00:00:00","HOLDER_RANK":1,
+                "HOLDER_NAME":"吉林化纤集团有限责任公司","HOLDER_TYPE":"其它",
+                "SHARES_TYPE":"A股","HOLD_NUM":318067074,
+                "FREE_HOLDNUM_RATIO":14.675994165994,
+                "HOLD_NUM_CHANGE":"不变","CHANGE_RATIO":null
+            }
+        ]);
+        let rows = rows.as_array().unwrap().clone();
+        let df = finalize_report(
+            &rows,
+            &GDFX_FREE_TOP10_RENAME,
+            &GDFX_FREE_TOP10_SELECT,
+            &GDFX_FREE_TOP10_NUMERIC,
+            Some("名次"),
+        )
+        .unwrap();
+        assert_eq!(df.column_names()[0], "名次");
+        assert_eq!(df.column_names()[1..], GDFX_FREE_TOP10_SELECT);
+        let nature = df.inner().column("股东性质").unwrap().str().unwrap();
+        assert_eq!(nature.get(0), Some("其它"));
+        let ratio = df
+            .inner()
+            .column("占总流通股本持股比例")
+            .unwrap()
+            .f64()
+            .unwrap();
+        assert_eq!(ratio.get(0), Some(14.675_994_165_994));
     }
 
     /// 真实网络冒烟：拉取实时列契约，与 akshare 实测列序核对（需联网，默认忽略）。
@@ -8635,13 +8931,27 @@ mod tests {
     fn ths_rank_cxg_offline_contract() {
         let rows = vec![
             vec![
-                "1", "9", "中国宝安", "1.11%", "2.88%", "8.19", "8.10", "2026-08-07",
+                "1",
+                "9",
+                "中国宝安",
+                "1.11%",
+                "2.88%",
+                "8.19",
+                "8.10",
+                "2026-08-07",
             ]
             .into_iter()
             .map(String::from)
             .collect::<Vec<_>>(),
             vec![
-                "2", "000001", "平安银行", "-0.5%", "0.3%", "11.2", "11.5", "2026-08-06",
+                "2",
+                "000001",
+                "平安银行",
+                "-0.5%",
+                "0.3%",
+                "11.2",
+                "11.5",
+                "2026-08-06",
             ]
             .into_iter()
             .map(String::from)
@@ -8649,7 +8959,16 @@ mod tests {
         ];
         let df = finalize_ths_rank(
             rows,
-            &["序号", "股票代码", "股票简称", "涨跌幅", "换手率", "最新价", "前期高点", "前期高点日期"],
+            &[
+                "序号",
+                "股票代码",
+                "股票简称",
+                "涨跌幅",
+                "换手率",
+                "最新价",
+                "前期高点",
+                "前期高点日期",
+            ],
             &["序号", "涨跌幅", "换手率", "最新价", "前期高点"],
             &["前期高点日期"],
             &["涨跌幅", "换手率"],
@@ -8658,7 +8977,16 @@ mod tests {
         .unwrap();
         assert_eq!(
             ths_col_names(&df),
-            vec!["序号", "股票代码", "股票简称", "涨跌幅", "换手率", "最新价", "前期高点", "前期高点日期"]
+            vec![
+                "序号",
+                "股票代码",
+                "股票简称",
+                "涨跌幅",
+                "换手率",
+                "最新价",
+                "前期高点",
+                "前期高点日期"
+            ]
         );
         // 股票代码补零到 6 位
         let code = df.inner().column("股票代码").unwrap().str().unwrap();
@@ -8678,7 +9006,16 @@ mod tests {
     #[test]
     fn ths_rank_lxsz_offline_contract() {
         let rows = vec![vec![
-            "1", "000009", "中国宝安", "8.19", "8.20", "8.10", "3", "5.5%", "9.9%", "综合",
+            "1",
+            "000009",
+            "中国宝安",
+            "8.19",
+            "8.20",
+            "8.10",
+            "3",
+            "5.5%",
+            "9.9%",
+            "综合",
         ]
         .into_iter()
         .map(String::from)
@@ -8686,10 +9023,26 @@ mod tests {
         let df = finalize_ths_rank(
             rows,
             &[
-                "序号", "股票代码", "股票简称", "收盘价", "最高价", "最低价", "连涨天数",
-                "连续涨跌幅", "累计换手率", "所属行业",
+                "序号",
+                "股票代码",
+                "股票简称",
+                "收盘价",
+                "最高价",
+                "最低价",
+                "连涨天数",
+                "连续涨跌幅",
+                "累计换手率",
+                "所属行业",
             ],
-            &["序号", "收盘价", "最高价", "最低价", "连涨天数", "连续涨跌幅", "累计换手率"],
+            &[
+                "序号",
+                "收盘价",
+                "最高价",
+                "最低价",
+                "连涨天数",
+                "连续涨跌幅",
+                "累计换手率",
+            ],
             &[],
             &["连续涨跌幅", "累计换手率"],
             false,
@@ -8697,7 +9050,18 @@ mod tests {
         .unwrap();
         assert_eq!(
             ths_col_names(&df),
-            vec!["序号", "股票代码", "股票简称", "收盘价", "最高价", "最低价", "连涨天数", "连续涨跌幅", "累计换手率", "所属行业"]
+            vec![
+                "序号",
+                "股票代码",
+                "股票简称",
+                "收盘价",
+                "最高价",
+                "最低价",
+                "连涨天数",
+                "连续涨跌幅",
+                "累计换手率",
+                "所属行业"
+            ]
         );
         // 不补零（akshare lxsz 不 zfill 股票代码）
         let code = df.inner().column("股票代码").unwrap().str().unwrap();
@@ -8712,8 +9076,19 @@ mod tests {
     fn ths_rank_xzjp_offline_contract() {
         // 13 列原始行，最后 1 列（历史数据）应被截断丢弃
         let rows = vec![vec![
-            "1", "2026-08-07", "000009", "中国宝安", "8.19", "1.11%", "某某保险",
-            "1000000", "8.10", "5.0%", "2000000", "6.0%", "查看",
+            "1",
+            "2026-08-07",
+            "000009",
+            "中国宝安",
+            "8.19",
+            "1.11%",
+            "某某保险",
+            "1000000",
+            "8.10",
+            "5.0%",
+            "2000000",
+            "6.0%",
+            "查看",
         ]
         .into_iter()
         .map(String::from)
@@ -8721,11 +9096,26 @@ mod tests {
         let df = finalize_ths_rank(
             rows,
             &[
-                "序号", "举牌公告日", "股票代码", "股票简称", "现价", "涨跌幅", "举牌方",
-                "增持数量", "交易均价", "增持数量占总股本比例", "变动后持股总数",
+                "序号",
+                "举牌公告日",
+                "股票代码",
+                "股票简称",
+                "现价",
+                "涨跌幅",
+                "举牌方",
+                "增持数量",
+                "交易均价",
+                "增持数量占总股本比例",
+                "变动后持股总数",
                 "变动后持股比例",
             ],
-            &["现价", "涨跌幅", "交易均价", "增持数量占总股本比例", "变动后持股比例"],
+            &[
+                "现价",
+                "涨跌幅",
+                "交易均价",
+                "增持数量占总股本比例",
+                "变动后持股比例",
+            ],
             &["举牌公告日"],
             &["增持数量占总股本比例", "变动后持股比例"],
             true,
@@ -8734,8 +9124,17 @@ mod tests {
         assert_eq!(
             ths_col_names(&df),
             vec![
-                "序号", "举牌公告日", "股票代码", "股票简称", "现价", "涨跌幅", "举牌方",
-                "增持数量", "交易均价", "增持数量占总股本比例", "变动后持股总数",
+                "序号",
+                "举牌公告日",
+                "股票代码",
+                "股票简称",
+                "现价",
+                "涨跌幅",
+                "举牌方",
+                "增持数量",
+                "交易均价",
+                "增持数量占总股本比例",
+                "变动后持股总数",
                 "变动后持股比例",
             ]
         );
@@ -8744,7 +9143,12 @@ mod tests {
         let d = df.inner().column("举牌公告日").unwrap().str().unwrap();
         assert_eq!(d.get(0), Some("2026-08-07"));
         // 百分比列数值化
-        let ratio = df.inner().column("增持数量占总股本比例").unwrap().f64().unwrap();
+        let ratio = df
+            .inner()
+            .column("增持数量占总股本比例")
+            .unwrap()
+            .f64()
+            .unwrap();
         assert_eq!(ratio.get(0), Some(5.0));
     }
 
@@ -8756,7 +9160,13 @@ mod tests {
             <a href="http://q.10jqka.com.cn/thshy/detail/code/881273/">白酒</a>
         </div>"#;
         let pairs = crate::sources::ths::parse_cate_inner(html).unwrap();
-        assert_eq!(pairs, vec![("半导体".into(), "881121".into()), ("白酒".into(), "881273".into())]);
+        assert_eq!(
+            pairs,
+            vec![
+                ("半导体".into(), "881121".into()),
+                ("白酒".into(), "881273".into())
+            ]
+        );
     }
 
     /// 板块简介：dt/dd 提取 + 值内换行折叠为 `/`。
@@ -8770,7 +9180,10 @@ mod tests {
         let pairs = crate::sources::ths::parse_board_infos(html).unwrap();
         assert_eq!(
             pairs,
-            vec![("今开".into(), "0.00".into()), ("最新".into(), "2026-08-07/收盘".into())]
+            vec![
+                ("今开".into(), "0.00".into()),
+                ("最新".into(), "2026-08-07/收盘".into())
+            ]
         );
     }
 
@@ -8971,18 +9384,43 @@ mod tests {
         let df = build_esg_msci(&rows).unwrap();
         assert_eq!(
             df.column_names(),
-            vec!["股票代码", "ESG评分", "环境总评", "社会责任总评", "治理总评", "评级日期", "交易市场"]
+            vec![
+                "股票代码",
+                "ESG评分",
+                "环境总评",
+                "社会责任总评",
+                "治理总评",
+                "评级日期",
+                "交易市场"
+            ]
         );
         assert_eq!(df.height(), 1);
         // 评级日期 归一为 ISO 字符串（仍为 str 列，对应 akshare .dt.date → object）
         let dt = df.inner().column("评级日期").unwrap().str().unwrap();
         assert_eq!(dt.get(0), Some("2026-07-08"));
         // 三项评分数值化
-        assert_eq!(df.inner().column("环境总评").unwrap().f64().unwrap().get(0), Some(6.3));
-        assert_eq!(df.inner().column("社会责任总评").unwrap().f64().unwrap().get(0), Some(6.0));
-        assert_eq!(df.inner().column("治理总评").unwrap().f64().unwrap().get(0), Some(5.4));
+        assert_eq!(
+            df.inner().column("环境总评").unwrap().f64().unwrap().get(0),
+            Some(6.3)
+        );
+        assert_eq!(
+            df.inner()
+                .column("社会责任总评")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(0),
+            Some(6.0)
+        );
+        assert_eq!(
+            df.inner().column("治理总评").unwrap().f64().unwrap().get(0),
+            Some(5.4)
+        );
         // ESG评分 为等级字母，保持字符串
-        assert_eq!(df.inner().column("ESG评分").unwrap().str().unwrap().get(0), Some("AAA"));
+        assert_eq!(
+            df.inner().column("ESG评分").unwrap().str().unwrap().get(0),
+            Some("AAA")
+        );
     }
 
     #[test]
@@ -9002,17 +9440,58 @@ mod tests {
         assert_eq!(
             df.column_names(),
             vec![
-                "股票代码", "ESG评分", "ESG评分日期", "环境总评", "环境总评日期", "社会责任总评",
-                "社会责任总评日期", "治理总评", "治理总评日期", "争议总评", "争议总评日期", "行业", "交易所"
+                "股票代码",
+                "ESG评分",
+                "ESG评分日期",
+                "环境总评",
+                "环境总评日期",
+                "社会责任总评",
+                "社会责任总评日期",
+                "治理总评",
+                "治理总评日期",
+                "争议总评",
+                "争议总评日期",
+                "行业",
+                "交易所"
             ]
         );
         // 5 个日期列归一为 ISO 字符串
-        assert_eq!(df.inner().column("ESG评分日期").unwrap().str().unwrap().get(0), Some("2026-08-08"));
-        assert_eq!(df.inner().column("环境总评日期").unwrap().str().unwrap().get(0), Some("2026-08-08"));
-        assert_eq!(df.inner().column("争议总评日期").unwrap().str().unwrap().get(0), Some("2026-05-09"));
+        assert_eq!(
+            df.inner()
+                .column("ESG评分日期")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
+            Some("2026-08-08")
+        );
+        assert_eq!(
+            df.inner()
+                .column("环境总评日期")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
+            Some("2026-08-08")
+        );
+        assert_eq!(
+            df.inner()
+                .column("争议总评日期")
+                .unwrap()
+                .str()
+                .unwrap()
+                .get(0),
+            Some("2026-05-09")
+        );
         // 评分含等级后缀，不数值化（保持字符串）
-        assert_eq!(df.inner().column("ESG评分").unwrap().str().unwrap().get(0), Some("65.8(B)"));
-        assert_eq!(df.inner().column("交易所").unwrap().str().unwrap().get(0), Some("深交所"));
+        assert_eq!(
+            df.inner().column("ESG评分").unwrap().str().unwrap().get(0),
+            Some("65.8(B)")
+        );
+        assert_eq!(
+            df.inner().column("交易所").unwrap().str().unwrap().get(0),
+            Some("深交所")
+        );
     }
 
     #[test]
@@ -9033,7 +9512,14 @@ mod tests {
         let df = build_esg_rate(&rows).unwrap();
         assert_eq!(
             df.column_names(),
-            vec!["成分股代码", "评级机构", "评级", "评级季度", "标识", "交易市场"]
+            vec![
+                "成分股代码",
+                "评级机构",
+                "评级",
+                "评级季度",
+                "标识",
+                "交易市场"
+            ]
         );
         assert_eq!(df.height(), 2);
         // 同一股票的不同机构明细都带上了 symbol / market
@@ -9043,8 +9529,14 @@ mod tests {
         let inst = df.inner().column("评级机构").unwrap().str().unwrap();
         assert_eq!(inst.get(0), Some("MSCI"));
         assert_eq!(inst.get(1), Some("S&P"));
-        assert_eq!(df.inner().column("评级").unwrap().str().unwrap().get(0), Some("AAA"));
-        assert_eq!(df.inner().column("标识").unwrap().str().unwrap().get(1), Some("领跑"));
+        assert_eq!(
+            df.inner().column("评级").unwrap().str().unwrap().get(0),
+            Some("AAA")
+        );
+        assert_eq!(
+            df.inner().column("标识").unwrap().str().unwrap().get(1),
+            Some("领跑")
+        );
     }
 
     #[test]
@@ -9061,12 +9553,25 @@ mod tests {
         let df = build_esg_zd(&rows).unwrap();
         assert_eq!(
             df.column_names(),
-            vec!["股票代码", "ESG评分", "环境总评", "社会责任总评", "治理总评", "评分日期"]
+            vec![
+                "股票代码",
+                "ESG评分",
+                "环境总评",
+                "社会责任总评",
+                "治理总评",
+                "评分日期"
+            ]
         );
         // 评分含等级后缀保持字符串
-        assert_eq!(df.inner().column("ESG评分").unwrap().str().unwrap().get(0), Some("87.6(AAA)"));
+        assert_eq!(
+            df.inner().column("ESG评分").unwrap().str().unwrap().get(0),
+            Some("87.6(AAA)")
+        );
         // 评分日期 归一为 ISO 字符串
-        assert_eq!(df.inner().column("评分日期").unwrap().str().unwrap().get(0), Some("2026-07-31"));
+        assert_eq!(
+            df.inner().column("评分日期").unwrap().str().unwrap().get(0),
+            Some("2026-07-31")
+        );
         // 未入选字段（esg_rating/rating 等）不出现在列中
         assert!(!df.column_names().contains(&"esg_rating".to_string()));
     }
@@ -9086,19 +9591,47 @@ mod tests {
         assert_eq!(
             df.column_names(),
             vec![
-                "日期", "股票代码", "交易市场", "股票名称", "ESG评分", "ESG等级", "环境", "环境等级",
-                "社会", "社会等级", "公司治理", "公司治理等级"
+                "日期",
+                "股票代码",
+                "交易市场",
+                "股票名称",
+                "ESG评分",
+                "ESG等级",
+                "环境",
+                "环境等级",
+                "社会",
+                "社会等级",
+                "公司治理",
+                "公司治理等级"
             ]
         );
         // 日期列归一
-        assert_eq!(df.inner().column("日期").unwrap().str().unwrap().get(0), Some("2025-10-31"));
+        assert_eq!(
+            df.inner().column("日期").unwrap().str().unwrap().get(0),
+            Some("2025-10-31")
+        );
         // 数值列（esg/e/s/g），created_time 未入选
-        assert_eq!(df.inner().column("ESG评分").unwrap().f64().unwrap().get(0), Some(99.86));
-        assert_eq!(df.inner().column("环境").unwrap().f64().unwrap().get(0), Some(88.5));
-        assert_eq!(df.inner().column("社会").unwrap().f64().unwrap().get(0), Some(92.59));
-        assert_eq!(df.inner().column("公司治理").unwrap().f64().unwrap().get(0), Some(91.62));
+        assert_eq!(
+            df.inner().column("ESG评分").unwrap().f64().unwrap().get(0),
+            Some(99.86)
+        );
+        assert_eq!(
+            df.inner().column("环境").unwrap().f64().unwrap().get(0),
+            Some(88.5)
+        );
+        assert_eq!(
+            df.inner().column("社会").unwrap().f64().unwrap().get(0),
+            Some(92.59)
+        );
+        assert_eq!(
+            df.inner().column("公司治理").unwrap().f64().unwrap().get(0),
+            Some(91.62)
+        );
         // 等级列保持字符串
-        assert_eq!(df.inner().column("ESG等级").unwrap().str().unwrap().get(0), Some("AAA"));
+        assert_eq!(
+            df.inner().column("ESG等级").unwrap().str().unwrap().get(0),
+            Some("AAA")
+        );
         assert!(!df.column_names().contains(&"created_time".to_string()));
     }
 }

@@ -202,6 +202,8 @@ CASES: list[tuple[str, list[str], str, str]] = [
     # 由 gdfx_team_offline 离线测试覆盖）。
     ("stock_gdfx_free_holding_teamwork_em", ["券商"], "loose", "股东协作-自由流通持股"),
     ("stock_gdfx_holding_teamwork_em", ["社保"], "loose", "股东协作-持股"),
+    ("stock_gdfx_top_10_em", ["sh688686", "20210630"], "loose", "十大股东"),
+    ("stock_gdfx_free_top_10_em", ["sz000420", "20220331"], "loose", "十大流通股东"),
     ("stock_comment_detail_scrd_focus_em", ["600000"], "loose", "千股千评-人气聚焦"),
     ("stock_comment_detail_scrd_desire_em", ["600000"], "loose", "千股千评-参与意愿"),
     ("stock_sy_hy_em", ["20240930"], "loose", "商誉-行业统计"),

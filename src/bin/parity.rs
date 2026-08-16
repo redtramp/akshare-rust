@@ -15,14 +15,44 @@
 //!  "height":22,"head":[["2024-01-02","9.11",...],...]}
 //! ```
 
+use akshare_rust::bond::{
+    bond_available_index_cbond, bond_buy_back_hist_em, bond_cb_adj_logs_jsl, bond_cb_index_jsl,
+    bond_cb_jsl, bond_cb_profile_sina, bond_cb_redeem_jsl, bond_cb_summary_sina,
+    bond_china_close_return, bond_china_close_return_map, bond_china_yield,
+    bond_composite_index_cbond, bond_cov_comparison, bond_gb_us_sina, bond_gb_zh_sina,
+    bond_index_general_cbond, bond_info_cm, bond_info_cm_query, bond_info_detail_cm,
+    bond_new_composite_index_cbond, bond_sh_buy_back_em, bond_spot_deal, bond_spot_quote,
+    bond_sz_buy_back_em, bond_treasury_index_cbond, bond_zh_cov, bond_zh_cov_info,
+    bond_zh_cov_info_ths, bond_zh_cov_value_analysis, bond_zh_hs_cov_daily, bond_zh_hs_cov_min,
+    bond_zh_hs_cov_pre_min, bond_zh_hs_cov_spot, bond_zh_hs_daily, bond_zh_hs_spot,
+    bond_zh_us_rate,
+};
 use akshare_rust::cninfo::{
     bond_corporate_issue_cninfo, bond_cov_issue_cninfo, bond_cov_stock_issue_cninfo,
     bond_local_government_issue_cninfo, bond_treasure_issue_cninfo, stock_dividend_cninfo,
     stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo, stock_profile_cninfo,
 };
-use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_spot_quote, fx_swap_quote};
 use akshare_rust::core::df::Df;
+use akshare_rust::currency::{currency_boc_safe, currency_boc_sina};
 use akshare_rust::economic::{
+    // === BATCH6 海外宏观（RPT_ECONOMICVALUE_* 系列） ===
+    macro_australia_bank_rate,
+    macro_australia_cpi_quarterly,
+    macro_australia_cpi_yearly,
+    macro_australia_ppi_quarterly,
+    macro_australia_retail_rate_monthly,
+    macro_australia_trade,
+    macro_australia_unemployment_rate,
+    macro_canada_bank_rate,
+    macro_canada_core_cpi_monthly,
+    macro_canada_core_cpi_yearly,
+    macro_canada_cpi_monthly,
+    macro_canada_cpi_yearly,
+    macro_canada_gdp_monthly,
+    macro_canada_new_house_rate,
+    macro_canada_retail_rate_monthly,
+    macro_canada_trade,
+    macro_canada_unemployment_rate,
     // === BATCH3 ECONOMIC REMAINING: 东财 datacenter 36 个 ===
     macro_china_agricultural_index,
     macro_china_agricultural_product,
@@ -93,92 +123,82 @@ use akshare_rust::economic::{
     macro_china_whxd,
     macro_china_xfzxx,
     macro_china_yw_electronic_index,
-    // === BATCH6 海外宏观（RPT_ECONOMICVALUE_* 系列） ===
-    macro_australia_bank_rate,
-    macro_australia_cpi_quarterly,
-    macro_australia_cpi_yearly,
-    macro_australia_ppi_quarterly,
-    macro_australia_retail_rate_monthly,
-    macro_australia_trade,
-    macro_australia_unemployment_rate,
-    macro_canada_bank_rate,
-    macro_canada_core_cpi_monthly,
-    macro_canada_core_cpi_yearly,
-    macro_canada_cpi_monthly,
-    macro_canada_cpi_yearly,
-    macro_canada_gdp_monthly,
-    macro_canada_new_house_rate,
-    macro_canada_retail_rate_monthly,
-    macro_canada_trade,
-    macro_canada_unemployment_rate,
-    // === BATCH7a 海外宏观（RPT_ECONOMICVALUE_GER/JPAN/CH 系列） ===
-    macro_germany_ifo,
     macro_germany_cpi_monthly,
     macro_germany_cpi_yearly,
-    macro_germany_trade_adjusted,
     macro_germany_gdp,
+    // === BATCH7a 海外宏观（RPT_ECONOMICVALUE_GER/JPAN/CH 系列） ===
+    macro_germany_ifo,
     macro_germany_retail_sale_monthly,
     macro_germany_retail_sale_yearly,
+    macro_germany_trade_adjusted,
     macro_germany_zew,
     macro_japan_bank_rate,
-    macro_japan_cpi_yearly,
     macro_japan_core_cpi_yearly,
-    macro_japan_unemployment_rate,
+    macro_japan_cpi_yearly,
     macro_japan_head_indicator,
+    macro_japan_unemployment_rate,
+    macro_swiss_cpi_yearly,
+    macro_swiss_gbd_bank_rate,
+    macro_swiss_gbd_yearly,
+    macro_swiss_gdp_quarterly,
     macro_swiss_svme,
     macro_swiss_trade,
-    macro_swiss_cpi_yearly,
-    macro_swiss_gdp_quarterly,
-    macro_swiss_gbd_yearly,
-    macro_swiss_gbd_bank_rate,
+    macro_uk_bank_rate,
+    macro_uk_core_cpi_monthly,
+    macro_uk_core_cpi_yearly,
+    macro_uk_cpi_monthly,
+    macro_uk_cpi_yearly,
+    macro_uk_gdp_quarterly,
+    macro_uk_gdp_yearly,
     // === BATCH7b 海外宏观（RPT_ECONOMICVALUE_BRITAIN 系列） ===
     macro_uk_halifax_monthly,
     macro_uk_halifax_yearly,
-    macro_uk_trade,
-    macro_uk_bank_rate,
-    macro_uk_core_cpi_yearly,
-    macro_uk_core_cpi_monthly,
-    macro_uk_cpi_yearly,
-    macro_uk_cpi_monthly,
     macro_uk_retail_monthly,
     macro_uk_retail_yearly,
-    macro_uk_rightmove_yearly,
     macro_uk_rightmove_monthly,
-    macro_uk_gdp_quarterly,
-    macro_uk_gdp_yearly,
+    macro_uk_rightmove_yearly,
+    macro_uk_trade,
     macro_uk_unemployment_rate,
 };
+use akshare_rust::energy::{
+    energy_carbon_gz, energy_carbon_hb, energy_oil_detail, energy_oil_hist,
+};
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
+use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
 };
 use akshare_rust::futures::{
-    futures_comex_inventory, futures_contract_detail, futures_foreign_commodity_realtime,
-    futures_foreign_commodity_subscribe_exchange_symbol, futures_foreign_detail,
-    futures_foreign_hist, futures_global_hist_em, futures_global_spot_em, futures_index_ccidx,
-    futures_inventory_em, futures_settle, futures_settle_cffex, futures_settle_czce,
-    futures_settle_gfex, futures_settle_ine, futures_settle_shfe, futures_symbol_mark,
-    futures_zh_daily_sina, futures_zh_minute_sina, futures_zh_realtime, futures_zh_spot,
-    futures_display_main_sina, futures_main_sina, futures_hold_pos_sina,
-    futures_hq_subscribe_exchange_symbol,     futures_contract_info_cffex, futures_contract_info_czce,
+    futures_comex_inventory, futures_comm_info, futures_comm_js, futures_contract_detail,
+    futures_contract_detail_em, futures_contract_info_cffex, futures_contract_info_czce,
     futures_contract_info_dce, futures_contract_info_gfex, futures_contract_info_ine,
-    futures_contract_info_shfe, futures_warehouse_receipt_czce, futures_warehouse_receipt_dce,
-    futures_shfe_warehouse_receipt, futures_gfex_warehouse_receipt, futures_to_spot_shfe,
-    futures_delivery_dce, futures_to_spot_dce, futures_delivery_match_dce, futures_to_spot_czce,
-    futures_delivery_czce, futures_delivery_shfe, futures_hist_daily_cffex,
-    futures_hist_table_em, futures_hist_em, futures_settlement_price_sgx,
-    futures_comm_info, futures_comm_js, futures_fees_info, futures_rule,
-    futures_news_shmet, futures_inventory_99, futures_spot_stock, futures_stock_shfe_js,
-    futures_spot_sys, futures_contract_detail_em,
+    futures_contract_info_shfe, futures_delivery_czce, futures_delivery_dce,
+    futures_delivery_match_dce, futures_delivery_shfe, futures_display_main_sina,
+    futures_fees_info, futures_foreign_commodity_realtime,
+    futures_foreign_commodity_subscribe_exchange_symbol, futures_foreign_detail,
+    futures_foreign_hist, futures_gfex_warehouse_receipt, futures_global_hist_em,
+    futures_global_spot_em, futures_hist_daily_cffex, futures_hist_em, futures_hist_table_em,
+    futures_hold_pos_sina, futures_hq_subscribe_exchange_symbol, futures_index_ccidx,
+    futures_inventory_99, futures_inventory_em, futures_main_sina, futures_news_shmet,
+    futures_rule, futures_settle, futures_settle_cffex, futures_settle_czce, futures_settle_gfex,
+    futures_settle_ine, futures_settle_shfe, futures_settlement_price_sgx,
+    futures_shfe_warehouse_receipt, futures_spot_stock, futures_spot_sys, futures_stock_shfe_js,
+    futures_symbol_mark, futures_to_spot_czce, futures_to_spot_dce, futures_to_spot_shfe,
+    futures_warehouse_receipt_czce, futures_warehouse_receipt_dce, futures_zh_daily_sina,
+    futures_zh_minute_sina, futures_zh_realtime, futures_zh_spot,
 };
+use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_spot_quote, fx_swap_quote};
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
-use akshare_rust::interest_rate::{rate_interbank};
+use akshare_rust::interest_rate::rate_interbank;
 use akshare_rust::legu::{
     fund_balance_position_lg, fund_linghuo_position_lg, fund_stock_position_lg,
     stock_a_congestion_lg, stock_buffett_index_lg, stock_ebs_lg, stock_index_pb_lg,
     stock_index_pe_lg, stock_market_pb_lg, stock_market_pe_lg,
 };
-use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
+use akshare_rust::news::{
+    news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
+    news_trade_notify_suspend_baidu,
+};
 use akshare_rust::option::{
     option_cffex_hs300_daily_sina, option_cffex_hs300_spot_sina, option_cffex_sz50_daily_sina,
     option_cffex_sz50_spot_sina, option_cffex_zz1000_daily_sina, option_cffex_zz1000_spot_sina,
@@ -191,31 +211,62 @@ use akshare_rust::option::{
     option_sse_spot_price_sina, option_sse_underlying_spot_price_sina, option_value_analysis_em,
     option_vol_gfex, option_vol_shfe,
 };
+use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
+use akshare_rust::spot::{
+    spot_corn_price_soozhu, spot_golden_benchmark_sge, spot_goods, spot_hist_sge,
+    spot_hog_crossbred_soozhu, spot_hog_lean_price_soozhu, spot_hog_soozhu,
+    spot_hog_three_way_soozhu, spot_hog_year_trend_soozhu, spot_mixed_feed_soozhu, spot_price_qh,
+    spot_price_table_qh, spot_quotations_sge, spot_silver_benchmark_sge, spot_soybean_price_soozhu,
+    spot_symbol_table_sge,
+};
 use akshare_rust::stock::{
-    fund_etf_hist_em, stock_bid_ask_em, stock_board_concept_cons_em, stock_board_concept_hist_em,
-    stock_board_concept_name_em, stock_board_industry_cons_em, stock_board_industry_hist_em,
-    stock_board_industry_name_em, stock_hsgt_fund_flow_summary_em, stock_individual_fund_flow,
-    stock_individual_info_em, stock_sh_a_spot_em, stock_sz_a_spot_em, stock_zh_a_hist,
-    stock_zh_a_hist_min_em, stock_zh_a_spot_em, stock_zt_pool_dtgc_em, stock_zt_pool_em,
-    stock_zt_pool_previous_em, stock_zt_pool_strong_em,     stock_zt_pool_sub_new_em,
-    stock_zt_pool_zbgc_em,
-    // === BATCH27 科创板报告（np-anotice-stock，ann_type=KCB） ===
-    stock_zh_kcb_report_em,
-    // === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter） ===
-    stock_zh_growth_comparison_em, stock_zh_dupont_comparison_em, stock_zh_scale_comparison_em,
-    stock_hk_growth_comparison_em, stock_hk_scale_comparison_em,
-    // === BATCH12 港股 F10（RPT_HKF10_* / RPT_CUSTOM_HKF10_*，securities datacenter） ===
-    stock_hk_security_profile_em, stock_hk_company_profile_em, stock_hk_financial_indicator_em,
-    stock_hk_dividend_payout_em,
-    // === BATCH13 估值对比（RPT_PCF10_INDUSTRY_CVALUE / RPT_PCF10_INDUSTRY_HKCVALUE） ===
-    stock_zh_valuation_comparison_em, stock_hk_valuation_comparison_em,
+    fund_etf_hist_em,
+    stock_bid_ask_em,
+    stock_board_concept_cons_em,
+    stock_board_concept_hist_em,
+    stock_board_concept_name_em,
+    stock_board_industry_cons_em,
+    stock_board_industry_hist_em,
+    stock_board_industry_name_em,
     // === BATCH15 东财数据中心：股市日历/高管持股/股票回购（RPT_ORGOP_ALL / RPT_EXECUTIVE_HOLD_DETAILS / RPTA_WEB_GETHGLIST_NEW） ===
-    stock_gsrl_gsdt_em, stock_hold_management_detail_em, stock_hold_management_person_em,
-    stock_repurchase_em,
-    // === BATCH16 东财数据中心：基金持仓明细（RPT_MAINDATA_MAIN_POSITIONDETAILS） ===
-    stock_report_fund_hold_detail,
+    stock_gsrl_gsdt_em,
+    stock_hk_company_profile_em,
+    stock_hk_dividend_payout_em,
+    stock_hk_financial_indicator_em,
+    stock_hk_growth_comparison_em,
+    stock_hk_scale_comparison_em,
+    // === BATCH12 港股 F10（RPT_HKF10_* / RPT_CUSTOM_HKF10_*，securities datacenter） ===
+    stock_hk_security_profile_em,
+    stock_hk_valuation_comparison_em,
+    stock_hold_management_detail_em,
+    stock_hold_management_person_em,
+    stock_hsgt_fund_flow_summary_em,
+    stock_individual_fund_flow,
+    stock_individual_info_em,
     // === BATCH17 东财数据中心：基金持仓（dataapi host，位置式列映射→键 rename） ===
     stock_report_fund_hold,
+    // === BATCH16 东财数据中心：基金持仓明细（RPT_MAINDATA_MAIN_POSITIONDETAILS） ===
+    stock_report_fund_hold_detail,
+    stock_repurchase_em,
+    stock_sh_a_spot_em,
+    stock_sz_a_spot_em,
+    stock_zh_a_hist,
+    stock_zh_a_hist_min_em,
+    stock_zh_a_spot_em,
+    stock_zh_dupont_comparison_em,
+    // === BATCH11 同行比较（RPT_PCF10_INDUSTRY_*，securities datacenter） ===
+    stock_zh_growth_comparison_em,
+    // === BATCH27 科创板报告（np-anotice-stock，ann_type=KCB） ===
+    stock_zh_kcb_report_em,
+    stock_zh_scale_comparison_em,
+    // === BATCH13 估值对比（RPT_PCF10_INDUSTRY_CVALUE / RPT_PCF10_INDUSTRY_HKCVALUE） ===
+    stock_zh_valuation_comparison_em,
+    stock_zt_pool_dtgc_em,
+    stock_zt_pool_em,
+    stock_zt_pool_previous_em,
+    stock_zt_pool_strong_em,
+    stock_zt_pool_sub_new_em,
+    stock_zt_pool_zbgc_em,
 };
 use akshare_rust::stock::{stock_hk_spot_em, stock_zh_a_new_em, stock_zh_a_st_em};
 use akshare_rust::stock_feature::{
@@ -224,21 +275,22 @@ use akshare_rust::stock_feature::{
     stock_board_industry_name_ths, stock_comment_detail_scrd_desire_em,
     stock_comment_detail_scrd_focus_em, stock_comment_detail_zhpj_lspf_em,
     stock_comment_detail_zlkp_jgcyd_em, stock_comment_em, stock_cy_a_spot_em, stock_dxsyl_em,
-    stock_fhps_detail_em, stock_fhps_detail_ths, stock_fhps_em, stock_gddh_em,
+    stock_esg_hz_sina, stock_esg_msci_sina, stock_esg_rate_sina, stock_esg_rft_sina,
+    stock_esg_zd_sina, stock_fhps_detail_em, stock_fhps_detail_ths, stock_fhps_em, stock_gddh_em,
     stock_gdfx_free_holding_analyse_em, stock_gdfx_free_holding_change_em,
     stock_gdfx_free_holding_detail_em, stock_gdfx_free_holding_statistics_em,
-    stock_gdfx_free_holding_teamwork_em, stock_gdfx_holding_analyse_em,
+    stock_gdfx_free_top_10_em, stock_gdfx_free_holding_teamwork_em, stock_gdfx_holding_analyse_em,
     stock_gdfx_holding_change_em, stock_gdfx_holding_detail_em, stock_gdfx_holding_statistics_em,
-    stock_gdfx_holding_teamwork_em, stock_ggcg_em, stock_gpzy_distribute_statistics_bank_em,
+    stock_gdfx_holding_teamwork_em, stock_gdfx_top_10_em, stock_ggcg_em,
+    stock_gpzy_distribute_statistics_bank_em,
     stock_gpzy_distribute_statistics_company_em, stock_gpzy_individual_pledge_ratio_detail_em,
     stock_gpzy_industry_data_em, stock_gpzy_pledge_ratio_detail_em, stock_gpzy_pledge_ratio_em,
     stock_gpzy_profile_em, stock_hk_ggt_components_em, stock_hk_main_board_spot_em,
-    stock_hsgt_board_rank_em, stock_hsgt_hist_em, stock_hsgt_hold_stock_em,
-    stock_hsgt_individual_detail_em, stock_hsgt_individual_em,
-    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em,
     stock_hot_keyword_em, stock_hot_rank_detail_em, stock_hot_rank_detail_realtime_em,
     stock_hot_rank_em, stock_hot_rank_latest_em, stock_hot_rank_relate_em, stock_hot_up_em,
-    stock_ipo_hk_ths,
+    stock_hsgt_board_rank_em, stock_hsgt_hist_em, stock_hsgt_hold_stock_em,
+    stock_hsgt_individual_detail_em, stock_hsgt_individual_em,
+    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_ipo_hk_ths,
     stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
     stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
     stock_lhb_stock_detail_date_em, stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em,
@@ -250,64 +302,64 @@ use akshare_rust::stock_feature::{
     stock_sy_profile_em, stock_sy_yq_em, stock_tfp_em, stock_value_em, stock_xgsglb_em,
     stock_xjll_em, stock_yjbb_em, stock_yjkb_em, stock_yjyg_em, stock_yysj_em, stock_zcfz_bj_em,
     stock_zcfz_em, stock_zdhtmx_em, stock_zh_a_gdhs, stock_zh_a_gdhs_detail_em, stock_zh_b_spot_em,
-    stock_esg_hz_sina, stock_esg_msci_sina, stock_esg_rate_sina, stock_esg_rft_sina,
-    stock_esg_zd_sina,
 };
 use akshare_rust::stock_fund_flow::{
     stock_fund_flow_big_deal, stock_fund_flow_concept, stock_fund_flow_individual,
     stock_fund_flow_industry,
 };
 use akshare_rust::stock_fundamental::{
-    stock_a_gxl_lg, stock_dzjy_hygtj, stock_dzjy_hyyybtj, stock_dzjy_mrmx, stock_dzjy_mrtj,
-    stock_dzjy_sctj, stock_dzjy_yybph, stock_financial_abstract_new_ths,
-    stock_financial_abstract_ths, stock_financial_benefit_new_ths, stock_financial_benefit_ths,
-    stock_financial_cash_new_ths, stock_financial_cash_ths, stock_financial_debt_new_ths,
-    stock_financial_debt_ths, stock_individual_basic_info_hk_xq, stock_individual_basic_info_us_xq,
-    stock_individual_basic_info_xq, stock_management_change_ths, stock_profit_forecast_ths,
-    stock_restricted_release_detail_em, stock_restricted_release_queue_em,
-    stock_restricted_release_queue_sina, stock_restricted_release_stockholder_em,
-    stock_restricted_release_summary_em,
+    stock_a_gxl_lg,
+    stock_dzjy_hygtj,
+    stock_dzjy_hyyybtj,
+    stock_dzjy_mrmx,
+    stock_dzjy_mrtj,
+    stock_dzjy_sctj,
+    stock_dzjy_yybph,
+    stock_financial_abstract_new_ths,
+    stock_financial_abstract_ths,
     // === BATCH26 东财 F10 股本结构/商誉/财务分析主要指标 ===
-    stock_financial_analysis_indicator_em, stock_financial_hk_analysis_indicator_em,
-    stock_financial_us_analysis_indicator_em, stock_sy_em, stock_zh_a_gbjg_em,
-    stock_shareholder_change_ths,
-    // === BATCH8 注册制 IPO 审核信息（RPT_IPO_INFOALLNEW 系列） ===
-    stock_register_all_em, stock_register_db, stock_register_kcb, stock_register_cyb,
-    stock_register_bj, stock_register_sh, stock_register_sz,
+    stock_financial_analysis_indicator_em,
+    stock_financial_benefit_new_ths,
+    stock_financial_benefit_ths,
+    stock_financial_cash_new_ths,
+    stock_financial_cash_ths,
+    stock_financial_debt_new_ths,
+    stock_financial_debt_ths,
+    stock_financial_hk_analysis_indicator_em,
+    stock_financial_us_analysis_indicator_em,
+    stock_individual_basic_info_hk_xq,
+    stock_individual_basic_info_us_xq,
+    stock_individual_basic_info_xq,
+    // === BATCH27 东财公告大全 / 主营构成（emweb F10 + np-anotice-stock） ===
+    stock_individual_notice_report,
     // === BATCH9 首发申报/上会/辅导备案（RPT_IPO_DECORGNEWEST / RPT_IPO_REVIEW / RPT_IPO_TUTRECORD） ===
-    stock_ipo_declare_em, stock_ipo_review_em, stock_ipo_tutor_em,
+    stock_ipo_declare_em,
+    stock_ipo_review_em,
+    stock_ipo_tutor_em,
+    stock_management_change_ths,
+    stock_notice_report,
     // === BATCH10 盈利预测（RPT_WEB_RESPREDICT，动态 YEAR 列头） ===
     stock_profit_forecast_em,
-    // === BATCH27 东财公告大全 / 主营构成（emweb F10 + np-anotice-stock） ===
-    stock_individual_notice_report, stock_notice_report, stock_zygc_em,
+    stock_profit_forecast_ths,
+    // === BATCH8 注册制 IPO 审核信息（RPT_IPO_INFOALLNEW 系列） ===
+    stock_register_all_em,
+    stock_register_bj,
+    stock_register_cyb,
+    stock_register_db,
+    stock_register_kcb,
+    stock_register_sh,
+    stock_register_sz,
+    stock_restricted_release_detail_em,
+    stock_restricted_release_queue_em,
+    stock_restricted_release_queue_sina,
+    stock_restricted_release_stockholder_em,
+    stock_restricted_release_summary_em,
+    stock_shareholder_change_ths,
+    stock_sy_em,
+    stock_zh_a_gbjg_em,
+    stock_zygc_em,
 };
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
-use akshare_rust::bond::{
-    bond_buy_back_hist_em, bond_cb_adj_logs_jsl, bond_cb_index_jsl, bond_cb_jsl,
-    bond_cb_profile_sina, bond_cb_redeem_jsl, bond_cb_summary_sina, bond_china_close_return,
-    bond_china_close_return_map, bond_cov_comparison, bond_gb_us_sina, bond_gb_zh_sina,
-    bond_info_cm, bond_info_cm_query, bond_info_detail_cm, bond_sh_buy_back_em,
-    bond_spot_deal, bond_spot_quote, bond_sz_buy_back_em, bond_zh_cov, bond_zh_cov_info,
-    bond_zh_cov_value_analysis, bond_zh_hs_cov_daily, bond_zh_hs_cov_min, bond_zh_hs_cov_spot,
-    bond_zh_hs_cov_pre_min, bond_zh_hs_daily, bond_zh_hs_spot, bond_zh_us_rate,
-    bond_available_index_cbond, bond_china_yield, bond_composite_index_cbond,
-    bond_index_general_cbond, bond_new_composite_index_cbond, bond_treasury_index_cbond,
-    bond_zh_cov_info_ths,
-};
-use akshare_rust::currency::{currency_boc_safe, currency_boc_sina};
-use akshare_rust::energy::{energy_carbon_gz, energy_carbon_hb, energy_oil_detail, energy_oil_hist};
-use akshare_rust::news::{
-    news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
-    news_trade_notify_suspend_baidu,
-};
-use akshare_rust::fortune::hurun_rank;
-use akshare_rust::spot::{
-    spot_corn_price_soozhu, spot_golden_benchmark_sge, spot_goods, spot_hist_sge,
-    spot_hog_crossbred_soozhu, spot_hog_lean_price_soozhu, spot_hog_soozhu,
-    spot_hog_three_way_soozhu, spot_hog_year_trend_soozhu, spot_mixed_feed_soozhu,
-    spot_quotations_sge, spot_silver_benchmark_sge, spot_soybean_price_soozhu,
-    spot_symbol_table_sge, spot_price_qh, spot_price_table_qh,
-};
 use serde_json::json;
 
 type BoxErr = Box<dyn std::error::Error>;
@@ -681,6 +733,14 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_qbzf_em" => Ok(stock_qbzf_em()?),
         "stock_pg_em" => Ok(stock_pg_em()?),
         "stock_account_statistics_em" => Ok(stock_account_statistics_em()?),
+        "stock_gdfx_top_10_em" => {
+            let [s, d] = take2(func, args)?;
+            Ok(stock_gdfx_top_10_em(s, d)?)
+        }
+        "stock_gdfx_free_top_10_em" => {
+            let [s, d] = take2(func, args)?;
+            Ok(stock_gdfx_free_top_10_em(s, d)?)
+        }
         "stock_yjbb_em" => {
             let [d] = take1(func, args)?;
             Ok(stock_yjbb_em(d)?)
