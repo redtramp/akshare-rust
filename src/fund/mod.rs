@@ -1589,6 +1589,159 @@ fn fund_archives_base(symbol: &str, date: &str, data_type: &str, is_stock: bool)
     }
 }
 
+// === BATCH49-A 天天基金网-历史净值明细（api.fund.eastmoney.com/f10/lsjz）===
+//
+// 对应 akshare `fund/fund_em.py` 的 `fund_money_fund_info_em` /
+// `fund_etf_fund_info_em` / `fund_graded_fund_info_em`。分页
+// `Data.LSJZList`（每项 FSRQ/DWJZ/LJJZ/JZZZL/SGZT/SHZT），按净值日期升序。
+
+/// 货币型基金历史净值明细（对应 akshare [`akshare.fund_money_fund_info_em`]）。
+///
+/// - `symbol`: 货币型基金代码
+///
+/// # 返回列
+/// `净值日期, 每万份收益, 7日年化收益率, 申购状态, 赎回状态`
+pub fn fund_money_fund_info_em(symbol: &str) -> Result<Df> {
+    fund_lsjz_base(symbol, "", "", true)
+}
+
+/// 场内交易基金历史净值明细（对应 akshare [`akshare.fund_etf_fund_info_em`]）。
+///
+/// - `fund`: 场内交易基金代码；`start_date`/`end_date`: `YYYYMMDD`
+///
+/// # 返回列
+/// `净值日期, 单位净值, 累计净值, 日增长率, 申购状态, 赎回状态`
+pub fn fund_etf_fund_info_em(fund: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    fund_lsjz_base(fund, start_date, end_date, false)
+}
+
+/// 分级基金历史净值明细（对应 akshare [`akshare.fund_graded_fund_info_em`]）。
+///
+/// - `symbol`: 分级基金代码
+///
+/// # 返回列
+/// `净值日期, 单位净值, 累计净值, 日增长率, 申购状态, 赎回状态`
+pub fn fund_graded_fund_info_em(symbol: &str) -> Result<Df> {
+    fund_lsjz_base(symbol, "", "", false)
+}
+
+/// f10/lsjz 公共实现：分页拉取 LSJZList。
+fn fund_lsjz_base(symbol: &str, start_date: &str, end_date: &str, is_money: bool) -> Result<Df> {
+    // 本地日期格式化：YYYYMMDD → YYYY-MM-DD（空串原样）
+    let fmt_date = |d: &str| -> String {
+        if d.len() == 8 && d.bytes().all(|b| b.is_ascii_digit()) {
+            format!("{}-{}-{}", &d[..4], &d[4..6], &d[6..])
+        } else {
+            d.to_string()
+        }
+    };
+    let url = "https://api.fund.eastmoney.com/f10/lsjz";
+    let http = HttpClient::default();
+    let mut params = json!({
+        "fundCode": symbol,
+        "pageIndex": "1",
+        "pageSize": "20",
+        "startDate": fmt_date(start_date),
+        "endDate": fmt_date(end_date),
+        "_": chrono::Utc::now().timestamp_millis().to_string(),
+    });
+    let parse = |v: &Value| -> u64 { v.get("TotalCount").and_then(Value::as_u64).unwrap_or(0) };
+    let first_params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let first = http.get_json_with_headers(
+        url,
+        &first_params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"),
+            ("Referer", &format!("https://fundf10.eastmoney.com/jjjz_{symbol}.html")),
+            ("Host", "api.fund.eastmoney.com"),
+        ],
+        None,
+    )?;
+    let total_page = parse(&first).div_ceil(20).max(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v
+            .get("Data")
+            .and_then(|d| d.get("LSJZList"))
+            .and_then(Value::as_array)
+        {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=total_page {
+        params = json!({
+            "fundCode": symbol,
+            "pageIndex": page.to_string(),
+            "pageSize": "20",
+            "startDate": fmt_date(start_date),
+            "endDate": fmt_date(end_date),
+            "_": chrono::Utc::now().timestamp_millis().to_string(),
+        });
+        let pm: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_json_with_headers(
+            url,
+            &pm,
+            &[
+                ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"),
+                ("Referer", &format!("https://fundf10.eastmoney.com/jjjz_{symbol}.html")),
+                ("Host", "api.fund.eastmoney.com"),
+            ],
+            None,
+        ) {
+            Ok(v) => append(&v, &mut rows),
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        if is_money {
+            // 净值日期, 每万份收益, 7日年化收益率, 申购状态, 赎回状态
+            out.push(vec![f("FSRQ"), f("SYL"), f("DWJZ"), f("SGZT"), f("SHZT")]);
+        } else {
+            out.push(vec![
+                f("FSRQ"),
+                f("DWJZ"),
+                f("LJJZ"),
+                f("JZZZL"),
+                f("SGZT"),
+                f("SHZT"),
+            ]);
+        }
+    }
+    if is_money {
+        const COLS: [&str; 5] = [
+            "净值日期",
+            "每万份收益",
+            "7日年化收益率",
+            "申购状态",
+            "赎回状态",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &out)?;
+        df.cast_date(&["净值日期"])?;
+        df.cast_numeric(&["每万份收益", "7日年化收益率"])?;
+        df = df.sort_by("净值日期", true, false)?;
+        Ok(df)
+    } else {
+        const COLS: [&str; 6] = [
+            "净值日期",
+            "单位净值",
+            "累计净值",
+            "日增长率",
+            "申购状态",
+            "赎回状态",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &out)?;
+        df.cast_date(&["净值日期"])?;
+        df.cast_numeric(&["单位净值", "累计净值", "日增长率"])?;
+        df = df.sort_by("净值日期", true, false)?;
+        Ok(df)
+    }
+}
+
 // === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应

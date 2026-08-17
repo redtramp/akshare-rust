@@ -205,12 +205,13 @@ use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_ma
 use akshare_rust::forex::{forex_hist_em, forex_spot_em};
 use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
-    fund_cf_em, fund_etf_category_ths, fund_etf_hist_min_em, fund_etf_spot_em, fund_etf_spot_ths,
-    fund_exchange_rank_em, fund_fh_em, fund_financial_fund_daily_em, fund_hold_structure_em,
+    fund_cf_em, fund_etf_category_ths, fund_etf_fund_info_em, fund_etf_hist_min_em,
+    fund_etf_spot_em, fund_etf_spot_ths, fund_exchange_rank_em, fund_fh_em,
+    fund_financial_fund_daily_em, fund_graded_fund_info_em, fund_hold_structure_em,
     fund_lcx_rank_em, fund_lof_hist_em, fund_lof_spot_em, fund_money_fund_daily_em,
-    fund_money_rank_em, fund_name_em, fund_new_found_em, fund_open_fund_daily_em,
-    fund_open_fund_rank_em, fund_portfolio_bond_hold_em, fund_portfolio_hold_em,
-    fund_portfolio_industry_allocation_em, fund_scale_change_em,
+    fund_money_fund_info_em, fund_money_rank_em, fund_name_em, fund_new_found_em,
+    fund_open_fund_daily_em, fund_open_fund_rank_em, fund_portfolio_bond_hold_em,
+    fund_portfolio_hold_em, fund_portfolio_industry_allocation_em, fund_scale_change_em,
 };
 use akshare_rust::futures::{
     futures_comex_inventory, futures_comm_info, futures_comm_js, futures_contract_detail,
@@ -857,6 +858,18 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(fund_portfolio_bond_hold_em(s, d)?)
         }
         "fund_new_found_em" => Ok(fund_new_found_em()?),
+        "fund_money_fund_info_em" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_money_fund_info_em(s)?)
+        }
+        "fund_etf_fund_info_em" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(fund_etf_fund_info_em(s, d0, d1)?)
+        }
+        "fund_graded_fund_info_em" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_graded_fund_info_em(s)?)
+        }
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
         "stock_profile_cninfo" => {
             let [s] = take1(func, args)?;
