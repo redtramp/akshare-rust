@@ -1479,6 +1479,83 @@ pub fn index_hist_fund_sw(symbol: &str, period: &str) -> Result<Df> {
     Ok(df)
 }
 
+/// 新浪-最新指数成份股目录（对应 akshare [`akshare.index_stock_cons`]）。
+///
+/// - `symbol`: 指数代码，如 `"399639"`
+///
+/// `vII_NewestComponent` HTML 分页（gb2312），第 4 张表取前 3 列；
+/// 品种代码 zfill(6)。
+///
+/// # 返回列
+/// `品种代码, 品种名称, 纳入日期`
+pub fn index_stock_cons(symbol: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let first_url = format!(
+        "https://vip.stock.finance.sina.com.cn/corp/go.php/vII_NewestComponent/indexid/{symbol}.phtml"
+    );
+    let first_text = http.get_text(&first_url, &Map::new(), None)?;
+    // 解析分页数：class="table2" 最后一个 a 的 page 参数
+    let page_num = parse_newest_component_pages(&first_text);
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    if page_num == "#" || page_num.is_empty() {
+        // 单页：read_html[3] 前 3 列
+        let tables = crate::core::html::read_html_tables(&first_text)?;
+        if let Some(table) = tables.get(3) {
+            rows = table.iter().skip(2).cloned().collect();
+        }
+    } else {
+        if let Ok(pages) = page_num.parse::<u32>() {
+            for page in 1..=pages {
+                let url = format!(
+                    "https://vip.stock.finance.sina.com.cn/corp/view/vII_NewestComponent.php?page={page}&indexid={symbol}"
+                );
+                match http.get_text(&url, &Map::new(), None) {
+                    Ok(t) => {
+                        if let Ok(tables) = crate::core::html::read_html_tables(&t) {
+                            if let Some(table) = tables.get(3) {
+                                rows.extend(table.iter().skip(1).cloned());
+                            }
+                        }
+                    }
+                    Err(_) => break,
+                }
+                let delay: f64 = rand::random_range(0.5..1.5);
+                std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+            }
+        }
+    }
+    // 取前 3 列，品种代码 zfill(6)
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let mut r: Vec<Option<String>> = row.iter().take(3).map(|s| Some(s.clone())).collect();
+        while r.len() < 3 {
+            r.push(None);
+        }
+        if let Some(Some(s)) = r.first_mut() {
+            *s = format!("{:0>6}", s);
+        }
+        out.push(r);
+    }
+    Df::from_string_rows(&["品种代码", "品种名称", "纳入日期"], &out)
+}
+
+/// 解析 `vII_NewestComponent` 分页数（最后一个 `page=N`）。
+fn parse_newest_component_pages(html: &str) -> String {
+    let mut found = String::new();
+    for m in html.match_indices("page=") {
+        let rest = &html[m.0 + 5..];
+        let num: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if !num.is_empty() {
+            found = num;
+        }
+    }
+    if found.is_empty() {
+        "#".to_string()
+    } else {
+        found
+    }
+}
+
 /// 申万宏源-指数系列实时行情（对应 akshare [`akshare.index_realtime_sw`]）。
 ///
 /// - `symbol`: `"市场表征"` / `"一级行业"` / `"二级行业"` / `"风格指数"` /

@@ -141,6 +141,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("index_volume_cflp", ["月指数"], "loose", "公路物流运量指数"),
     ("index_inner_quote_sugar_msweet", [], "loose", "配额内进口糖估算"),
     ("index_outer_quote_sugar_msweet", [], "loose", "外盘糖指数"),
+    ("index_stock_cons", ["399639"], "loose", "新浪指数成份股"),
     ("index_zh_a_hist_min_em", ["399006", "5", "2026-01-01 09:00:00", "2026-12-31 15:00:00"], "strict", "指数分钟K线"),
     ("fund_etf_spot_em", [], "loose", "ETF实时行情"),
     ("fund_etf_hist_min_em", ["159707", "1979-09-01 09:32:00", "2222-01-01 09:32:00", "5", ""], "loose", "ETF分钟行情"),

@@ -240,9 +240,10 @@ use akshare_rust::index::{
     index_hist_cni, index_hist_fund_sw, index_hist_sw, index_ii_cx, index_inner_quote_sugar_msweet,
     index_li_cx, index_min_sw, index_neaw_cx, index_neei_cx, index_nei_cx,
     index_outer_quote_sugar_msweet, index_pmi_com_cx, index_pmi_man_cx, index_pmi_ser_cx,
-    index_price_cflp, index_qli_cx, index_realtime_sw, index_si_cx, index_stock_cons_csindex,
-    index_stock_cons_sina, index_stock_cons_weight_csindex, index_stock_info, index_sugar_msweet,
-    index_ti_cx, index_volume_cflp, index_zh_a_hist, index_zh_a_hist_min_em,
+    index_price_cflp, index_qli_cx, index_realtime_sw, index_si_cx, index_stock_cons,
+    index_stock_cons_csindex, index_stock_cons_sina, index_stock_cons_weight_csindex,
+    index_stock_info, index_sugar_msweet, index_ti_cx, index_volume_cflp, index_zh_a_hist,
+    index_zh_a_hist_min_em,
 };
 use akshare_rust::interest_rate::rate_interbank;
 use akshare_rust::legu::{
@@ -808,6 +809,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         "index_inner_quote_sugar_msweet" => Ok(index_inner_quote_sugar_msweet()?),
         "index_outer_quote_sugar_msweet" => Ok(index_outer_quote_sugar_msweet()?),
+        "index_stock_cons" => {
+            let [s] = take1(func, args)?;
+            Ok(index_stock_cons(s)?)
+        }
         "fund_etf_spot_em" => Ok(fund_etf_spot_em()?),
         "fund_etf_hist_min_em" => {
             let [s, d0, d1, p, a] = take5(func, args)?;
