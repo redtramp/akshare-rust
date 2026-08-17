@@ -1253,6 +1253,152 @@ pub fn fund_name_em() -> Result<Df> {
     )
 }
 
+// === BATCH43-A 天天基金网-规模份额（FundDataPortfolio_Interface.aspx dt=9/11）===
+//
+// 对应 akshare `fund/fund_scale_em.py`。响应 `var hypzDetail={data:[...],pages:"57"}`，
+// `data` 每行 6 字段位置式，分页直到 pages。
+
+/// 天天基金网-规模变动（对应 akshare [`akshare.fund_scale_change_em`]）。
+///
+/// # 返回列
+/// `序号, 截止日期, 基金家数, 期间申购, 期间赎回, 期末总份额, 期末净资产`
+pub fn fund_scale_change_em() -> Result<Df> {
+    fund_hypz_base("9", false)
+}
+
+/// 天天基金网-持有人结构（对应 akshare [`akshare.fund_hold_structure_em`]）。
+///
+/// # 返回列
+/// `序号, 截止日期, 基金家数, 机构持有比列, 个人持有比列, 内部持有比列, 总份额`
+pub fn fund_hold_structure_em() -> Result<Df> {
+    fund_hypz_base("11", true)
+}
+
+/// 规模份额公共实现（FundDataPortfolio_Interface.aspx，dt 分接口）。
+fn fund_hypz_base(dt: &str, is_hold: bool) -> Result<Df> {
+    let url = "https://fund.eastmoney.com/data/FundDataPortfolio_Interface.aspx";
+    let http = HttpClient::default();
+    let mut params: Map<String, Value> = json!({
+        "dt": dt,
+        "pi": "1",
+        "pn": "50",
+        "mc": "hypzDetail",
+        "st": "desc",
+        "sc": "reportdate",
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let parse = |text: &str| -> Result<Value> {
+        let start = text
+            .find('{')
+            .ok_or_else(|| AkshareError::Empty("规模份额响应缺少对象".into()))?;
+        let end = text.rfind('}').unwrap_or(text.len()).saturating_add(1);
+        serde_json::from_str(&text[start..end]).map_err(|e| AkshareError::json(url, e.to_string()))
+    };
+    let first_text = http.get_text(url, &params, None)?;
+    let first = parse(&first_text)?;
+    let total_page: i64 = first
+        .get("pages")
+        .and_then(Value::as_str)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v.get("data").and_then(Value::as_array) {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=total_page {
+        params = json!({
+            "dt": dt,
+            "pi": page.to_string(),
+            "pn": "50",
+            "mc": "hypzDetail",
+            "st": "desc",
+            "sc": "reportdate",
+        })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_text(url, &params, None) {
+            Ok(t) => {
+                if let Ok(v) = parse(&t) {
+                    append(&v, &mut rows);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    // data 每行 6 字段位置式
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| {
+            row.get(idx)
+                .and_then(Value::as_str)
+                .map(|s| {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t.to_string())
+                    }
+                })
+                .unwrap_or(None)
+        };
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f(0),
+            f(1),
+            f(2),
+            f(3),
+            f(4),
+            f(5),
+        ]);
+    }
+    if !is_hold {
+        const COLS: [&str; 7] = [
+            "序号",
+            "截止日期",
+            "基金家数",
+            "期间申购",
+            "期间赎回",
+            "期末总份额",
+            "期末净资产",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &out)?;
+        df.cast_date(&["截止日期"])?;
+        df.cast_numeric(&[
+            "基金家数",
+            "期间申购",
+            "期间赎回",
+            "期末总份额",
+            "期末净资产",
+        ])?;
+        Ok(df)
+    } else {
+        const COLS: [&str; 7] = [
+            "序号",
+            "截止日期",
+            "基金家数",
+            "机构持有比列",
+            "个人持有比列",
+            "内部持有比列",
+            "总份额",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &out)?;
+        df.cast_date(&["截止日期"])?;
+        df.cast_numeric(&["基金家数", "机构持有比列", "个人持有比列", "内部持有比列"])?;
+        df.strip_commas(&["总份额"])?;
+        df.cast_numeric(&["总份额"])?;
+        Ok(df)
+    }
+}
+
 // === BATCH39-B 天天基金网分红送配（funddataIndex_Interface.aspx，dt=8/9）===
 //
 // 对应 akshare `fund/fund_fhsp_em.py` 的 `fund_fh_em`（dt=8 分红）与

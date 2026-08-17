@@ -910,6 +910,55 @@ fn cnindex_sample_detail(symbol: &str, endpoint: &str) -> Result<Df> {
     Ok(df)
 }
 
+/// 中证指数网站-指数列表（对应 akshare [`akshare.index_csindex_all`]）。
+///
+/// `csindex.com.cn/csindex-home/exportExcel/indexAll/CH` POST JSON → xlsx 下载
+/// （复用 [`csindex_xls_rows`]），指数代码 zfill(6)，基日/发布时间 日期化。
+///
+/// # 返回列
+/// 原键列（`指数代码, 指数名称, 基日, 发布时间, ...`）
+pub fn index_csindex_all() -> Result<Df> {
+    let url = "https://www.csindex.com.cn/csindex-home/exportExcel/indexAll/CH";
+    let body = json!({
+        "sorter": {"sortField": "null", "sortOrder": null},
+        "pager": {"pageNum": 1, "pageSize": 10},
+        "indexFilter": {
+            "ifCustomized": null,
+            "ifTracked": null,
+            "ifWeightCapped": null,
+            "indexCompliance": null,
+            "hotSpot": null,
+            "indexClassify": null,
+            "currency": null,
+            "region": null,
+            "indexSeries": ["1"],
+            "undefined": null,
+        },
+    });
+    let http = HttpClient::default();
+    let bytes = http.post_json_bytes(
+        url,
+        &body,
+        &[("Content-Type", "application/json;charset=UTF-8")],
+    )?;
+    let all = csindex_xls_rows(&bytes)?;
+    let mut iter = all.into_iter();
+    let header = iter.next().unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for row in iter {
+        let mut r: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+        // 指数代码 zfill(6)
+        if let Some(Some(s)) = r.first_mut() {
+            *s = format!("{:0>6}", s);
+        }
+        out.push(r);
+    }
+    let col_refs: Vec<&str> = header.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    df.cast_date(&["基日", "发布时间"])?;
+    Ok(df)
+}
+
 // === BATCH39-C 申万宏源研究-指数（index_hist_sw 等）===
 //
 // 对应 akshare `index/index_research_sw.py`。`swsresearch.com/institute-sw/api/`

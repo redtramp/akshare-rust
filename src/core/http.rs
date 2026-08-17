@@ -494,6 +494,59 @@ impl HttpClient {
             .unwrap_or_else(|| AkshareError::Blocked("POST(JSON) 请求重试耗尽，未知错误".into())))
     }
 
+    /// 带重试的 POST（JSON body + 自定义请求头），返回**原始字节**。
+    ///
+    /// 对应 akshare `requests.post(url, json=payload)` 后直接消费 `resp.content`
+    /// （如 csindex exportExcel 下载 xlsx）。与 [`Self::post_json_body`] 的区别是
+    /// 不做 JSON 反序列化，适合非 JSON 响应。
+    pub fn post_json_bytes(
+        &self,
+        url: &str,
+        body: &Value,
+        headers: &[(&str, &str)],
+    ) -> Result<Vec<u8>> {
+        let mut last_err: Option<AkshareError> = None;
+
+        for attempt in 0..self.max_retries {
+            let mut req = self.inner.post(url).json(body);
+            for (k, v) in headers {
+                if let Ok(hv) = HeaderValue::from_str(v) {
+                    req = req.header(*k, hv);
+                }
+            }
+
+            match req.send() {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        let bytes = resp.bytes().map_err(AkshareError::from)?;
+                        return Ok(bytes.to_vec());
+                    }
+                    let err = AkshareError::Status {
+                        status: status.as_u16(),
+                        url: url.to_string(),
+                    };
+                    if status.is_client_error() {
+                        return Err(err);
+                    }
+                    last_err = Some(err);
+                }
+                Err(e) => last_err = Some(AkshareError::Http(e)),
+            }
+
+            if attempt + 1 < self.max_retries {
+                let jitter: f64 =
+                    rand::random_range(self.random_delay_range.0..self.random_delay_range.1);
+                let delay = self.base_delay_secs * (2u32.pow(attempt)) as f64 + jitter;
+                std::thread::sleep(Duration::from_secs_f64(delay));
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| {
+            AkshareError::Blocked("POST(JSON) 字节请求重试耗尽，未知错误".into())
+        }))
+    }
+
     /// 带重试的 POST（application/x-www-form-urlencoded 表单体 + 自定义请求头），返回解析后的 JSON。
     ///
     /// 对应 akshare `requests.post(url, data=payload, headers=...)`：

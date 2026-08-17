@@ -206,9 +206,10 @@ use akshare_rust::forex::{forex_hist_em, forex_spot_em};
 use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
     fund_cf_em, fund_etf_category_ths, fund_etf_hist_min_em, fund_etf_spot_em, fund_etf_spot_ths,
-    fund_exchange_rank_em, fund_fh_em, fund_financial_fund_daily_em, fund_lcx_rank_em,
-    fund_lof_hist_em, fund_lof_spot_em, fund_money_fund_daily_em, fund_money_rank_em, fund_name_em,
-    fund_open_fund_daily_em, fund_open_fund_rank_em,
+    fund_exchange_rank_em, fund_fh_em, fund_financial_fund_daily_em, fund_hold_structure_em,
+    fund_lcx_rank_em, fund_lof_hist_em, fund_lof_spot_em, fund_money_fund_daily_em,
+    fund_money_rank_em, fund_name_em, fund_open_fund_daily_em, fund_open_fund_rank_em,
+    fund_scale_change_em,
 };
 use akshare_rust::futures::{
     futures_comex_inventory, futures_comm_info, futures_comm_js, futures_contract_detail,
@@ -233,12 +234,12 @@ use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_quote_baidu, fx_spot_quot
 use akshare_rust::index::{
     index_ai_cx, index_all_cni, index_analysis_daily_sw, index_analysis_monthly_sw,
     index_analysis_week_month_sw, index_analysis_weekly_sw, index_awpr_cx, index_bei_cx,
-    index_bi_cx, index_cci_cx, index_ci_cx, index_component_sw, index_dei_cx, index_detail_cni,
-    index_detail_hist_adjust_cni, index_detail_hist_cni, index_fi_cx, index_global_hist_em,
-    index_global_hist_sina, index_global_name_table, index_global_spot_em, index_hist_cni,
-    index_hist_sw, index_ii_cx, index_li_cx, index_min_sw, index_neaw_cx, index_neei_cx,
-    index_nei_cx, index_pmi_com_cx, index_pmi_man_cx, index_pmi_ser_cx, index_qli_cx,
-    index_realtime_sw, index_si_cx, index_stock_cons_csindex, index_stock_cons_sina,
+    index_bi_cx, index_cci_cx, index_ci_cx, index_component_sw, index_csindex_all, index_dei_cx,
+    index_detail_cni, index_detail_hist_adjust_cni, index_detail_hist_cni, index_fi_cx,
+    index_global_hist_em, index_global_hist_sina, index_global_name_table, index_global_spot_em,
+    index_hist_cni, index_hist_sw, index_ii_cx, index_li_cx, index_min_sw, index_neaw_cx,
+    index_neei_cx, index_nei_cx, index_pmi_com_cx, index_pmi_man_cx, index_pmi_ser_cx,
+    index_qli_cx, index_realtime_sw, index_si_cx, index_stock_cons_csindex, index_stock_cons_sina,
     index_stock_cons_weight_csindex, index_stock_info, index_ti_cx, index_zh_a_hist,
     index_zh_a_hist_min_em,
 };
@@ -790,6 +791,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "index_ai_cx" => Ok(index_ai_cx()?),
         "index_bei_cx" => Ok(index_bei_cx()?),
         "index_neei_cx" => Ok(index_neei_cx()?),
+        "index_csindex_all" => Ok(index_csindex_all()?),
         "fund_etf_spot_em" => Ok(fund_etf_spot_em()?),
         "fund_etf_hist_min_em" => {
             let [s, d0, d1, p, a] = take5(func, args)?;
@@ -818,6 +820,8 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(fund_cf_em(y, t, r, s, p.parse().unwrap_or(-1))?)
         }
         "fund_name_em" => Ok(fund_name_em()?),
+        "fund_scale_change_em" => Ok(fund_scale_change_em()?),
+        "fund_hold_structure_em" => Ok(fund_hold_structure_em()?),
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
         "stock_profile_cninfo" => {
             let [s] = take1(func, args)?;

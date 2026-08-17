@@ -82,11 +82,13 @@
 
 > **2026-08-17 批次 42 刷新**：批量实现 economic 欧元区宏观 16 个（`macro_euro_gdp_yoy`/`macro_euro_cpi_mom`/`macro_euro_cpi_yoy`/`macro_euro_ppi_mom`/`macro_euro_retail_sales_mom`/`macro_euro_employment_change_qoq`/`macro_euro_unemployment_rate_mom`/`macro_euro_trade_balance`/`macro_euro_current_account_mom`/`macro_euro_industrial_production_mom`/`macro_euro_manufacturing_pmi`/`macro_euro_services_pmi`/`macro_euro_zew_economic_sentiment`/`macro_euro_sentix_investor_confidence`，金十 `category=ec` 复用 `macro_china_base` 宏；`macro_euro_lme_holding`/`macro_euro_lme_stock`，`cdn.jin10.com lme json` 展开），akshare 同名 `pub fn` 达 **708** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 64.4%**。
 
+> **2026-08-17 批次 43 刷新**：批量实现 fund 规模份额 2 个（`fund_scale_change_em`/`fund_hold_structure_em`，`FundDataPortfolio_Interface.aspx` dt=9/11 分页，公共实现 `fund_hypz_base`）+ index 中证指数列表 1 个（`index_csindex_all`，`csindex-home/exportExcel/indexAll/CH` POST JSON → xlsx 下载，新增 `HttpClient::post_json_bytes`），akshare 同名 `pub fn` 达 **711** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 64.7%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **708**（2026-08-17 批次 42 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（708 / 1099 实测口径） | **≈ 64.4%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **711**（2026-08-17 批次 43 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（711 / 1099 实测口径） | **≈ 64.7%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -96,8 +98,8 @@
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---:|---:|---:|
 | economic | 147 | 225 | 65.3% |
-| index | 44 | 95 | 46.3% |
-| fund | 20 | 88 | 22.7% |
+| index | 45 | 95 | 47.4% |
+| fund | 22 | 88 | 25.0% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -131,7 +133,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **708（64.4%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 46.3%（44/95）**、**fund 22.7%（20/88）**。最大缺口在 **index / fund / economic**（合计 197）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **711（64.7%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 47.4%（45/95）**、**fund 25.0%（22/88）**。最大缺口在 **index / fund / economic**（合计 194）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -769,6 +771,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 41（2026-08-17）· index 财新数据-指数报告 19 个批量落地**：akshare 同名 `pub fn` 达 **692（63.0%）**。覆盖 **index 财新指数报告 19 个**（BATCH41-A `index_pmi_com_cx`/`index_pmi_man_cx`/`index_pmi_ser_cx`/`index_dei_cx`/`index_ii_cx`/`index_si_cx`/`index_fi_cx`/`index_bi_cx`/`index_nei_cx`/`index_li_cx`/`index_ci_cx`/`index_ti_cx`/`index_neaw_cx`/`index_awpr_cx`/`index_cci_cx`/`index_qli_cx`/`index_ai_cx`/`index_bei_cx`/`index_neei_cx`，同源 `yun.ccxe.com.cn/api/index/pro/cxIndexTrendInfo` 仅 `type` 参数不同（com/man/ser/dei/ii/si/fi/bi/nei/li/ci/ti/neaw/awpr/cci/qli/ai/ind×2），响应 `data` 每项 `{changeRate, data, time}`（time 毫秒 → Asia/Shanghai 日期），输出 `日期, {指数名}, 变化值/变化幅度` 三列；公共实现 `cx_index_trend` + 宏 `cx_index_fn!`）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；19 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 > **批次 42（2026-08-17）· economic 欧元区宏观 16 个批量落地**：akshare 同名 `pub fn` 达 **708（64.4%）**。覆盖 **economic 欧元区宏观 16 个**（BATCH42-A 金十 14 个 `macro_euro_gdp_yoy`/`macro_euro_cpi_mom`/`macro_euro_cpi_yoy`/`macro_euro_ppi_mom`/`macro_euro_retail_sales_mom`/`macro_euro_employment_change_qoq`/`macro_euro_unemployment_rate_mom`/`macro_euro_trade_balance`/`macro_euro_current_account_mom`/`macro_euro_industrial_production_mom`/`macro_euro_manufacturing_pmi`/`macro_euro_services_pmi`/`macro_euro_zew_economic_sentiment`/`macro_euro_sentix_investor_confidence`，`category="ec"` 与 [`macro_china_base`] 同契约直接复用宏 `macro_euro_fn!`，attr_id 8/11/14/19/30/36/38/40/41/43/46/48/84×2；BATCH42-B LME 2 个 `macro_euro_lme_holding`/`macro_euro_lme_stock`，`cdn.jin10.com/data_center/reports/lme_{position,stock}.json`，`{keys:[{name}], values:{日期:{品种:[v0,v1,v2]}}}` 展开为 `日期, {日期}-{keys[i].name}...`（品种 × 3 指标，末行合计去掉），公共实现 `macro_lme_base`）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；16 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 43（2026-08-17）· fund 规模份额 + index 中证指数列表 3 个批量落地**：akshare 同名 `pub fn` 达 **711（64.7%）**。覆盖：① **fund 规模份额 2 个**（BATCH43-A `fund_scale_change_em`（`FundDataPortfolio_Interface.aspx` dt=9 规模变动，7 列）、`fund_hold_structure_em`（dt=11 持有人结构，7 列；总份额去逗号），响应 `var hypzDetail={data:[...],pages:"57"}` 分页，公共实现 `fund_hypz_base`）；② **index 中证指数列表 1 个**（`index_csindex_all`，`csindex-home/exportExcel/indexAll/CH` POST JSON → xlsx 下载复用 `csindex_xls_rows`，指数代码 zfill(6)、基日/发布时间日期化；**新增 `HttpClient::post_json_bytes`**（POST JSON body 返回原始字节，供 xlsx 等非 JSON 下载））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；3 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在
