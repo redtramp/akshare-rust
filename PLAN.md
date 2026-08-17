@@ -74,11 +74,13 @@
 
 > **2026-08-17 批次 38 刷新**：批量实现 fund 排行 4 个（`fund_open_fund_rank_em`/`fund_exchange_rank_em`/`fund_money_rank_em`/`fund_lcx_rank_em`，rankhandler.aspx / FundRank JSON 位置式列名）+ index 国证指数 5 个（`index_all_cni`/`index_hist_cni`/`index_detail_cni`/`index_detail_hist_cni`/`index_detail_hist_adjust_cni`，cnindex JSON + sample-detail xls 下载），akshare 同名 `pub fn` 达 **659** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 60.0%**。
 
+> **2026-08-17 批次 39 刷新**：批量实现 fund 净值/分红 5 个（`fund_open_fund_daily_em`/`fund_money_fund_daily_em`/`fund_financial_fund_daily_em` 走 `Data/Fund_JJJZ_Data.aspx` 与 `GetLCJJJZ` 净值列表、`fund_fh_em`/`fund_cf_em` 走 `funddataIndex_Interface.aspx` 分红/拆分分页）+ index 申万宏源 2 个（`index_hist_sw`/`index_component_sw`，`institute-sw/api` JSON，跳过 SSL 验证），akshare 同名 `pub fn` 达 **666** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 60.6%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **659**（2026-08-17 批次 38 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（659 / 1099 实测口径） | **≈ 60.0%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **666**（2026-08-17 批次 39 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（666 / 1099 实测口径） | **≈ 60.6%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -88,8 +90,8 @@
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---:|---:|---:|
 | economic | 131 | 225 | 58.2% |
-| index | 17 | 95 | 17.9% |
-| fund | 14 | 88 | 15.9% |
+| index | 19 | 95 | 20.0% |
+| fund | 19 | 88 | 21.6% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -123,7 +125,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **659（60.0%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 58.2%（131/225）**、**index 17.9%（17/95）**、**fund 15.9%（14/88）**。最大缺口在 **index / fund / economic**（合计 246）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **666（60.6%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 58.2%（131/225）**、**fund 21.6%（19/88）**、**index 20.0%（19/95）**。最大缺口在 **index / fund / economic**（合计 239）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -753,6 +755,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 37（2026-08-17）· economic/index/fund 缺口 24 个批量落地**：akshare 同名 `pub fn` 达 **650（59.1%）**。覆盖：① **economic 14 个**（BATCH37-A 新浪宏观 11：`macro_china_central_bank_balance`/`macro_china_foreign_exchange_gold`/`macro_china_insurance`/`macro_china_international_tourism_fx`/`macro_china_passenger_load_factor`/`macro_china_postal_telecommunicational`/`macro_china_retail_price_index`/`macro_china_society_electricity`/`macro_china_society_traffic_volume`/`macro_china_supply_of_money`/`macro_china_freight_index`，走 `MacPage_Service.get_pagedata` cate/event 分页、`config.all` 列名表；BATCH37-B 商务部社融 `macro_china_shrzgm`（`shr zgmQuery` POST JSON，9 列）+ chinamoney `macro_china_bond_public`（`bnBondEmit` 分页，8 列）+ `macro_china_swap_rate`（`IfccHis`，FR007 利率互换））；② **index 8 个**（BATCH37-C 东财全球指数 `index_global_spot_em`/`index_global_hist_em`，`fltt=1` 值 ÷100、秒级时间戳→Asia/Shanghai；BATCH37-D 中证指数 `index_stock_cons_csindex`/`index_stock_cons_weight_csindex`（csindex xls 下载，calamine Xls 解析，代码 zfill(6)）；BATCH37-E 新浪全球指数 `index_global_name_table`/`index_global_hist_sina`（20 项 symbol_map + `gi.finance.sina.com.cn/hq/daily`）+ `index_stock_cons_sina`（`Market_Center.getHQNodeData` 分页）/`index_stock_info`（聚宽 HTML 表））；③ **fund 2 个**（BATCH37-F `fund_lof_hist_em`/`fund_etf_hist_min_em`，复用 `fetch_kline`/`fetch_kline_min`/`fetch_trends`，市场标识 5/6 开头沪市 1 否则 0）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；24 个新函数全部注册 parity dispatch + parity_runner（loose）。**受限源新增 3 个**：`macro_china_nbs_nation`/`macro_china_nbs_region`/`macro_china_urban_unemployment`（stats.gov.cn esData 实测连接失败 000）、`index_option_*_qvix` 系列 16 个（optbbs.com 404），标记受限。
 
 > **批次 38（2026-08-17）· fund 排行 + index 国证指数 9 个批量落地**：akshare 同名 `pub fn` 达 **659（60.0%）**。覆盖：① **fund 排行 4 个**（BATCH38-A `fund_open_fund_rank_em`（rankhandler.aspx `op=ph&dt=kf`，`datas` 逗号分隔串 24 字段位置式 select 18 列，`sd`=一年前/`ed`=今天）、`fund_exchange_rank_em`（`dt=fb`，17 列含 类型/成立日期）、`fund_money_rank_em`（`api.fund.eastmoney.com/FundRank/GetHbRankList` JSON 28 字段 select 18 列）、`fund_lcx_rank_em`（`GetLcRankList` JSON 23 字段 select 16 列））；② **index 国证指数 5 个**（BATCH38-B `index_all_cni`（`cnindex.com.cn/index/indexList` JSON 25 字段 select 10 列，成交量÷10^5、市值类÷10^8）、`index_hist_cni`（`hq.cnindex.com.cn getIndexDailyDataWithDataFormat` JSON 11 字段 select 8 列，涨跌幅去 `%` ÷100）、`index_detail_cni`/`index_detail_hist_cni`（`sample-detail/download-history` xls 6 列，样本代码 zfill(6)）、`index_detail_hist_adjust_cni`（`download-adjustment` xls 原键列，样本代码 zfill(6)）；复用 `csindex_xls_rows`（calamine Xls 解析））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；9 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 39（2026-08-17）· fund 净值/分红 + index 申万宏源 7 个批量落地**：akshare 同名 `pub fn` 达 **666（60.6%）**。覆盖：① **fund 净值列表 3 个**（BATCH39-A `fund_open_fund_daily_em`/`fund_money_fund_daily_em`（`Data/Fund_JJJZ_Data.aspx`，`datas` 21 字段位置式 + `showday` 列名）、`fund_financial_fund_daily_em`（`GetLCJJJZ` JSON，`Data.List` + `showday`））；② **fund 分红/拆分 2 个**（BATCH39-B `fund_fh_em`/`fund_cf_em`（`funddataIndex_Interface.aspx`，`dt=8/9` 分页，`[[...]]` eval 解析，7/5 列契约））；③ **index 申万宏源 2 个**（BATCH39-C `index_hist_sw`/`index_component_sw`（`institute-sw/api` JSON，`verify=False` 跳过 SSL 验证，8/5 列契约））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；7 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在

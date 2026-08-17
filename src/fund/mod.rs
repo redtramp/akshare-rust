@@ -11,7 +11,8 @@ use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{
-    fetch_clist, fetch_kline, fetch_kline_min, fetch_trends, kline_to_df, push2_urls, KLINE_COLS,
+    fetch_clist, fetch_kline, fetch_kline_min, fetch_trends, json_value_to_string, kline_to_df,
+    push2_urls, KLINE_COLS,
 };
 use serde_json::{json, Map, Value};
 
@@ -999,6 +1000,365 @@ pub fn fund_lcx_rank_em() -> Result<Df> {
     df.cast_date(&["日期"])?;
     df.cast_numeric(&COLS[4..])?;
     Ok(df)
+}
+
+// === BATCH39-A 东财基金净值列表（Data/Fund_JJJZ_Data.aspx，datas + showday）===
+//
+// 对应 akshare `fund/fund_em.py` 的 `fund_open_fund_daily_em` 等。响应
+// `var db={datas:[[...]],showday:[d1,d2],...}`，datas 每行 21 字段位置式，
+// 前两日为 `showday[0]`（今日）与 `showday[1]`（昨日）。
+
+/// 东财-开放式基金净值（对应 akshare [`akshare.fund_open_fund_daily_em`]）。
+///
+/// # 返回列
+/// `基金代码, 基金简称, {今日}-单位净值, {今日}-累计净值, {昨日}-单位净值,
+/// {昨日}-累计净值, 日增长值, 日增长率, 申购状态, 赎回状态, 手续费`
+pub fn fund_open_fund_daily_em() -> Result<Df> {
+    fund_jjz_daily("1", "1")
+}
+
+/// 东财-货币型基金净值（对应 akshare [`akshare.fund_money_fund_daily_em`]）。
+///
+/// # 返回列
+/// `基金代码, 基金简称, {今日}-每万份收益, {今日}-7日年化, {昨日}-每万份收益,
+/// {昨日}-7日年化, 申购状态, 赎回状态, 手续费`
+pub fn fund_money_fund_daily_em() -> Result<Df> {
+    fund_jjz_daily("2", "2")
+}
+
+/// 东财-净值列表公共实现（Data/Fund_JJJZ_Data.aspx）。
+fn fund_jjz_daily(t: &str, lx: &str) -> Result<Df> {
+    let params = json!({
+        "t": t,
+        "lx": lx,
+        "letter": "",
+        "gsid": "",
+        "text": "",
+        "sort": "zdf,desc",
+        "page": "1,50000",
+        "dt": "1580914040623",
+        "atfc": "",
+        "onlySale": "0",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        "https://fund.eastmoney.com/Data/Fund_JJJZ_Data.aspx",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/fund.html"),
+        ],
+        None,
+    )?;
+    let body = text
+        .trim()
+        .strip_prefix("var db=")
+        .ok_or_else(|| AkshareError::Empty("基金净值响应缺少 var db= 前缀".into()))?;
+    let value: Value = serde_json::from_str(body)
+        .map_err(|e| AkshareError::json("fund_jjz_daily", e.to_string()))?;
+    let datas = value
+        .get("datas")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let showday: Vec<String> = value
+        .get("showday")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let d0 = showday.first().cloned().unwrap_or_default();
+    let d1 = showday.get(1).cloned().unwrap_or_default();
+    // 21 字段位置式：代码,简称,_,今日单位,今日累计,昨日单位,昨日累计,增长值,增长率,申购,赎回,_,_,_,_,_,_,手续费,_,_,_
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(datas.len());
+    for d in &datas {
+        let row = d.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| {
+            row.get(idx)
+                .and_then(Value::as_str)
+                .map(|s| {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t.to_string())
+                    }
+                })
+                .unwrap_or(None)
+        };
+        out.push(vec![
+            f(0),
+            f(1),
+            f(3),
+            f(4),
+            f(5),
+            f(6),
+            f(7),
+            f(8),
+            f(9),
+            f(10),
+            f(17),
+        ]);
+    }
+    let cols = [
+        "基金代码",
+        "基金简称",
+        &format!("{d0}-单位净值"),
+        &format!("{d0}-累计净值"),
+        &format!("{d1}-单位净值"),
+        &format!("{d1}-累计净值"),
+        "日增长值",
+        "日增长率",
+        "申购状态",
+        "赎回状态",
+        "手续费",
+    ];
+    let col_refs: Vec<&str> = cols.to_vec();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    df.cast_numeric(&[cols[2], cols[3], cols[4], cols[5], "日增长值", "日增长率"])?;
+    Ok(df)
+}
+
+/// 东财-理财型基金收益（对应 akshare [`akshare.fund_financial_fund_daily_em`]）。
+///
+/// `api.fund.eastmoney.com/FundNetValue/GetLCJJJZ` JSON（`Data.List` + `showday`）。
+/// 注：akshare 注释该接口暂无数据。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 上一期年化收益率, {今日}-万份收益, {今日}-7日年华,
+/// {昨日}-万份收益, {昨日}-7日年华, 封闭期, 申购状态`
+pub fn fund_financial_fund_daily_em() -> Result<Df> {
+    let params = json!({
+        "letter": "",
+        "jjgsid": "0",
+        "searchtext": "",
+        "sort": "ljjz,desc",
+        "page": "1,100",
+        "AttentionCodes": "",
+        "cycle": "",
+        "OnlySale": "1",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://api.fund.eastmoney.com/FundNetValue/GetLCJJJZ",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/lcjj.html"),
+        ],
+        None,
+    )?;
+    let data = value
+        .get("Data")
+        .ok_or_else(|| AkshareError::Empty("理财基金收益无 Data".into()))?;
+    let rows = data
+        .get("List")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let showday: Vec<String> = data
+        .get("showday")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let d0 = showday.first().cloned().unwrap_or_default();
+    let d1 = showday.get(1).cloned().unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f("fcode"),
+            f("shortname"),
+            f("actualsyi"),
+            f("mui"),
+            f("syi"),
+            f("zrmui"),
+            f("zrsyi"),
+            f("cycle"),
+            f("kfr"),
+        ]);
+    }
+    let cols = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "上一期年化收益率",
+        &format!("{d0}-万份收益"),
+        &format!("{d0}-7日年华"),
+        &format!("{d1}-万份收益"),
+        &format!("{d1}-7日年华"),
+        "封闭期",
+        "申购状态",
+    ];
+    let col_refs: Vec<&str> = cols.to_vec();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    df.cast_numeric(&[cols[3], cols[4], cols[5], cols[6], cols[7]])?;
+    Ok(df)
+}
+
+// === BATCH39-B 天天基金网分红送配（funddataIndex_Interface.aspx，dt=8/9）===
+//
+// 对应 akshare `fund/fund_fhsp_em.py` 的 `fund_fh_em`（dt=8 分红）与
+// `fund_cf_em`（dt=9 拆分）。响应形如 `[[...],[...]];var jjfh_jjgs=...`，
+// 取 `[[` 至 `;var` 之间的二维数组（eval），分页直到 total_page。
+
+/// 天天基金网-基金分红（对应 akshare [`akshare.fund_fh_em`]）。
+///
+/// - `year`: 查询年份；`typ`: 基金类型（空串=全部）；`rank`: 排序字段
+///   （`BZDM`/`ABBNAME`/`DJR`/`FSRQ`/`FHFCZ`/`FFR`）；`sort`: `"asc"`/`"desc"`；
+///   `page`: `-1` 表示全部页
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 权益登记日, 除息日期, 分红, 分红发放日`
+pub fn fund_fh_em(year: &str, typ: &str, rank: &str, sort: &str, page: i64) -> Result<Df> {
+    fund_fhsp_base("8", year, typ, rank, sort, page)
+}
+
+/// 天天基金网-基金拆分（对应 akshare [`akshare.fund_cf_em`]）。
+///
+/// - `year`: 查询年份；`typ`: 基金类型（空串=全部）；`rank`: 排序字段
+///   （`BZDM`/`ABBNAME`/`FSRQ`/`FHFCZ`）；`sort`: `"asc"`/`"desc"`；
+///   `page`: `-1` 表示全部页
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 拆分折算日, 拆分折算`
+pub fn fund_cf_em(year: &str, typ: &str, rank: &str, sort: &str, page: i64) -> Result<Df> {
+    fund_fhsp_base("9", year, typ, rank, sort, page)
+}
+
+/// 分红/拆分公共实现：分页拉取 `[[...]]` 二维数组。
+fn fund_fhsp_base(
+    dt: &str,
+    year: &str,
+    typ: &str,
+    rank: &str,
+    sort: &str,
+    page: i64,
+) -> Result<Df> {
+    let url = "https://fund.eastmoney.com/Data/funddataIndex_Interface.aspx";
+    let http = HttpClient::default();
+    let mut params = Map::new();
+    params.insert("dt".into(), Value::String(dt.into()));
+    params.insert(
+        "page".into(),
+        Value::String(if page == -1 {
+            "1".into()
+        } else {
+            page.to_string()
+        }),
+    );
+    params.insert("rank".into(), Value::String(rank.into()));
+    params.insert("sort".into(), Value::String(sort.into()));
+    params.insert("gs".into(), Value::String("".into()));
+    params.insert("ftype".into(), Value::String(typ.into()));
+    params.insert("year".into(), Value::String(year.into()));
+
+    let parse = |text: &str| -> Result<Value> {
+        let start = text
+            .find("[[")
+            .ok_or_else(|| AkshareError::Empty("分红接口响应缺少 [[ 前缀".into()))?;
+        let end = text.find(";var ").unwrap_or(text.len());
+        serde_json::from_str(&text[start..end]).map_err(|e| AkshareError::json(url, e.to_string()))
+    };
+
+    let first_text = http.get_text(url, &params, None)?;
+    let first = parse(&first_text)?;
+    let total_page: i64 = if page == -1 {
+        // `total_page=xx;var ...` → 取等号后分号前数字
+        first_text
+            .split('=')
+            .nth(1)
+            .and_then(|s| s.split(';').next())
+            .and_then(|s| s.trim().parse::<i64>().ok())
+            .unwrap_or(1)
+    } else {
+        page
+    };
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v.as_array() {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for p in 2..=total_page {
+        params.insert("page".into(), Value::String(p.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_text(url, &params, None) {
+            Ok(t) => {
+                if let Ok(v) = parse(&t) {
+                    append(&v, &mut rows);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    // 行内字段数组 → Vec<Option<String>>
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| {
+            row.get(idx).and_then(|v| match v {
+                Value::String(s) => {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t.to_string())
+                    }
+                }
+                Value::Number(n) => Some(n.to_string()),
+                _ => None,
+            })
+        };
+        if dt == "8" {
+            out.push(vec![
+                Some((i + 1).to_string()),
+                f(1),
+                f(2),
+                f(3),
+                f(4),
+                f(5),
+                f(6),
+            ]);
+        } else {
+            out.push(vec![Some((i + 1).to_string()), f(1), f(2), f(3), f(4)]);
+        }
+    }
+    if dt == "8" {
+        const COLS: [&str; 7] = [
+            "序号",
+            "基金代码",
+            "基金简称",
+            "权益登记日",
+            "除息日期",
+            "分红",
+            "分红发放日",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &out)?;
+        df.cast_date(&["权益登记日", "除息日期", "分红发放日"])?;
+        df.cast_numeric(&["分红"])?;
+        Ok(df)
+    } else {
+        const COLS: [&str; 5] = ["序号", "基金代码", "基金简称", "拆分折算日", "拆分折算"];
+        let mut df = Df::from_string_rows(&COLS, &out)?;
+        df.cast_date(&["拆分折算日"])?;
+        df.cast_numeric(&["拆分折算"])?;
+        Ok(df)
+    }
 }
 
 #[cfg(test)]

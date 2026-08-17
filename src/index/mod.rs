@@ -910,6 +910,130 @@ fn cnindex_sample_detail(symbol: &str, endpoint: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH39-C 申万宏源研究-指数（index_hist_sw 等）===
+//
+// 对应 akshare `index/index_research_sw.py`。`swsresearch.com/institute-sw/api/`
+// 需跳过 SSL 验证（HttpClient 已 `danger_accept_invalid_certs(true)`）。
+
+/// 申万宏源-指数历史数据（对应 akshare [`akshare.index_hist_sw`]）。
+///
+/// - `symbol`: 指数代码，如 `"801030"`；`period`: `"day"` / `"week"` / `"month"`
+///
+/// `institute-sw/api/index_publish/trend/` JSON，键映射后 select 8 列。
+///
+/// # 返回列
+/// `代码, 日期, 收盘, 开盘, 最高, 最低, 成交量, 成交额`
+pub fn index_hist_sw(symbol: &str, period: &str) -> Result<Df> {
+    let period_map = match period {
+        "day" => "DAY",
+        "week" => "WEEK",
+        "month" => "MONTH",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 period: {other}，可选 day/week/month"
+            )))
+        }
+    };
+    let params = json!({
+        "swindexcode": symbol,
+        "period": period_map,
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://www.swsresearch.com/institute-sw/api/index_publish/trend/",
+        &params,
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        )],
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("swindexcode"),
+            f("bargaindate"),
+            f("closeindex"),
+            f("openindex"),
+            f("maxindex"),
+            f("minindex"),
+            f("bargainamount"),
+            f("bargainsum"),
+        ]);
+    }
+    const COLS: [&str; 8] = [
+        "代码",
+        "日期",
+        "收盘",
+        "开盘",
+        "最高",
+        "最低",
+        "成交量",
+        "成交额",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[2..])?;
+    Ok(df)
+}
+
+/// 申万宏源-指数成分股（对应 akshare [`akshare.index_component_sw`]）。
+///
+/// - `symbol`: 指数代码，如 `"801001"`
+///
+/// `institute-sw/api/index_publish/details/component_stocks/` JSON
+/// （`data.results`），键映射后 select 5 列。
+///
+/// # 返回列
+/// `序号, 证券代码, 证券名称, 最新权重, 计入日期`
+pub fn index_component_sw(symbol: &str) -> Result<Df> {
+    let params = json!({
+        "swindexcode": symbol,
+        "page": "1",
+        "page_size": "10000",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://www.swsresearch.com/institute-sw/api/index_publish/details/component_stocks/",
+        &params,
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        )],
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(|d| d.get("results"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f("stockcode"),
+            f("stockname"),
+            f("newweight"),
+            f("beginningdate"),
+        ]);
+    }
+    const COLS: [&str; 5] = ["序号", "证券代码", "证券名称", "最新权重", "计入日期"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["计入日期"])?;
+    df.cast_numeric(&["最新权重"])?;
+    Ok(df)
+}
+
 // === BATCH37-E 新浪全球指数（index_global_sina_symbol_map + gi.finance.sina.com.cn）===
 //
 // 对应 akshare `index/index_global_sina.py`。
