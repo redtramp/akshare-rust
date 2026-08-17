@@ -11,10 +11,11 @@
 
 use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
-use crate::sources::eastmoney::finalize_report;
+use crate::core::http::HttpClient;
+use crate::sources::eastmoney::{finalize_report, json_value_to_string};
 use crate::sources::jin10::{fetch_jin10_cdn, fetch_jin10_cdn_text, macro_china_base};
 use crate::stock_feature::{datacenter, report_extra};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 macro_rules! macro_china_fn {
     ($name:ident, $symbol:literal, $attr:literal) => {
@@ -1818,5 +1819,396 @@ pub fn macro_china_daily_energy() -> Result<Df> {
     df.cast_numeric(&COLS[1..])?;
     df.cast_date(&["日期"])?;
     df = df.sort_by("日期", true, false)?;
+    Ok(df)
+}
+
+// === BATCH37-A 新浪财经-中国宏观（MacPage_Service.get_pagedata，cate/event 分页）===
+//
+// 对应 akshare `economic/macro_china.py` 新浪 mac API 系列。URL 固定
+// `SINAREMOTECALLCALLBACK.../MacPage_Service.get_pagedata`，params
+// `{cate, event, from, num=31, condition}`，JSONP 响应 `xxx({...});`，
+// 取首 `{` 至倒数第 3 字符之间的对象；`data` 为行数组、`config.all` 给出
+// 列名（每项 `[id, 中文名]`，取第二元素），除首列外数值化。
+
+const SINA_MAC_URL: &str =
+    "https://quotes.sina.cn/mac/api/jsonp_v3.php/SINAREMOTECALLCALLBACK1601651495761/MacPage_Service.get_pagedata";
+
+/// 新浪宏观分页结果：列名表 + 数据行。
+type SinaMacPage = (Vec<String>, Vec<Vec<Option<String>>>);
+
+/// 新浪宏观分页数据公共拉取：返回全部页 `data` 行 + 列名表。
+fn sina_mac_pages(cate: &str, event: &str) -> Result<SinaMacPage> {
+    let http = HttpClient::default();
+    let mut params = Map::new();
+    params.insert("cate".into(), Value::String(cate.into()));
+    params.insert("event".into(), Value::String(event.into()));
+    params.insert("from".into(), Value::String("0".into()));
+    params.insert("num".into(), Value::String("31".into()));
+    params.insert("condition".into(), Value::String("".into()));
+
+    let parse = |text: &str| -> Result<Value> {
+        let start = text
+            .find('{')
+            .ok_or_else(|| AkshareError::Empty("新浪宏观响应缺少对象".into()))?;
+        let end = text.len().saturating_sub(3).max(start + 1);
+        serde_json::from_str(&text[start..end])
+            .map_err(|e| AkshareError::json(SINA_MAC_URL, e.to_string()))
+    };
+
+    let first_text = http.get_text(SINA_MAC_URL, &params, None)?;
+    let first = parse(&first_text)?;
+    let count: u64 = first
+        .get("count")
+        .and_then(Value::as_str)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let page_num = count.div_ceil(31).max(1);
+
+    // 列名：config.all 每项 [id, 中文名]
+    let cols: Vec<String> = first
+        .get("config")
+        .and_then(|c| c.get("all"))
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| item.get(1).and_then(Value::as_str).map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Vec<Option<String>>>| {
+        if let Some(data) = v.get("data").and_then(Value::as_array) {
+            for row in data {
+                let obj = row.as_object().cloned().unwrap_or_default();
+                let values: Vec<Option<String>> = obj
+                    .values()
+                    .map(|v| match v {
+                        Value::Null => None,
+                        Value::String(s) => Some(s.clone()),
+                        other => Some(other.to_string()),
+                    })
+                    .collect();
+                rows.push(values);
+            }
+        }
+    };
+    append(&first, &mut rows);
+    for page in 1..page_num {
+        params.insert("from".into(), Value::String((page * 31).to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_text(SINA_MAC_URL, &params, None) {
+            Ok(t) => {
+                if let Ok(v) = parse(&t) {
+                    append(&v, &mut rows);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    Ok((cols, rows))
+}
+
+/// 新浪宏观构建：列名取自响应 config.all，除首列外数值化。
+fn sina_mac_df(cate: &str, event: &str) -> Result<Df> {
+    let (cols, rows) = sina_mac_pages(cate, event)?;
+    if cols.is_empty() {
+        return Df::from_string_rows(&["日期"], &[]);
+    }
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &rows)?;
+    if cols.len() > 1 {
+        df.cast_numeric(&col_refs[1..])?;
+    }
+    Ok(df)
+}
+
+macro_rules! macro_china_sina_fn {
+    ($name:ident, $cate:literal, $event:literal, $desc:literal) => {
+        #[doc = $desc]
+        pub fn $name() -> Result<Df> {
+            sina_mac_df($cate, $event)
+        }
+    };
+}
+
+macro_china_sina_fn!(
+    macro_china_central_bank_balance,
+    "fininfo",
+    "8",
+    "新浪财经-央行货币当局资产负债（对应 akshare `macro_china_central_bank_balance`）。"
+);
+macro_china_sina_fn!(
+    macro_china_foreign_exchange_gold,
+    "fininfo",
+    "5",
+    "新浪财经-外汇和黄金储备（对应 akshare `macro_china_foreign_exchange_gold`）。"
+);
+macro_china_sina_fn!(
+    macro_china_insurance,
+    "fininfo",
+    "19",
+    "新浪财经-保险业经营情况（对应 akshare `macro_china_insurance`）。"
+);
+macro_china_sina_fn!(
+    macro_china_international_tourism_fx,
+    "industry",
+    "15",
+    "新浪财经-国际旅游外汇收入（对应 akshare `macro_china_international_tourism_fx`）。"
+);
+macro_china_sina_fn!(
+    macro_china_passenger_load_factor,
+    "industry",
+    "20",
+    "新浪财经-民航客运量及客座率（对应 akshare `macro_china_passenger_load_factor`）。"
+);
+macro_china_sina_fn!(
+    macro_china_postal_telecommunicational,
+    "industry",
+    "11",
+    "新浪财经-邮电业务量（对应 akshare `macro_china_postal_telecommunicational`）。"
+);
+macro_china_sina_fn!(
+    macro_china_retail_price_index,
+    "price",
+    "12",
+    "新浪财经-商品零售价格指数（对应 akshare `macro_china_retail_price_index`）。"
+);
+macro_china_sina_fn!(
+    macro_china_society_electricity,
+    "industry",
+    "6",
+    "新浪财经-全社会用电量（对应 akshare `macro_china_society_electricity`）。"
+);
+macro_china_sina_fn!(
+    macro_china_society_traffic_volume,
+    "industry",
+    "10",
+    "新浪财经-全社会客货运输量（对应 akshare `macro_china_society_traffic_volume`）。"
+);
+macro_china_sina_fn!(
+    macro_china_supply_of_money,
+    "fininfo",
+    "1",
+    "新浪财经-货币供应量（对应 akshare `macro_china_supply_of_money`）。"
+);
+macro_china_sina_fn!(
+    macro_china_freight_index,
+    "industry",
+    "22",
+    "新浪财经-运输生产指数（对应 akshare `macro_china_freight_index`）。"
+);
+
+// === BATCH37-B 商务数据中心/chinamoney 宏观（shrzgm / bond_public / swap_rate）===
+
+/// 商务部-社会融资规模增量统计（对应 akshare [`akshare.macro_china_shrzgm`]）。
+///
+/// `data.mofcom.gov.cn/datamofcom/front/gnmy/shrzgmQuery` POST JSON，9 列。
+///
+/// # 返回列
+/// `月份, 社会融资规模增量, 其中-人民币贷款, 其中-委托贷款外币贷款, 其中-委托贷款,
+/// 其中-信托贷款, 其中-未贴现银行承兑汇票, 其中-企业债券, 其中-非金融企业境内股票融资`
+pub fn macro_china_shrzgm() -> Result<Df> {
+    let http = HttpClient::default();
+    let value = http.post_form(
+        "https://data.mofcom.gov.cn/datamofcom/front/gnmy/shrzgmQuery",
+        &Map::new(),
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
+        )],
+    )?;
+    let rows = value.as_array().cloned().unwrap_or_default();
+    let _rename = [
+        ("date", "月份"),
+        ("tiosfs", "社会融资规模增量"),
+        ("rmblaon", "其中-人民币贷款"),
+        ("forcloan", "其中-委托贷款外币贷款"),
+        ("entrustloan", "其中-委托贷款"),
+        ("trustloan", "其中-信托贷款"),
+        ("ndbab", "其中-未贴现银行承兑汇票"),
+        ("bibae", "其中-企业债券"),
+        ("sfinfe", "其中-非金融企业境内股票融资"),
+    ];
+    let select = [
+        "月份",
+        "社会融资规模增量",
+        "其中-人民币贷款",
+        "其中-委托贷款外币贷款",
+        "其中-委托贷款",
+        "其中-信托贷款",
+        "其中-未贴现银行承兑汇票",
+        "其中-企业债券",
+        "其中-非金融企业境内股票融资",
+    ];
+    let numeric = [
+        "社会融资规模增量",
+        "其中-人民币贷款",
+        "其中-委托贷款外币贷款",
+        "其中-委托贷款",
+        "其中-信托贷款",
+        "其中-未贴现银行承兑汇票",
+        "其中-企业债券",
+        "其中-非金融企业境内股票融资",
+    ];
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("date"),
+            f("tiosfs"),
+            f("rmblaon"),
+            f("forcloan"),
+            f("entrustloan"),
+            f("trustloan"),
+            f("ndbab"),
+            f("bibae"),
+            f("sfinfe"),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&select, &out)?;
+    df.cast_numeric(&numeric)?;
+    // 按月份升序（akshare sort_values(["月份"])）
+    df = df.sort_by("月份", true, false)?;
+    Ok(df)
+}
+
+/// chinamoney 债券发行（对应 akshare [`akshare.macro_china_bond_public`]）。
+///
+/// `bnBondEmit` POST 分页，取 `records`；位置式列名后 select 8 列。
+///
+/// # 返回列
+/// `债券全称, 债券类型, 发行日期, 计息方式, 价格, 债券期限, 计划发行量, 债券评级`
+pub fn macro_china_bond_public() -> Result<Df> {
+    let mut payload: Vec<(String, String)> = vec![
+        ("enty".into(), String::new()),
+        ("bondType".into(), String::new()),
+        ("bondNameCode".into(), String::new()),
+        ("leadUnderwriter".into(), String::new()),
+        ("pageNo".into(), "1".into()),
+        ("pageSize".into(), "10".into()),
+        ("limit".into(), "1".into()),
+    ];
+    let first = crate::sources::chinamoney::cm_post(
+        "https://www.chinamoney.com.cn/ags/ms/cm-u-bond-an/bnBondEmit",
+        &payload,
+    )?;
+    let total_page = first
+        .get("data")
+        .and_then(|d| d.get("pageTotalSize"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0)
+        + 1;
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v.get("records").and_then(Value::as_array) {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..total_page {
+        payload[4] = ("pageNo".into(), page.to_string());
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match crate::sources::chinamoney::cm_post(
+            "https://www.chinamoney.com.cn/ags/ms/cm-u-bond-an/bnBondEmit",
+            &payload,
+        ) {
+            Ok(v) => append(&v, &mut rows),
+            Err(_) => break,
+        }
+    }
+    // 位置式列名（13 列占位表，取 8 个有效列）：债券全称,债券类型,发行日期,计息方式,价格,债券期限,计划发行量,债券评级
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let obj = r.as_object().cloned().unwrap_or_default();
+        let values: Vec<Option<String>> = obj
+            .values()
+            .take(13)
+            .map(|v| match v {
+                Value::Null => None,
+                Value::String(s) => Some(s.clone()),
+                other => Some(other.to_string()),
+            })
+            .collect();
+        let pick = |i: usize| values.get(i).cloned().flatten();
+        out.push(vec![
+            pick(0),
+            pick(1),
+            pick(3),
+            pick(5),
+            pick(11),
+            pick(7),
+            pick(12),
+            pick(9),
+        ]);
+    }
+    const COLS: [&str; 8] = [
+        "债券全称",
+        "债券类型",
+        "发行日期",
+        "计息方式",
+        "价格",
+        "债券期限",
+        "计划发行量",
+        "债券评级",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&["价格", "计划发行量"])?;
+    Ok(df)
+}
+
+/// FR007 利率互换曲线历史（对应 akshare [`akshare.macro_china_swap_rate`]）。
+///
+/// - `start_date`/`end_date`: `YYYYMMDD`（跨度不得超过一个月，仅近一年数据）
+///
+/// `IfccHis` POST，取 `data.records` 原键列 + 数值化。
+///
+/// # 返回列
+/// 原键列（`date, term, close, ...`）
+pub fn macro_china_swap_rate(start_date: &str, end_date: &str) -> Result<Df> {
+    let sdate = format!(
+        "{}-{}-{}",
+        &start_date[0..4],
+        &start_date[4..6],
+        &start_date[6..8]
+    );
+    let edate = format!(
+        "{}-{}-{}",
+        &end_date[0..4],
+        &end_date[4..6],
+        &end_date[6..8]
+    );
+    let payload: Vec<(String, String)> = vec![
+        ("cfgItemType".into(), "72".into()),
+        ("interestRateType".into(), "0".into()),
+        ("startDate".into(), sdate),
+        ("endDate".into(), edate),
+        ("bidAskType".into(), String::new()),
+        ("lang".into(), "CN".into()),
+        ("quoteTime".into(), "全部".into()),
+        ("pageSize".into(), "5000".into()),
+        ("pageNum".into(), "1".into()),
+    ];
+    let value = crate::sources::chinamoney::cm_post(
+        "https://www.chinamoney.com.cn/ags/ms/cm-u-bk-shibor/IfccHis",
+        &payload,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(|d| d.get("records"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let df = Df::from_json_rows(&rows)?;
+    let names = df.column_names();
+    let numeric: Vec<&str> = names
+        .iter()
+        .filter(|n| matches!(n.as_str(), "close" | "up" | "down"))
+        .map(String::as_str)
+        .collect();
+    let mut df = df;
+    df.cast_numeric(&numeric)?;
     Ok(df)
 }

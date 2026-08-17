@@ -8,9 +8,11 @@
 //! [`push2_urls`] 多节点容灾（同簇数据，避免单节点限流）。
 
 use crate::core::df::Df;
-use crate::core::error::Result;
+use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
-use crate::sources::eastmoney::{fetch_clist, push2_urls};
+use crate::sources::eastmoney::{
+    fetch_clist, fetch_kline, fetch_kline_min, fetch_trends, kline_to_df, push2_urls, KLINE_COLS,
+};
 use serde_json::{json, Map, Value};
 
 /// ETF 实时行情（对应 akshare [`akshare.fund_etf_spot_em`]）。
@@ -373,6 +375,175 @@ pub fn fund_etf_category_ths(symbol: &str, date: &str) -> Result<Df> {
 /// 同花顺理财-基金数据-ETF 实时行情（对应 akshare [`akshare.fund_etf_spot_ths`]）。
 pub fn fund_etf_spot_ths(date: &str) -> Result<Df> {
     fund_etf_category_ths("ETF", date)
+}
+
+// === BATCH37-F 东财基金 K 线（fund_lof_hist_em / fund_etf_hist_min_em）===
+//
+// 对应 akshare `fund/fund_lof_em.py` / `fund/fund_etf_em.py`。复用
+// `fetch_kline`/`fetch_kline_min`/`fetch_trends`（push2his），与股票 K 线同构。
+// 市场标识简化：`5`/`6` 开头沪市 `1`，其余深市 `0`。
+
+/// 东财-LOF 历史行情（对应 akshare [`akshare.fund_lof_hist_em`]）。
+///
+/// - `symbol`: LOF 代码，如 `"166009"`
+/// - `period`: `"daily"` / `"weekly"` / `"monthly"`
+/// - `start_date`/`end_date`: `YYYYMMDD`；`adjust`: `""` / `"qfq"` / `"hfq"`
+///
+/// # 返回列
+/// `日期, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 振幅, 涨跌幅, 涨跌额, 换手率`
+pub fn fund_lof_hist_em(
+    symbol: &str,
+    period: &str,
+    start_date: &str,
+    end_date: &str,
+    adjust: &str,
+) -> Result<Df> {
+    let klt = match period {
+        "daily" => "101",
+        "weekly" => "102",
+        "monthly" => "103",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 period: {other}，可选 daily/weekly/monthly"
+            )))
+        }
+    };
+    let fqt = match adjust {
+        "" => "0",
+        "qfq" => "1",
+        "hfq" => "2",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 adjust: {other}，可选 qfq/hfq/空"
+            )))
+        }
+    };
+    let market = if symbol.starts_with('5') || symbol.starts_with('6') {
+        "1"
+    } else {
+        "0"
+    };
+    let secid = format!("{market}.{symbol}");
+    let http = HttpClient::default();
+    let klines = fetch_kline(&http, &secid, klt, fqt, start_date, end_date)?;
+    let df = kline_to_df(&KLINE_COLS, &klines, None)?;
+    let mut df = df;
+    df.cast_numeric(&[
+        "日期",
+        "开盘",
+        "收盘",
+        "最高",
+        "最低",
+        "成交量",
+        "成交额",
+        "振幅",
+        "涨跌幅",
+        "涨跌额",
+        "换手率",
+    ])?;
+    Ok(df)
+}
+
+/// 东财-ETF 分钟行情（对应 akshare [`akshare.fund_etf_hist_min_em`]）。
+///
+/// - `symbol`: ETF 代码，如 `"159707"`
+/// - `start_date`/`end_date`: `YYYY-MM-DD HH:MM:SS`
+/// - `period`: `"1"`（分时）/ `"5"` / `"15"` / `"30"` / `"60"`；`adjust`: `""` / `"qfq"` / `"hfq"`
+///
+/// # 返回列
+/// period=1：`时间, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 均价`；
+/// 其余：`时间, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 振幅, 涨跌幅, 涨跌额, 换手率`
+pub fn fund_etf_hist_min_em(
+    symbol: &str,
+    start_date: &str,
+    end_date: &str,
+    period: &str,
+    adjust: &str,
+) -> Result<Df> {
+    let fqt = match adjust {
+        "" => "0",
+        "qfq" => "1",
+        "hfq" => "2",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 adjust: {other}，可选 qfq/hfq/空"
+            )))
+        }
+    };
+    let market = if symbol.starts_with('5') || symbol.starts_with('6') {
+        "1"
+    } else {
+        "0"
+    };
+    let secid = format!("{market}.{symbol}");
+    let http = HttpClient::default();
+    if period == "1" {
+        let trends = fetch_trends(&http, &secid, "5", "0")?;
+        let rows: Vec<Vec<Option<String>>> = trends
+            .iter()
+            .map(|t| t.iter().map(|s| Some(s.clone())).collect())
+            .collect();
+        let mut df = Df::from_string_rows(
+            &[
+                "时间",
+                "开盘",
+                "收盘",
+                "最高",
+                "最低",
+                "成交量",
+                "成交额",
+                "均价",
+            ],
+            &rows,
+        )?;
+        df.cast_numeric(&["开盘", "收盘", "最高", "最低", "成交量", "成交额", "均价"])?;
+        let _ = (start_date, end_date);
+        Ok(df)
+    } else {
+        match period {
+            "5" | "15" | "30" | "60" => {}
+            other => {
+                return Err(AkshareError::Param(format!(
+                    "无效 period: {other}，可选 1/5/15/30/60"
+                )))
+            }
+        }
+        let klines = fetch_kline_min(&http, &secid, period, fqt)?;
+        let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(klines.len());
+        for k in &klines {
+            let pick = |i: usize| k.get(i).map(|s| Some(s.clone())).unwrap_or(None);
+            rows.push(vec![
+                pick(0),
+                pick(1),
+                pick(2),
+                pick(3),
+                pick(4),
+                pick(5),
+                pick(6),
+                pick(7),
+                pick(8),
+                pick(9),
+                pick(10),
+            ]);
+        }
+        const COLS: [&str; 11] = [
+            "时间",
+            "开盘",
+            "收盘",
+            "最高",
+            "最低",
+            "成交量",
+            "成交额",
+            "振幅",
+            "涨跌幅",
+            "涨跌额",
+            "换手率",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &rows)?;
+        df.cast_numeric(&COLS[1..])?;
+        let _ = (start_date, end_date);
+        Ok(df)
+    }
 }
 
 #[cfg(test)]

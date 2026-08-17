@@ -70,11 +70,13 @@
 
 > **2026-08-17 批次 36 刷新**：实现 stock 模块缺口 79 个（emappdata 港股热度、资金流、cninfo 专题/行业/披露、板块 spot/min、sse/szse 列表与汇总、新浪/腾讯系列、互动易、科创板/B股、美股等），akshare 同名 `pub fn` 达 **537** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 48.9%**。剩余 stock 缺口 2 个为受限源：`stock_individual_spot_xq`（雪球需登录态 `xq_a_token`）、`stock_industry_clf_hist_sw`（申万宏源 xls SSL 受限）。
 
+> **2026-08-17 批次 37 刷新**：批量实现 economic 14 个（新浪宏观 11 + 社融/债券发行/利率互换 3）+ index 8 个（东财全球指数实时/历史、新浪/中证指数成分股与权重、聚宽指数列表、新浪全球指数）+ fund 2 个（LOF/ETF K 线），akshare 同名 `pub fn` 达 **650** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 59.1%**。新增 JS 资产无需；`macro_china_swap_rate` 走 chinamoney `IfccHis`、`macro_china_bond_public` 走 `bnBondEmit`、`index_stock_cons_csindex`/`index_stock_cons_weight_csindex` 走 csindex xls 下载（calamine Xls 解析）。剩余受限源新增 3 个：`macro_china_nbs_nation`/`macro_china_nbs_region`/`macro_china_urban_unemployment`（stats.gov.cn 实测 000 不可达）、`index_option_*_qvix` 系列 16 个（optbbs.com 404）。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **537**（2026-08-17 批次 36 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（537 / 1099 实测口径） | **≈ 48.9%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **650**（2026-08-17 批次 37 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（650 / 1099 实测口径） | **≈ 59.1%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -83,9 +85,9 @@
 
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---:|---:|---:|
-| economic | 30 | 225 | 13.3% |
-| index | 4 | 95 | 4.2% |
-| fund | 8 | 88 | 9.1% |
+| economic | 131 | 225 | 58.2% |
+| index | 12 | 95 | 12.6% |
+| fund | 10 | 88 | 11.4% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -119,7 +121,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **537（48.9%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。18 个大类仍为 0%，最大缺口在 **economic / index / fund**（合计 343）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **650（59.1%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 58.2%（131/225）**、**index 12.6%（12/95）**、**fund 11.4%（10/88）**。最大缺口在 **index / fund / economic**（合计 255）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -745,6 +747,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > 批次35 的 2 个东财 港股/美股 三大财务报表函数（`stock_financial_hk_report_em`/`stock_financial_us_report_em`，akshare `stock_fundamental/stock_finance_hk_em.py` / `stock_finance_us_em.py`）已实现并通过 `cargo fmt --check` + `cargo clippy --all-targets -D warnings`（零警告）+ 全量 `cargo test --lib`（233 passed）。两者均走 `datacenter.eastmoney.com/securities/api/data/v1/get`（复用 `fetch_securities_pages`，`source=F10` / `SECURITIES`，无 `v` nonce，与批次26/34 一致），返回长表**原生英文键**（与 akshare `pd.DataFrame(result["data"])` 一致，未重命名）。实现要点：港股先经 `RPT_CUSTOM_HKSK_APPFN_CASHFLOW_SUMMARY` 取 `REPORT_LIST`（年度仅留 `REPORT_TYPE=="年报"`），再按 `REPORT_DATE in (...)` 拉取 `RPT_HKF10_FN_{BALANCE/INCOME/CASHFLOW}_PC` 明细（资产负债表含 `STD_REPORT_DATE`、利润/现金流含 `START_DATE`）；美股先经 `RPT_USF10_INFO_ORGPROFILE` 市场查询得 `SECUCODE`（如 `TSLA.O`），再取报告期清单按 indicator 过滤 `REPORT`（`年报`→含 `FY`、`单季报`→`Q1`–`Q4`、`累计季报`→`Q6`/`Q9`）拼 `(REPORT in (...))` 拉取 `RPT_USF10_FN_{BALANCE/INCOME}` / `RPT_USSK_FN_CASHFLOW` 明细。仍用 `Df::from_json_rows_typed` 保持数值列 dtype 与原始字段键。parity 已注册 6 用例（港股 资产负债表/利润表/现金流量表 × 年度、美股 资产负债表/综合损益表/现金流量表 × 年报，loose 列名+dtype 对齐）且 `--check` 全部通过（港股 11列×1124/585/966 行、美股 9列×639/525/617 行）。公开函数 **544 → 546**（stock_fundamental 28 → 30 / 57）。
 
 > **批次 36（2026-08-17）· stock 模块缺口 79 个批量落地**：按 §9.2 清单实现 stock 模块缺口（81 个中 79 个，2 个受限源除外），akshare 同名 `pub fn` 达 **537（48.9%）**。覆盖：① emappdata 港股热度 4（`stock_hk_hot_rank_em` 系列，复用 `emappdata_stockrank` + `push2_ulist`，sc→`116.` 前缀）；② 资金流系列 7（`stock_market_fund_flow`/`stock_individual_fund_flow_rank`/`stock_main_fund_flow`/`stock_sector_fund_flow_rank|hist|summary`/`stock_concept_fund_flow_hist`）；③ cninfo 专题/行业/披露 15（`stock_hold_num_cninfo` 等 8 个 p_sysapi10xx + `stock_industry_category_cninfo` 等 5 个 + `stock_zh_a_disclosure_report_cninfo`/`stock_zh_a_disclosure_relation_cninfo`）；④ 板块 spot/min 4；⑤ sse/szse 列表与汇总 11（`stock_info_sh|sz|bj_*`、`stock_sse_summary`/`stock_sse_deal_daily`/`stock_szse_summary`/`stock_szse_area_summary`）；⑥ 新浪/腾讯/东财杂项 28（`stock_zh_a_spot`/`stock_zh_a_daily`/`stock_zh_b_daily|minute|spot`/`stock_zh_kcb_daily|spot`/`stock_hk_daily`/`stock_us_daily|spot`/`get_us_stock_name`/`stock_zh_ah_*`/`stock_zh_a_spot_tx`/`stock_zh_a_tick_tx_js`/`stock_intraday_sina|em`/`stock_sector_spot|detail`/`stock_staq_net_stop`/`stock_news_main_cx`/`stock_hot_search_baidu`/`stock_js_weibo_*`/`stock_price_js`/`stock_hk_fhpx_detail_ths`/`stock_us_pink_spot_em`/`stock_us_famous_spot_em`/`stock_hk_famous_spot_em` 等）；⑦ 互动易 2（`stock_irm_cninfo`/`stock_irm_ans_cninfo`）；⑧ 交易所董监高持股变动 3（`stock_share_hold_change_sse|szse|bse`）。新增 JS 资产 `assets/js/us_sina_hash.js`（新浪美股 URL 哈希，`js_engine::us_sina_hash_decode`）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**。parity 注册对应用例（loose 为主，新浪/腾讯系 strict 视源可用性）。**受限源 2 个**：`stock_individual_spot_xq`（雪球需登录态 `xq_a_token`）、`stock_industry_clf_hist_sw`（申万宏源 xls SSL 证书失败），按 §9 惯例标记受限（明确错误语义，不注册 parity）。
+
+> **批次 37（2026-08-17）· economic/index/fund 缺口 24 个批量落地**：akshare 同名 `pub fn` 达 **650（59.1%）**。覆盖：① **economic 14 个**（BATCH37-A 新浪宏观 11：`macro_china_central_bank_balance`/`macro_china_foreign_exchange_gold`/`macro_china_insurance`/`macro_china_international_tourism_fx`/`macro_china_passenger_load_factor`/`macro_china_postal_telecommunicational`/`macro_china_retail_price_index`/`macro_china_society_electricity`/`macro_china_society_traffic_volume`/`macro_china_supply_of_money`/`macro_china_freight_index`，走 `MacPage_Service.get_pagedata` cate/event 分页、`config.all` 列名表；BATCH37-B 商务部社融 `macro_china_shrzgm`（`shr zgmQuery` POST JSON，9 列）+ chinamoney `macro_china_bond_public`（`bnBondEmit` 分页，8 列）+ `macro_china_swap_rate`（`IfccHis`，FR007 利率互换））；② **index 8 个**（BATCH37-C 东财全球指数 `index_global_spot_em`/`index_global_hist_em`，`fltt=1` 值 ÷100、秒级时间戳→Asia/Shanghai；BATCH37-D 中证指数 `index_stock_cons_csindex`/`index_stock_cons_weight_csindex`（csindex xls 下载，calamine Xls 解析，代码 zfill(6)）；BATCH37-E 新浪全球指数 `index_global_name_table`/`index_global_hist_sina`（20 项 symbol_map + `gi.finance.sina.com.cn/hq/daily`）+ `index_stock_cons_sina`（`Market_Center.getHQNodeData` 分页）/`index_stock_info`（聚宽 HTML 表））；③ **fund 2 个**（BATCH37-F `fund_lof_hist_em`/`fund_etf_hist_min_em`，复用 `fetch_kline`/`fetch_kline_min`/`fetch_trends`，市场标识 5/6 开头沪市 1 否则 0）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；24 个新函数全部注册 parity dispatch + parity_runner（loose）。**受限源新增 3 个**：`macro_china_nbs_nation`/`macro_china_nbs_region`/`macro_china_urban_unemployment`（stats.gov.cn esData 实测连接失败 000）、`index_option_*_qvix` 系列 16 个（optbbs.com 404），标记受限。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在

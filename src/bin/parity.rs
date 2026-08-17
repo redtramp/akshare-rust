@@ -65,7 +65,10 @@ use akshare_rust::economic::{
     macro_china_au_report,
     macro_china_bank_financing,
     macro_china_bdti_index,
+    macro_china_bond_public,
     macro_china_bsi_index,
+    // === BATCH37-A 新浪宏观（MacPage_Service.get_pagedata） ===
+    macro_china_central_bank_balance,
     macro_china_commodity_price_index,
     macro_china_construction_index,
     macro_china_construction_price_index,
@@ -81,6 +84,8 @@ use akshare_rust::economic::{
     macro_china_enterprise_boom_index,
     macro_china_exports_yoy,
     macro_china_fdi,
+    macro_china_foreign_exchange_gold,
+    macro_china_freight_index,
     macro_china_fx_gold,
     macro_china_fx_reserves_yearly,
     macro_china_gdp,
@@ -100,7 +105,9 @@ use akshare_rust::economic::{
     macro_china_hk_trade_diff_ratio,
     macro_china_imports_yoy,
     macro_china_industrial_production_yoy,
+    macro_china_insurance,
     macro_china_insurance_income,
+    macro_china_international_tourism_fx,
     macro_china_lpi_index,
     macro_china_lpr,
     macro_china_m2_yearly,
@@ -112,16 +119,25 @@ use akshare_rust::economic::{
     macro_china_new_financial_credit,
     macro_china_new_house_price,
     macro_china_non_man_pmi,
+    macro_china_passenger_load_factor,
     macro_china_pmi,
     macro_china_pmi_yearly,
+    macro_china_postal_telecommunicational,
     macro_china_ppi,
     macro_china_ppi_yearly,
     macro_china_qyspjg,
     macro_china_real_estate,
     macro_china_reserve_requirement_ratio,
+    macro_china_retail_price_index,
     macro_china_rmb,
     macro_china_shibor_all,
+    // === BATCH37-B 商务数据中心/chinamoney 宏观 ===
+    macro_china_shrzgm,
+    macro_china_society_electricity,
+    macro_china_society_traffic_volume,
     macro_china_stock_market_cap,
+    macro_china_supply_of_money,
+    macro_china_swap_rate,
     macro_china_trade_balance,
     macro_china_vegetable_basket,
     macro_china_wbck,
@@ -172,7 +188,8 @@ use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_ma
 use akshare_rust::forex::{forex_hist_em, forex_spot_em};
 use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
-    fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
+    fund_etf_category_ths, fund_etf_hist_min_em, fund_etf_spot_em, fund_etf_spot_ths,
+    fund_lof_hist_em, fund_lof_spot_em,
 };
 use akshare_rust::futures::{
     futures_comex_inventory, futures_comm_info, futures_comm_js, futures_contract_detail,
@@ -194,7 +211,11 @@ use akshare_rust::futures::{
     futures_zh_minute_sina, futures_zh_realtime, futures_zh_spot,
 };
 use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_quote_baidu, fx_spot_quote, fx_swap_quote};
-use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
+use akshare_rust::index::{
+    index_global_hist_em, index_global_hist_sina, index_global_name_table, index_global_spot_em,
+    index_stock_cons_csindex, index_stock_cons_sina, index_stock_cons_weight_csindex,
+    index_stock_info, index_zh_a_hist, index_zh_a_hist_min_em,
+};
 use akshare_rust::interest_rate::rate_interbank;
 use akshare_rust::legu::{
     fund_balance_position_lg, fund_linghuo_position_lg, fund_stock_position_lg,
@@ -651,7 +672,38 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s, p, d0, d1] = take4(func, args)?;
             Ok(index_zh_a_hist_min_em(s, p, d0, d1)?)
         }
+        "index_global_spot_em" => Ok(index_global_spot_em()?),
+        "index_global_hist_em" => {
+            let [s] = take1(func, args)?;
+            Ok(index_global_hist_em(s)?)
+        }
+        "index_stock_cons_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(index_stock_cons_sina(s)?)
+        }
+        "index_stock_info" => Ok(index_stock_info()?),
+        "index_stock_cons_csindex" => {
+            let [s] = take1(func, args)?;
+            Ok(index_stock_cons_csindex(s)?)
+        }
+        "index_stock_cons_weight_csindex" => {
+            let [s] = take1(func, args)?;
+            Ok(index_stock_cons_weight_csindex(s)?)
+        }
+        "index_global_name_table" => Ok(index_global_name_table()?),
+        "index_global_hist_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(index_global_hist_sina(s)?)
+        }
         "fund_etf_spot_em" => Ok(fund_etf_spot_em()?),
+        "fund_etf_hist_min_em" => {
+            let [s, d0, d1, p, a] = take5(func, args)?;
+            Ok(fund_etf_hist_min_em(s, d0, d1, p, a)?)
+        }
+        "fund_lof_hist_em" => {
+            let [s, p, d0, d1, a] = take5(func, args)?;
+            Ok(fund_lof_hist_em(s, p, d0, d1, a)?)
+        }
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
         "stock_profile_cninfo" => {
             let [s] = take1(func, args)?;
@@ -1380,6 +1432,23 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "macro_china_exports_yoy" => Ok(macro_china_exports_yoy()?),
         "macro_china_imports_yoy" => Ok(macro_china_imports_yoy()?),
         "macro_china_trade_balance" => Ok(macro_china_trade_balance()?),
+        "macro_china_central_bank_balance" => Ok(macro_china_central_bank_balance()?),
+        "macro_china_foreign_exchange_gold" => Ok(macro_china_foreign_exchange_gold()?),
+        "macro_china_insurance" => Ok(macro_china_insurance()?),
+        "macro_china_international_tourism_fx" => Ok(macro_china_international_tourism_fx()?),
+        "macro_china_passenger_load_factor" => Ok(macro_china_passenger_load_factor()?),
+        "macro_china_postal_telecommunicational" => Ok(macro_china_postal_telecommunicational()?),
+        "macro_china_retail_price_index" => Ok(macro_china_retail_price_index()?),
+        "macro_china_society_electricity" => Ok(macro_china_society_electricity()?),
+        "macro_china_society_traffic_volume" => Ok(macro_china_society_traffic_volume()?),
+        "macro_china_supply_of_money" => Ok(macro_china_supply_of_money()?),
+        "macro_china_freight_index" => Ok(macro_china_freight_index()?),
+        "macro_china_shrzgm" => Ok(macro_china_shrzgm()?),
+        "macro_china_bond_public" => Ok(macro_china_bond_public()?),
+        "macro_china_swap_rate" => {
+            let [d0, d1] = take2(func, args)?;
+            Ok(macro_china_swap_rate(d0, d1)?)
+        }
         "macro_china_industrial_production_yoy" => Ok(macro_china_industrial_production_yoy()?),
         "macro_china_pmi_yearly" => Ok(macro_china_pmi_yearly()?),
         "macro_china_cx_pmi_yearly" => Ok(macro_china_cx_pmi_yearly()?),
