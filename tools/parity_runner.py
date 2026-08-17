@@ -159,6 +159,8 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("fund_scale_change_em", [], "loose", "规模变动"),
     ("fund_hold_structure_em", [], "loose", "持有人结构"),
     ("fund_portfolio_industry_allocation_em", ["000001", "2023"], "loose", "基金行业配置"),
+    ("fund_portfolio_hold_em", ["000001", "2023"], "loose", "基金持仓"),
+    ("fund_portfolio_bond_hold_em", ["000001", "2023"], "loose", "基金债券持仓"),
     ("fund_new_found_em", [], "loose", "新成立基金"),
     ("fund_lof_spot_em", [], "loose", "LOF实时行情"),
     ("fund_etf_hist_em", ["510300", "daily", "20240101", "20240131", ""], "strict", "ETF日K"),

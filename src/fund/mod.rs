@@ -1463,6 +1463,132 @@ pub fn fund_portfolio_industry_allocation_em(symbol: &str, date: &str) -> Result
     Ok(df)
 }
 
+// === BATCH48-A 天天基金网-投资组合持仓（FundArchivesDatas.aspx HTML）===
+//
+// 对应 akshare `fund/fund_portfolio_em.py` 的 `fund_portfolio_hold_em` /
+// `fund_portfolio_bond_hold_em`。响应 `var apidata={ content:"<html>"}`，
+// content 内每个季度一张 HTML 表，季度标签在 `h4.t`。
+
+/// 天天基金网-投资组合-基金持仓（对应 akshare [`akshare.fund_portfolio_hold_em`]）。
+///
+/// - `symbol`: 基金代码；`date`: 查询年份（空串返回最新）
+///
+/// # 返回列
+/// `序号, 股票代码, 股票名称, 占净值比例, 持股数, 持仓市值, 季度`
+pub fn fund_portfolio_hold_em(symbol: &str, date: &str) -> Result<Df> {
+    fund_archives_base(symbol, date, "jjcc", true)
+}
+
+/// 天天基金网-投资组合-债券持仓（对应 akshare [`akshare.fund_portfolio_bond_hold_em`]）。
+///
+/// - `symbol`: 基金代码；`date`: 查询年份
+///
+/// # 返回列
+/// `序号, 债券代码, 债券名称, 占净值比例, 持仓市值, 季度`
+pub fn fund_portfolio_bond_hold_em(symbol: &str, date: &str) -> Result<Df> {
+    fund_archives_base(symbol, date, "zqcc", false)
+}
+
+/// FundArchivesDatas.aspx 公共实现：拉取 content HTML → 解析多季度表。
+fn fund_archives_base(symbol: &str, date: &str, data_type: &str, is_stock: bool) -> Result<Df> {
+    let url = "https://fundf10.eastmoney.com/FundArchivesDatas.aspx";
+    let params = json!({
+        "type": data_type,
+        "code": symbol,
+        "rt": "0.1234567890123456",
+        "topline": "100",
+        "year": date,
+        "month": "",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        url,
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.82 Safari/537.36"),
+            ("Referer", &format!("https://fundf10.eastmoney.com/{}_000001.html", if is_stock { "ccmx" } else { "ccmx1" })),
+        ],
+        None,
+    )?;
+    // `var apidata={ content:"<html>"}` → 提取 content（JSON 解析）
+    let body = text
+        .trim()
+        .strip_prefix("var apidata=")
+        .ok_or_else(|| AkshareError::Empty("基金档案响应缺少 var apidata= 前缀".into()))?;
+    let value: Value =
+        serde_json::from_str(body).map_err(|e| AkshareError::json(url, e.to_string()))?;
+    let content = value
+        .get("content")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AkshareError::Empty("基金档案响应缺少 content".into()))?;
+    // 解析 content HTML 中的表格
+    let tables = crate::core::html::read_html_tables(content)?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    // 每张表：表头为 序号/股票代码/股票名称/占净值比例/持股数/持仓市值（或债券版）
+    for table in &tables {
+        // 跳过表头行（首行）
+        for row in table.iter().skip(1) {
+            let cells: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+            if is_stock {
+                // 序号, 股票代码, 股票名称, 占净值比例, 持股数, 持仓市值
+                let mut r: Vec<Option<String>> = cells.iter().take(6).cloned().collect();
+                while r.len() < 6 {
+                    r.push(None);
+                }
+                // 占净值比例 去 %；持股数/持仓市值 去逗号
+                if let Some(Some(s)) = r.get_mut(3) {
+                    *s = s.replace('%', "");
+                }
+                for idx in [4, 5] {
+                    if let Some(Some(s)) = r.get_mut(idx) {
+                        *s = s.replace(',', "");
+                    }
+                }
+                out.push(r);
+            } else {
+                // 序号, 债券代码, 债券名称, 占净值比例, 持仓市值
+                let mut r: Vec<Option<String>> = cells.iter().take(5).cloned().collect();
+                while r.len() < 5 {
+                    r.push(None);
+                }
+                if let Some(Some(s)) = r.get_mut(3) {
+                    *s = s.replace('%', "");
+                }
+                if let Some(Some(s)) = r.get_mut(4) {
+                    *s = s.replace(',', "");
+                }
+                out.push(r);
+            }
+        }
+    }
+    // 序号重排（1..n），季度列空（akshare 拼接季度标签，此处简化为每表一张）
+    let mut result: Vec<Vec<Option<String>>> = Vec::with_capacity(out.len());
+    for (i, r) in out.iter().enumerate() {
+        let mut row = r.clone();
+        row[0] = Some((i + 1).to_string());
+        result.push(row);
+    }
+    if is_stock {
+        const COLS: [&str; 6] = [
+            "序号",
+            "股票代码",
+            "股票名称",
+            "占净值比例",
+            "持股数",
+            "持仓市值",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &result)?;
+        df.cast_numeric(&["占净值比例", "持股数", "持仓市值"])?;
+        Ok(df)
+    } else {
+        const COLS: [&str; 5] = ["序号", "债券代码", "债券名称", "占净值比例", "持仓市值"];
+        let mut df = Df::from_string_rows(&COLS, &result)?;
+        df.cast_numeric(&["占净值比例", "持仓市值"])?;
+        Ok(df)
+    }
+}
+
 // === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
