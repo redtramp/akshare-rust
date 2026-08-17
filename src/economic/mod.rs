@@ -15,7 +15,7 @@ use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{finalize_report, json_value_to_string};
 use crate::sources::jin10::{fetch_jin10_cdn, fetch_jin10_cdn_text, macro_china_base};
 use crate::stock_feature::{datacenter, report_extra};
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 macro_rules! macro_china_fn {
     ($name:ident, $symbol:literal, $attr:literal) => {
@@ -2210,5 +2210,139 @@ pub fn macro_china_swap_rate(start_date: &str, end_date: &str) -> Result<Df> {
         .collect();
     let mut df = df;
     df.cast_numeric(&numeric)?;
+    Ok(df)
+}
+
+// === BATCH42-A 金十数据中心-欧元区宏观（14 个，category=ec 复用 macro_china_base）===
+//
+// 对应 akshare `economic/macro_euro.py`。与 [`macro_china_base`] 同契约
+// （`category="ec"`、`attr_id` 分指标），直接复用。
+
+macro_rules! macro_euro_fn {
+    ($name:ident, $symbol:literal, $attr:literal) => {
+        /// 金十数据中心-欧元区宏观指标（对应 akshare [`akshare.$name`]）。
+        ///
+        /// 数据源 `datacenter-api.jin10.com/reports/list_v2`（`attr_id=$attr`）。
+        ///
+        /// # 返回列
+        /// `商品, 日期, 今值, 预测值, 前值`
+        pub fn $name() -> Result<Df> {
+            macro_china_base($symbol, $attr)
+        }
+    };
+}
+
+macro_euro_fn!(macro_euro_gdp_yoy, "欧元区季度GDP年率", "84");
+macro_euro_fn!(macro_euro_cpi_mom, "欧元区CPI月率", "84");
+macro_euro_fn!(macro_euro_cpi_yoy, "欧元区CPI年率", "8");
+macro_euro_fn!(macro_euro_ppi_mom, "欧元区PPI月率", "36");
+macro_euro_fn!(macro_euro_retail_sales_mom, "欧元区零售销售月率", "38");
+macro_euro_fn!(
+    macro_euro_employment_change_qoq,
+    "欧元区季调后就业人数季率",
+    "14"
+);
+macro_euro_fn!(macro_euro_unemployment_rate_mom, "欧元区失业率", "46");
+macro_euro_fn!(macro_euro_trade_balance, "欧元区未季调贸易帐", "43");
+macro_euro_fn!(macro_euro_current_account_mom, "欧元区经常帐", "11");
+macro_euro_fn!(
+    macro_euro_industrial_production_mom,
+    "欧元区工业产出月率",
+    "19"
+);
+macro_euro_fn!(macro_euro_manufacturing_pmi, "欧元区制造业PMI初值", "30");
+macro_euro_fn!(macro_euro_services_pmi, "欧元区服务业PMI终值", "41");
+macro_euro_fn!(
+    macro_euro_zew_economic_sentiment,
+    "欧元区ZEW经济景气指数",
+    "48"
+);
+macro_euro_fn!(
+    macro_euro_sentix_investor_confidence,
+    "欧元区Sentix投资者信心指数",
+    "40"
+);
+
+// === BATCH42-B 金十数据中心-LME 持仓/库存（cdn.jin10.com lme json）===
+//
+// 对应 akshare `economic/macro_euro.py` 的 `macro_euro_lme_holding` /
+// `macro_euro_lme_stock`。响应 `{keys: [{name}], values: {日期: {品种: [3 值]}}}`，
+// 展开为 `日期, {日期}-{keys[i].name}...`（品种 × 3 指标），最后一行为合计去掉。
+
+/// 伦敦金属交易所-LME-持仓报告（对应 akshare [`akshare.macro_euro_lme_holding`]）。
+pub fn macro_euro_lme_holding() -> Result<Df> {
+    macro_lme_base("https://cdn.jin10.com/data_center/reports/lme_position.json")
+}
+
+/// 伦敦金属交易所-LME-库存报告（对应 akshare [`akshare.macro_euro_lme_stock`]）。
+pub fn macro_euro_lme_stock() -> Result<Df> {
+    macro_lme_base("https://cdn.jin10.com/data_center/reports/lme_stock.json")
+}
+
+/// LME json 公共解析：`{keys:[{name}], values:{日期:{品种:[v0,v1,v2]}}}`。
+fn macro_lme_base(url: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let params = json!({ "_": chrono::Utc::now().timestamp_millis().to_string() });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let value = http.get_json(url, &params, None)?;
+    let keys: Vec<String> = value
+        .get("keys")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|k| k.get("name").and_then(Value::as_str).map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let values = value
+        .get("values")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    // 日期列表（字典序升序）
+    let mut dates: Vec<&String> = values.keys().collect();
+    dates.sort();
+    // 品种列表：取第一个日期的键序
+    let products: Vec<&String> = dates
+        .first()
+        .and_then(|d| values.get(*d).and_then(Value::as_object))
+        .map(|m| m.keys().collect())
+        .unwrap_or_default();
+    // 输出：每品种一行，列 = 日期 × 3 指标
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(products.len());
+    for p in &products {
+        let mut row: Vec<Option<String>> = vec![Some((*p).clone())];
+        for d in &dates {
+            let day = values.get(*d).and_then(Value::as_object);
+            let cell = day
+                .and_then(|m| m.get(*p))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            for i in 0..3 {
+                row.push(cell.get(i).and_then(|v| match v {
+                    Value::Number(n) => Some(n.to_string()),
+                    _ => None,
+                }));
+            }
+        }
+        out.push(row);
+    }
+    // 去掉最后一行（合计），对应 akshare `iloc[:-1]`
+    if out.len() > 1 {
+        out.pop();
+    }
+    // 列名：日期, {日期}-{keys[i].name}...
+    let mut cols: Vec<String> = vec!["日期".to_string()];
+    for d in &dates {
+        for k in &keys {
+            cols.push(format!("{d}-{k}"));
+        }
+    }
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    if cols.len() > 1 {
+        df.cast_numeric(&col_refs[1..])?;
+    }
     Ok(df)
 }
