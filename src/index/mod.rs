@@ -1034,6 +1034,294 @@ pub fn index_component_sw(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH40-A 申万宏源研究-指数（index_min_sw / index_realtime_sw / index_analysis_*）===
+//
+// 对应 akshare `index/index_research_sw.py`。同 `institute-sw/api` 跳过 SSL 验证。
+
+/// 申万宏源-指数分时数据（对应 akshare [`akshare.index_min_sw`]）。
+///
+/// - `symbol`: 指数代码，如 `"801001"`
+///
+/// `institute-sw/api/index_publish/details/timelines/` JSON，键映射后 select 5 列。
+///
+/// # 返回列
+/// `代码, 名称, 价格, 日期, 时间`
+pub fn index_min_sw(symbol: &str) -> Result<Df> {
+    let params = json!({ "swindexcode": symbol });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://www.swsresearch.com/institute-sw/api/index_publish/details/timelines/",
+        &params,
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        )],
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("l1"),
+            f("l2"),
+            f("l8"),
+            f("trading_date"),
+            f("trading_time"),
+        ]);
+    }
+    const COLS: [&str; 5] = ["代码", "名称", "价格", "日期", "时间"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&["价格"])?;
+    Ok(df)
+}
+
+/// 申万宏源-指数系列实时行情（对应 akshare [`akshare.index_realtime_sw`]）。
+///
+/// - `symbol`: `"市场表征"` / `"一级行业"` / `"二级行业"` / `"风格指数"` /
+///   `"大类风格指数"` / `"金创指数"`
+///
+/// `institute-sw/api/index_publish/current/` 分页（page_size=50）。
+///
+/// # 返回列
+/// `指数代码, 指数名称, 昨收盘, 今开盘, 最新价, 成交额, 成交量, 最高价, 最低价`
+pub fn index_realtime_sw(symbol: &str) -> Result<Df> {
+    let url = "https://www.swsresearch.com/institute-sw/api/index_publish/current/";
+    let http = HttpClient::default();
+    let headers: &[(&str, &str)] = &[(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+    )];
+    let mut params = json!({
+        "page": "1",
+        "page_size": "50",
+        "indextype": symbol,
+    });
+    let params_map: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let first = http.get_json_with_headers(url, &params_map, headers, None)?;
+    let total_page = first
+        .get("data")
+        .and_then(|d| d.get("count"))
+        .and_then(Value::as_u64)
+        .map(|n| n.div_ceil(50).max(1))
+        .unwrap_or(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v
+            .get("data")
+            .and_then(|d| d.get("results"))
+            .and_then(Value::as_array)
+        {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=total_page {
+        params = json!({
+            "page": page.to_string(),
+            "page_size": "50",
+            "indextype": symbol,
+        });
+        let pm: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_json_with_headers(url, &pm, headers, None) {
+            Ok(v) => append(&v, &mut rows),
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("swindexcode"),
+            f("swindexname"),
+            f("precloseindex"),
+            f("openindex"),
+            f("currentindex"),
+            f("bargainsum"),
+            f("bargainamount"),
+            f("maxindex"),
+            f("minindex"),
+        ]);
+    }
+    const COLS: [&str; 9] = [
+        "指数代码",
+        "指数名称",
+        "昨收盘",
+        "今开盘",
+        "最新价",
+        "成交额",
+        "成交量",
+        "最高价",
+        "最低价",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[2..])?;
+    Ok(df)
+}
+
+/// 申万宏源-指数分析公共实现（index_analysis_report/，type=DAY/WEEK/MONTH）。
+fn index_analysis_sw_base(symbol: &str, start_date: &str, end_date: &str, typ: &str) -> Result<Df> {
+    let url = "https://www.swsresearch.com/institute-sw/api/index_analysis/index_analysis_report/";
+    let http = HttpClient::default();
+    let headers: &[(&str, &str)] = &[(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+    )];
+    let sd = cnindex_fmt_date(start_date);
+    let ed = cnindex_fmt_date(end_date);
+    let mut params = json!({
+        "page": "1",
+        "page_size": "50",
+        "index_type": symbol,
+        "start_date": sd,
+        "end_date": ed,
+        "type": typ,
+        "swindexcode": "all",
+    });
+    let params_map: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let first = http.get_json_with_headers(url, &params_map, headers, None)?;
+    let total_page = first
+        .get("data")
+        .and_then(|d| d.get("count"))
+        .and_then(Value::as_u64)
+        .map(|n| n.div_ceil(50).max(1))
+        .unwrap_or(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v
+            .get("data")
+            .and_then(|d| d.get("results"))
+            .and_then(Value::as_array)
+        {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=total_page {
+        params = json!({
+            "page": page.to_string(),
+            "page_size": "50",
+            "index_type": symbol,
+            "start_date": sd,
+            "end_date": ed,
+            "type": typ,
+            "swindexcode": "all",
+        });
+        let pm: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_json_with_headers(url, &pm, headers, None) {
+            Ok(v) => append(&v, &mut rows),
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("swindexcode"),
+            f("swindexname"),
+            f("bargaindate"),
+            f("closeindex"),
+            f("bargainamount"),
+            f("markup"),
+            f("turnoverrate"),
+            f("pe"),
+            f("pb"),
+            f("meanprice"),
+            f("bargainsumrate"),
+            f("negotiablessharesum1"),
+            f("negotiablessharesum2"),
+            f("dp"),
+        ]);
+    }
+    const COLS: [&str; 14] = [
+        "指数代码",
+        "指数名称",
+        "发布日期",
+        "收盘指数",
+        "成交量",
+        "涨跌幅",
+        "换手率",
+        "市盈率",
+        "市净率",
+        "均价",
+        "成交额占比",
+        "流通市值",
+        "平均流通市值",
+        "股息率",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["发布日期"])?;
+    df.cast_numeric(&COLS[3..])?;
+    df = df.sort_by("发布日期", true, false)?;
+    Ok(df)
+}
+
+/// 申万宏源-指数分析-日报（对应 akshare [`akshare.index_analysis_daily_sw`]）。
+///
+/// - `symbol`: `"市场表征"` / `"一级行业"` / `"二级行业"` / `"风格指数"`
+/// - `start_date`/`end_date`: `YYYYMMDD`
+///
+/// # 返回列
+/// `指数代码, 指数名称, 发布日期, 收盘指数, 成交量, 涨跌幅, 换手率, 市盈率,
+/// 市净率, 均价, 成交额占比, 流通市值, 平均流通市值, 股息率`
+pub fn index_analysis_daily_sw(symbol: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    index_analysis_sw_base(symbol, start_date, end_date, "DAY")
+}
+
+/// 申万宏源-指数分析-周报（对应 akshare [`akshare.index_analysis_weekly_sw`]）。
+pub fn index_analysis_weekly_sw(symbol: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    index_analysis_sw_base(symbol, start_date, end_date, "WEEK")
+}
+
+/// 申万宏源-指数分析-月报（对应 akshare [`akshare.index_analysis_monthly_sw`]）。
+pub fn index_analysis_monthly_sw(symbol: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    index_analysis_sw_base(symbol, start_date, end_date, "MONTH")
+}
+
+/// 申万宏源-周/月报表-日期序列（对应 akshare [`akshare.index_analysis_week_month_sw`]）。
+///
+/// - `symbol`: `"week"` / `"month"`
+///
+/// # 返回列
+/// `date`
+pub fn index_analysis_week_month_sw(symbol: &str) -> Result<Df> {
+    let params = json!({ "type": symbol.to_uppercase() });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://www.swsresearch.com/institute-sw/api/index_analysis/week_month_datetime/",
+        &params,
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        )],
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        out.push(vec![r.get("bargaindate").and_then(json_value_to_string)]);
+    }
+    let mut df = Df::from_string_rows(&["date"], &out)?;
+    df.cast_date(&["date"])?;
+    df = df.sort_by("date", true, false)?;
+    Ok(df)
+}
+
 // === BATCH37-E 新浪全球指数（index_global_sina_symbol_map + gi.finance.sina.com.cn）===
 //
 // 对应 akshare `index/index_global_sina.py`。

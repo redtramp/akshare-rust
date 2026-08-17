@@ -76,11 +76,13 @@
 
 > **2026-08-17 批次 39 刷新**：批量实现 fund 净值/分红 5 个（`fund_open_fund_daily_em`/`fund_money_fund_daily_em`/`fund_financial_fund_daily_em` 走 `Data/Fund_JJJZ_Data.aspx` 与 `GetLCJJJZ` 净值列表、`fund_fh_em`/`fund_cf_em` 走 `funddataIndex_Interface.aspx` 分红/拆分分页）+ index 申万宏源 2 个（`index_hist_sw`/`index_component_sw`，`institute-sw/api` JSON，跳过 SSL 验证），akshare 同名 `pub fn` 达 **666** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 60.6%**。
 
+> **2026-08-17 批次 40 刷新**：批量实现 index 申万宏源 6 个（`index_min_sw`/`index_realtime_sw`/`index_analysis_daily_sw`/`index_analysis_weekly_sw`/`index_analysis_monthly_sw`/`index_analysis_week_month_sw`，`institute-sw/api` 同源 JSON）+ fund 名称列表 1 个（`fund_name_em`，`fundcode_search.js` JS 二维数组），akshare 同名 `pub fn` 达 **673** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 61.2%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **666**（2026-08-17 批次 39 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（666 / 1099 实测口径） | **≈ 60.6%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **673**（2026-08-17 批次 40 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（673 / 1099 实测口径） | **≈ 61.2%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -90,8 +92,8 @@
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---:|---:|---:|
 | economic | 131 | 225 | 58.2% |
-| index | 19 | 95 | 20.0% |
-| fund | 19 | 88 | 21.6% |
+| index | 25 | 95 | 26.3% |
+| fund | 20 | 88 | 22.7% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -125,7 +127,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **666（60.6%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 58.2%（131/225）**、**fund 21.6%（19/88）**、**index 20.0%（19/95）**。最大缺口在 **index / fund / economic**（合计 239）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **673（61.2%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 58.2%（131/225）**、**index 26.3%（25/95）**、**fund 22.7%（20/88）**。最大缺口在 **index / fund / economic**（合计 232）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -757,6 +759,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 38（2026-08-17）· fund 排行 + index 国证指数 9 个批量落地**：akshare 同名 `pub fn` 达 **659（60.0%）**。覆盖：① **fund 排行 4 个**（BATCH38-A `fund_open_fund_rank_em`（rankhandler.aspx `op=ph&dt=kf`，`datas` 逗号分隔串 24 字段位置式 select 18 列，`sd`=一年前/`ed`=今天）、`fund_exchange_rank_em`（`dt=fb`，17 列含 类型/成立日期）、`fund_money_rank_em`（`api.fund.eastmoney.com/FundRank/GetHbRankList` JSON 28 字段 select 18 列）、`fund_lcx_rank_em`（`GetLcRankList` JSON 23 字段 select 16 列））；② **index 国证指数 5 个**（BATCH38-B `index_all_cni`（`cnindex.com.cn/index/indexList` JSON 25 字段 select 10 列，成交量÷10^5、市值类÷10^8）、`index_hist_cni`（`hq.cnindex.com.cn getIndexDailyDataWithDataFormat` JSON 11 字段 select 8 列，涨跌幅去 `%` ÷100）、`index_detail_cni`/`index_detail_hist_cni`（`sample-detail/download-history` xls 6 列，样本代码 zfill(6)）、`index_detail_hist_adjust_cni`（`download-adjustment` xls 原键列，样本代码 zfill(6)）；复用 `csindex_xls_rows`（calamine Xls 解析））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；9 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 > **批次 39（2026-08-17）· fund 净值/分红 + index 申万宏源 7 个批量落地**：akshare 同名 `pub fn` 达 **666（60.6%）**。覆盖：① **fund 净值列表 3 个**（BATCH39-A `fund_open_fund_daily_em`/`fund_money_fund_daily_em`（`Data/Fund_JJJZ_Data.aspx`，`datas` 21 字段位置式 + `showday` 列名）、`fund_financial_fund_daily_em`（`GetLCJJJZ` JSON，`Data.List` + `showday`））；② **fund 分红/拆分 2 个**（BATCH39-B `fund_fh_em`/`fund_cf_em`（`funddataIndex_Interface.aspx`，`dt=8/9` 分页，`[[...]]` eval 解析，7/5 列契约））；③ **index 申万宏源 2 个**（BATCH39-C `index_hist_sw`/`index_component_sw`（`institute-sw/api` JSON，`verify=False` 跳过 SSL 验证，8/5 列契约））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；7 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 40（2026-08-17）· index 申万实时/分析 + fund 名称列表 7 个批量落地**：akshare 同名 `pub fn` 达 **673（61.2%）**。覆盖：① **index 申万宏源 6 个**（BATCH40-A `index_min_sw`（`index_publish/details/timelines/`，5 列：代码/名称/价格/日期/时间）、`index_realtime_sw`（`index_publish/current/` 分页 page_size=50，9 列）、`index_analysis_daily_sw`/`index_analysis_weekly_sw`/`index_analysis_monthly_sw`（`index_analysis/index_analysis_report/`，type=DAY/WEEK/MONTH 分页，14 列 rename + 数值化 + 按发布日期升序，公共实现 `index_analysis_sw_base`）、`index_analysis_week_month_sw`（`week_month_datetime/`，1 列 date））；② **fund 名称列表 1 个**（`fund_name_em`，`fund.eastmoney.com/js/fundcode_search.js`，`var r = [[...]];` 二维数组 → 5 列）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；7 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在

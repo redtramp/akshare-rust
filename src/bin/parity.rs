@@ -190,7 +190,7 @@ use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
     fund_cf_em, fund_etf_category_ths, fund_etf_hist_min_em, fund_etf_spot_em, fund_etf_spot_ths,
     fund_exchange_rank_em, fund_fh_em, fund_financial_fund_daily_em, fund_lcx_rank_em,
-    fund_lof_hist_em, fund_lof_spot_em, fund_money_fund_daily_em, fund_money_rank_em,
+    fund_lof_hist_em, fund_lof_spot_em, fund_money_fund_daily_em, fund_money_rank_em, fund_name_em,
     fund_open_fund_daily_em, fund_open_fund_rank_em,
 };
 use akshare_rust::futures::{
@@ -214,9 +214,11 @@ use akshare_rust::futures::{
 };
 use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_quote_baidu, fx_spot_quote, fx_swap_quote};
 use akshare_rust::index::{
-    index_all_cni, index_component_sw, index_detail_cni, index_detail_hist_adjust_cni,
-    index_detail_hist_cni, index_global_hist_em, index_global_hist_sina, index_global_name_table,
-    index_global_spot_em, index_hist_cni, index_hist_sw, index_stock_cons_csindex,
+    index_all_cni, index_analysis_daily_sw, index_analysis_monthly_sw,
+    index_analysis_week_month_sw, index_analysis_weekly_sw, index_component_sw, index_detail_cni,
+    index_detail_hist_adjust_cni, index_detail_hist_cni, index_global_hist_em,
+    index_global_hist_sina, index_global_name_table, index_global_spot_em, index_hist_cni,
+    index_hist_sw, index_min_sw, index_realtime_sw, index_stock_cons_csindex,
     index_stock_cons_sina, index_stock_cons_weight_csindex, index_stock_info, index_zh_a_hist,
     index_zh_a_hist_min_em,
 };
@@ -724,6 +726,30 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(index_component_sw(s)?)
         }
+        "index_min_sw" => {
+            let [s] = take1(func, args)?;
+            Ok(index_min_sw(s)?)
+        }
+        "index_realtime_sw" => {
+            let [s] = take1(func, args)?;
+            Ok(index_realtime_sw(s)?)
+        }
+        "index_analysis_daily_sw" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(index_analysis_daily_sw(s, d0, d1)?)
+        }
+        "index_analysis_weekly_sw" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(index_analysis_weekly_sw(s, d0, d1)?)
+        }
+        "index_analysis_monthly_sw" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(index_analysis_monthly_sw(s, d0, d1)?)
+        }
+        "index_analysis_week_month_sw" => {
+            let [s] = take1(func, args)?;
+            Ok(index_analysis_week_month_sw(s)?)
+        }
         "fund_etf_spot_em" => Ok(fund_etf_spot_em()?),
         "fund_etf_hist_min_em" => {
             let [s, d0, d1, p, a] = take5(func, args)?;
@@ -751,6 +777,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [y, t, r, s, p] = take5(func, args)?;
             Ok(fund_cf_em(y, t, r, s, p.parse().unwrap_or(-1))?)
         }
+        "fund_name_em" => Ok(fund_name_em()?),
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
         "stock_profile_cninfo" => {
             let [s] = take1(func, args)?;

@@ -1208,6 +1208,51 @@ pub fn fund_financial_fund_daily_em() -> Result<Df> {
     Ok(df)
 }
 
+/// 东财-所有基金名称和类型（对应 akshare [`akshare.fund_name_em`]）。
+///
+/// `fund.eastmoney.com/js/fundcode_search.js`，响应 `var r = [[...]];`，
+/// 取 `var r = ` 前缀后到末尾分号前的二维数组。
+///
+/// # 返回列
+/// `基金代码, 拼音缩写, 基金简称, 基金类型, 拼音全称`
+pub fn fund_name_em() -> Result<Df> {
+    let http = HttpClient::default();
+    let text = http.get_text(
+        "https://fund.eastmoney.com/js/fundcode_search.js",
+        &Map::new(),
+        None,
+    )?;
+    let body = text
+        .trim()
+        .strip_prefix("var r = ")
+        .ok_or_else(|| AkshareError::Empty("基金名称响应缺少 var r = 前缀".into()))?;
+    let body = body.strip_suffix(';').unwrap_or(body);
+    let rows: Vec<Value> = serde_json::from_str(body)
+        .map_err(|e| AkshareError::json("fund_name_em", e.to_string()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| {
+            row.get(idx)
+                .and_then(Value::as_str)
+                .map(|s| {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t.to_string())
+                    }
+                })
+                .unwrap_or(None)
+        };
+        out.push(vec![f(0), f(1), f(2), f(3), f(4)]);
+    }
+    Df::from_string_rows(
+        &["基金代码", "拼音缩写", "基金简称", "基金类型", "拼音全称"],
+        &out,
+    )
+}
+
 // === BATCH39-B 天天基金网分红送配（funddataIndex_Interface.aspx，dt=8/9）===
 //
 // 对应 akshare `fund/fund_fhsp_em.py` 的 `fund_fh_em`（dt=8 分红）与
