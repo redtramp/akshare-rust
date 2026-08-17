@@ -959,6 +959,54 @@ pub fn index_csindex_all() -> Result<Df> {
     Ok(df)
 }
 
+/// 沐甜科技数据中心-中国食糖指数（对应 akshare [`akshare.index_sugar_msweet`]）。
+///
+/// `msweet.com.cn/eportal/ui`（`getSTZSJson`），`category` + `data` 拼接为 4 列。
+///
+/// # 返回列
+/// `日期, 综合价格, 原糖价格, 现货价格`
+pub fn index_sugar_msweet() -> Result<Df> {
+    let params = json!({
+        "struts.portlet.action": "/portlet/price!getSTZSJson.action",
+        "moduleId": "cb752447cfe24b44b18c7a7e9abab048",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json("https://www.msweet.com.cn/eportal/ui", &params, None)?;
+    let cat = value
+        .get("category")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let data = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // category 每项可能是 [日期] 单元素或标量；data 每项为数值数组
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(cat.len());
+    let n = cat.len().max(data.len());
+    for i in 0..n {
+        let dcell = cat.get(i).cloned().unwrap_or(Value::Null);
+        let date = match dcell {
+            Value::Array(a) => a.first().and_then(json_value_to_string),
+            other => json_value_to_string(&other),
+        };
+        let row = data
+            .get(i)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let f = |idx: usize| row.get(idx).and_then(json_value_to_string);
+        out.push(vec![date, f(0), f(1), f(2)]);
+    }
+    const COLS: [&str; 4] = ["日期", "综合价格", "原糖价格", "现货价格"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
 // === BATCH39-C 申万宏源研究-指数（index_hist_sw 等）===
 //
 // 对应 akshare `index/index_research_sw.py`。`swsresearch.com/institute-sw/api/`

@@ -1463,6 +1463,97 @@ pub fn fund_portfolio_industry_allocation_em(symbol: &str, date: &str) -> Result
     Ok(df)
 }
 
+// === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
+//
+// 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
+// `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。
+
+/// 天天基金网-新成立基金（对应 akshare [`akshare.fund_new_found_em`]）。
+///
+/// # 返回列
+/// `基金代码, 基金简称, 发行公司, 基金类型, 集中认购期, 募集份额, 成立日期,
+/// 成立来涨幅, 基金经理, 申购状态, 优惠费率`
+pub fn fund_new_found_em() -> Result<Df> {
+    let params = json!({
+        "t": "xcln",
+        "sort": "jzrgq,desc",
+        "y": "",
+        "page": "1,50000",
+        "isbuy": "1",
+        "v": "0.4069919776543214",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text(
+        "https://fund.eastmoney.com/data/FundNewIssue.aspx",
+        &params,
+        None,
+    )?;
+    let body = text
+        .trim()
+        .strip_prefix("var newfunddata=")
+        .ok_or_else(|| AkshareError::Empty("新发基金响应缺少 var newfunddata= 前缀".into()))?;
+    let value: Value = serde_json::from_str(body)
+        .map_err(|e| AkshareError::json("fund_new_found_em", e.to_string()))?;
+    let rows = value
+        .get("datas")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 19 字段位置式：代码,简称,发行公司,_,类型,募集份额,成立日期,成立来涨幅,基金经理,申购状态,集中认购期,_,_,_,_,_,_,_,优惠费率
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| {
+            row.get(idx)
+                .and_then(Value::as_str)
+                .map(|s| {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t.to_string())
+                    }
+                })
+                .unwrap_or(None)
+        };
+        out.push(vec![
+            f(0),
+            f(1),
+            f(2),
+            f(4),
+            f(10),
+            f(5),
+            f(6),
+            f(7),
+            f(8),
+            f(9),
+            f(18),
+        ]);
+    }
+    const COLS: [&str; 11] = [
+        "基金代码",
+        "基金简称",
+        "发行公司",
+        "基金类型",
+        "集中认购期",
+        "募集份额",
+        "成立日期",
+        "成立来涨幅",
+        "基金经理",
+        "申购状态",
+        "优惠费率",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["成立日期"])?;
+    df.cast_numeric(&["募集份额"])?;
+    df.strip_commas(&["成立来涨幅"])?;
+    df.cast_numeric(&["成立来涨幅"])?;
+    df.strip_suffix(&["优惠费率"], "%")?;
+    df.cast_numeric(&["优惠费率"])?;
+    Ok(df)
+}
+
 // === BATCH39-B 天天基金网分红送配（funddataIndex_Interface.aspx，dt=8/9）===
 //
 // 对应 akshare `fund/fund_fhsp_em.py` 的 `fund_fh_em`（dt=8 分红）与

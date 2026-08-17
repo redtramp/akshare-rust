@@ -86,11 +86,13 @@
 
 > **2026-08-17 批次 44 刷新**：批量实现 fund 投资组合-行业配置 1 个（`fund_portfolio_industry_allocation_em`，`api.fund.eastmoney.com/f10/HYPZ/` JSON，`Data.QuarterInfos[].HYPZInfo[]` 展开 5 列）+ index 申万基金指数 1 个（`index_hist_fund_sw`，`insWechatSw/fundIndex/getFundKChartData` POST JSON，6 列），akshare 同名 `pub fn` 达 **713** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 64.9%**。
 
+> **2026-08-17 批次 45 刷新**：批量实现 fund 新成立基金 1 个（`fund_new_found_em`，`FundNewIssue.aspx` `var newfunddata=` 前缀，datas 19 字段位置式 select 11 列）+ index 中国食糖指数 1 个（`index_sugar_msweet`，`msweet.com.cn/eportal/ui` `getSTZSJson`，`category`+`data` 拼接 4 列），akshare 同名 `pub fn` 达 **715** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 65.1%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **713**（2026-08-17 批次 44 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（713 / 1099 实测口径） | **≈ 64.9%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **715**（2026-08-17 批次 45 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（715 / 1099 实测口径） | **≈ 65.1%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -100,8 +102,8 @@
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---:|---:|---:|
 | economic | 147 | 225 | 65.3% |
-| index | 46 | 95 | 48.4% |
-| fund | 23 | 88 | 26.1% |
+| index | 47 | 95 | 49.5% |
+| fund | 24 | 88 | 27.3% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -135,7 +137,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **713（64.9%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 48.4%（46/95）**、**fund 26.1%（23/88）**。最大缺口在 **index / fund / economic**（合计 192）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **715（65.1%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 49.5%（47/95）**、**fund 27.3%（24/88）**。最大缺口在 **index / fund / economic**（合计 190）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -777,6 +779,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 43（2026-08-17）· fund 规模份额 + index 中证指数列表 3 个批量落地**：akshare 同名 `pub fn` 达 **711（64.7%）**。覆盖：① **fund 规模份额 2 个**（BATCH43-A `fund_scale_change_em`（`FundDataPortfolio_Interface.aspx` dt=9 规模变动，7 列）、`fund_hold_structure_em`（dt=11 持有人结构，7 列；总份额去逗号），响应 `var hypzDetail={data:[...],pages:"57"}` 分页，公共实现 `fund_hypz_base`）；② **index 中证指数列表 1 个**（`index_csindex_all`，`csindex-home/exportExcel/indexAll/CH` POST JSON → xlsx 下载复用 `csindex_xls_rows`，指数代码 zfill(6)、基日/发布时间日期化；**新增 `HttpClient::post_json_bytes`**（POST JSON body 返回原始字节，供 xlsx 等非 JSON 下载））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；3 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 > **批次 44（2026-08-17）· fund 投资组合 + index 申万基金指数 2 个批量落地**：akshare 同名 `pub fn` 达 **713（64.9%）**。覆盖：① **fund 投资组合-行业配置 1 个**（BATCH44-A `fund_portfolio_industry_allocation_em`，`api.fund.eastmoney.com/f10/HYPZ/` JSON，`Data.QuarterInfos[].HYPZInfo[]` 展开，HYMC/ZJZBL/SZ/FSRQ → 序号/行业类别/占净值比例/市值/截止时间 5 列）；② **index 申万基金指数 1 个**（`index_hist_fund_sw`，`insWechatSw/fundIndex/getFundKChartData` POST JSON，bargaindate/closeindex/openindex/maxindex/minindex/markup → 6 列）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；2 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 45（2026-08-17）· fund 新发基金 + index 食糖指数 2 个批量落地**：akshare 同名 `pub fn` 达 **715（65.1%）**。覆盖：① **fund 新成立基金 1 个**（BATCH45-A `fund_new_found_em`，`fund.eastmoney.com/data/FundNewIssue.aspx`，响应 `var newfunddata={datas:[...]}`，datas 19 字段位置式 select 11 列：基金代码/简称/发行公司/类型/集中认购期/募集份额/成立日期/成立来涨幅（去逗号）/基金经理/申购状态/优惠费率（去 %））；② **index 中国食糖指数 1 个**（`index_sugar_msweet`，`msweet.com.cn/eportal/ui` `getSTZSJson`，`category`+`data` 拼接为 日期/综合价格/原糖价格/现货价格 4 列）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；2 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在

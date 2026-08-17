@@ -208,8 +208,8 @@ use akshare_rust::fund::{
     fund_cf_em, fund_etf_category_ths, fund_etf_hist_min_em, fund_etf_spot_em, fund_etf_spot_ths,
     fund_exchange_rank_em, fund_fh_em, fund_financial_fund_daily_em, fund_hold_structure_em,
     fund_lcx_rank_em, fund_lof_hist_em, fund_lof_spot_em, fund_money_fund_daily_em,
-    fund_money_rank_em, fund_name_em, fund_open_fund_daily_em, fund_open_fund_rank_em,
-    fund_portfolio_industry_allocation_em, fund_scale_change_em,
+    fund_money_rank_em, fund_name_em, fund_new_found_em, fund_open_fund_daily_em,
+    fund_open_fund_rank_em, fund_portfolio_industry_allocation_em, fund_scale_change_em,
 };
 use akshare_rust::futures::{
     futures_comex_inventory, futures_comm_info, futures_comm_js, futures_contract_detail,
@@ -240,8 +240,8 @@ use akshare_rust::index::{
     index_hist_cni, index_hist_fund_sw, index_hist_sw, index_ii_cx, index_li_cx, index_min_sw,
     index_neaw_cx, index_neei_cx, index_nei_cx, index_pmi_com_cx, index_pmi_man_cx,
     index_pmi_ser_cx, index_qli_cx, index_realtime_sw, index_si_cx, index_stock_cons_csindex,
-    index_stock_cons_sina, index_stock_cons_weight_csindex, index_stock_info, index_ti_cx,
-    index_zh_a_hist, index_zh_a_hist_min_em,
+    index_stock_cons_sina, index_stock_cons_weight_csindex, index_stock_info, index_sugar_msweet,
+    index_ti_cx, index_zh_a_hist, index_zh_a_hist_min_em,
 };
 use akshare_rust::interest_rate::rate_interbank;
 use akshare_rust::legu::{
@@ -796,6 +796,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "index_bei_cx" => Ok(index_bei_cx()?),
         "index_neei_cx" => Ok(index_neei_cx()?),
         "index_csindex_all" => Ok(index_csindex_all()?),
+        "index_sugar_msweet" => Ok(index_sugar_msweet()?),
         "fund_etf_spot_em" => Ok(fund_etf_spot_em()?),
         "fund_etf_hist_min_em" => {
             let [s, d0, d1, p, a] = take5(func, args)?;
@@ -830,6 +831,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s, d] = take2(func, args)?;
             Ok(fund_portfolio_industry_allocation_em(s, d)?)
         }
+        "fund_new_found_em" => Ok(fund_new_found_em()?),
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
         "stock_profile_cninfo" => {
             let [s] = take1(func, args)?;
