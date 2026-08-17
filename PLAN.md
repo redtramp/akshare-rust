@@ -64,15 +64,17 @@
 
 ---
 
-### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-16 刷新至批次 35；2026-08-16 按 akshare 同名可调用函数 1:1 校正实现计数）
+### 1.2 当前实现完成度（功能层级实测快照 · 2026-08-17 刷新至批次 36；2026-08-16 按 akshare 同名可调用函数 1:1 校正实现计数）
 
 > 口径（2026-08-16 校正）：akshare 侧以 `dir(akshare)` 中**可调用函数**（含 `functools.partial`/Cython 函数，排除类与子模块）为准，共 **1080** 个（另有 19 个为类/客户端对象，非函数式 API；`__init__` 导出名约 1099）。Rust 侧以「源码中存在与 akshare **同名** `pub fn`（非 `#[cfg(test)]` 内部 helper）」为准，共 **438** 个。**此前批次日志的累计数（批次 34 = 544、批次 35 = 546）偏高约 108**：其按「doc comment 声明对应 akshare + cargo build 通过」计数，误将 `fetch_*`/`build_*`/`finalize_*`/`cast_*` 等 ~104 个内部 helper 及少数命名不一致条目计入用户面。本快照改以「akshare 同名可调用函数 1:1 匹配」重核，结果更贴近真实覆盖率。（`cargo test --lib` 233 passed 含存在性校验，无虚报；另有 ~53 个源层公开 helper 不计入覆盖率分母。）
+
+> **2026-08-17 批次 36 刷新**：实现 stock 模块缺口 79 个（emappdata 港股热度、资金流、cninfo 专题/行业/披露、板块 spot/min、sse/szse 列表与汇总、新浪/腾讯系列、互动易、科创板/B股、美股等），akshare 同名 `pub fn` 达 **537** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 48.9%**。剩余 stock 缺口 2 个为受限源：`stock_individual_spot_xq`（雪球需登录态 `xq_a_token`）、`stock_industry_clf_hist_sw`（申万宏源 xls SSL 受限）。
 
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **438**（此前批次累计口径偏高已校正；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（438 / 1080） | **≈ 40.6%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **537**（2026-08-17 批次 36 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（537 / 1099 实测口径） | **≈ 48.9%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -82,15 +84,15 @@
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---:|---:|---:|
 | economic | 30 | 225 | 13.3% |
-| index | 3 | 94 | 3.2% |
+| index | 4 | 95 | 4.2% |
 | fund | 8 | 88 | 9.1% |
-| stock | 49 | 125 | 39.2% |
-| stock_feature | 145 | 208 | 69.7% |
-| futures | 45 | 69 | 65.2% |
+| stock | 127 | 130 | 97.7% |
+| stock_feature | 150 | 208 | 72.1% |
+| futures | 46 | 70 | 65.7% |
 | stock_fundamental | 35 | 57 | 61.4% |
-| bond | 37 | 42 | 88.1% |
-| fx | 4 | 6 | 66.7% |
-| news | 5 | 6 | 83.3% |
+| bond | 41 | 46 | 89.1% |
+| fx | 5 | 6 | 83.3% |
+| news | 6 | 6 | 100.0% |
 | futures_derivative | 10 | 13 | 76.9% |
 | energy | 4 | 8 | 50.0% |
 | currency | 2 | 7 | 28.6% |
@@ -101,10 +103,10 @@
 | air | 0 | 7 | 0.0% |
 | article | 0 | 7 | 0.0% |
 | qdii | 0 | 3 | 0.0% |
-| reits | 0 | 3 | 0.0% |
+| reits | 3 | 3 | 100.0% |
 | cal | 0 | 3 | 0.0% |
 | crypto | 0 | 2 | 0.0% |
-| forex | 0 | 2 | 0.0% |
+| forex | 2 | 2 | 100.0% |
 | utils | 0 | 2 | 0.0% |
 | event | 0 | 2 | 0.0% |
 | nlp | 0 | 2 | 0.0% |
@@ -112,12 +114,12 @@
 | bank | 0 | 1 | 0.0% |
 | hf | 0 | 1 | 0.0% |
 | pro | 0 | 1 | 0.0% |
-| tool | 0 | 1 | 0.0% |
-| option | 44 | 44 | 100.0% |
+| tool | 1 | 1 | 100.0% |
+| option | 46 | 46 | 100.0% |
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1080** 个可调用函数，Rust 已实现 **438（40.6%）**；17 个大类已有实现、18 个大类仍为 0%。最大缺口在 **economic / index / fund / stock**（合计 442，占全部缺口 642 的 69%）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **537（48.9%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。18 个大类仍为 0%，最大缺口在 **economic / index / fund**（合计 343）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -742,6 +744,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 
 > 批次35 的 2 个东财 港股/美股 三大财务报表函数（`stock_financial_hk_report_em`/`stock_financial_us_report_em`，akshare `stock_fundamental/stock_finance_hk_em.py` / `stock_finance_us_em.py`）已实现并通过 `cargo fmt --check` + `cargo clippy --all-targets -D warnings`（零警告）+ 全量 `cargo test --lib`（233 passed）。两者均走 `datacenter.eastmoney.com/securities/api/data/v1/get`（复用 `fetch_securities_pages`，`source=F10` / `SECURITIES`，无 `v` nonce，与批次26/34 一致），返回长表**原生英文键**（与 akshare `pd.DataFrame(result["data"])` 一致，未重命名）。实现要点：港股先经 `RPT_CUSTOM_HKSK_APPFN_CASHFLOW_SUMMARY` 取 `REPORT_LIST`（年度仅留 `REPORT_TYPE=="年报"`），再按 `REPORT_DATE in (...)` 拉取 `RPT_HKF10_FN_{BALANCE/INCOME/CASHFLOW}_PC` 明细（资产负债表含 `STD_REPORT_DATE`、利润/现金流含 `START_DATE`）；美股先经 `RPT_USF10_INFO_ORGPROFILE` 市场查询得 `SECUCODE`（如 `TSLA.O`），再取报告期清单按 indicator 过滤 `REPORT`（`年报`→含 `FY`、`单季报`→`Q1`–`Q4`、`累计季报`→`Q6`/`Q9`）拼 `(REPORT in (...))` 拉取 `RPT_USF10_FN_{BALANCE/INCOME}` / `RPT_USSK_FN_CASHFLOW` 明细。仍用 `Df::from_json_rows_typed` 保持数值列 dtype 与原始字段键。parity 已注册 6 用例（港股 资产负债表/利润表/现金流量表 × 年度、美股 资产负债表/综合损益表/现金流量表 × 年报，loose 列名+dtype 对齐）且 `--check` 全部通过（港股 11列×1124/585/966 行、美股 9列×639/525/617 行）。公开函数 **544 → 546**（stock_fundamental 28 → 30 / 57）。
 
+> **批次 36（2026-08-17）· stock 模块缺口 79 个批量落地**：按 §9.2 清单实现 stock 模块缺口（81 个中 79 个，2 个受限源除外），akshare 同名 `pub fn` 达 **537（48.9%）**。覆盖：① emappdata 港股热度 4（`stock_hk_hot_rank_em` 系列，复用 `emappdata_stockrank` + `push2_ulist`，sc→`116.` 前缀）；② 资金流系列 7（`stock_market_fund_flow`/`stock_individual_fund_flow_rank`/`stock_main_fund_flow`/`stock_sector_fund_flow_rank|hist|summary`/`stock_concept_fund_flow_hist`）；③ cninfo 专题/行业/披露 15（`stock_hold_num_cninfo` 等 8 个 p_sysapi10xx + `stock_industry_category_cninfo` 等 5 个 + `stock_zh_a_disclosure_report_cninfo`/`stock_zh_a_disclosure_relation_cninfo`）；④ 板块 spot/min 4；⑤ sse/szse 列表与汇总 11（`stock_info_sh|sz|bj_*`、`stock_sse_summary`/`stock_sse_deal_daily`/`stock_szse_summary`/`stock_szse_area_summary`）；⑥ 新浪/腾讯/东财杂项 28（`stock_zh_a_spot`/`stock_zh_a_daily`/`stock_zh_b_daily|minute|spot`/`stock_zh_kcb_daily|spot`/`stock_hk_daily`/`stock_us_daily|spot`/`get_us_stock_name`/`stock_zh_ah_*`/`stock_zh_a_spot_tx`/`stock_zh_a_tick_tx_js`/`stock_intraday_sina|em`/`stock_sector_spot|detail`/`stock_staq_net_stop`/`stock_news_main_cx`/`stock_hot_search_baidu`/`stock_js_weibo_*`/`stock_price_js`/`stock_hk_fhpx_detail_ths`/`stock_us_pink_spot_em`/`stock_us_famous_spot_em`/`stock_hk_famous_spot_em` 等）；⑦ 互动易 2（`stock_irm_cninfo`/`stock_irm_ans_cninfo`）；⑧ 交易所董监高持股变动 3（`stock_share_hold_change_sse|szse|bse`）。新增 JS 资产 `assets/js/us_sina_hash.js`（新浪美股 URL 哈希，`js_engine::us_sina_hash_decode`）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**。parity 注册对应用例（loose 为主，新浪/腾讯系 strict 视源可用性）。**受限源 2 个**：`stock_individual_spot_xq`（雪球需登录态 `xq_a_token`）、`stock_industry_clf_hist_sw`（申万宏源 xls SSL 证书失败），按 §9 惯例标记受限（明确错误语义，不注册 parity）。
+
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在
   `stock_fundamental` 部分实现）；其余 `stock_*` / `stock_feature_*` 文件可按同类
@@ -751,6 +755,761 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
   验证确认东财忽略 `columns=KCB_LB` 限制、返回完整行（含 `ORG_NAME`），`rename` 以
   `ORG_NAME→企业名称` 为准，无实际列名不一致。
 - 反爬豁免：雪球 `*_basic_info_*_xq`（需登录态 `xq_a_token`），`--check` 无 golden 自动跳过。
+
+### 9.2 缺口实施清单（2026-08-17 生成 · 按 akshare 同名可调用函数 1:1 核对）
+
+> 口径：akshare 可调用函数 **1099**，Rust 已实现 **446**，缺口 **653**。
+> 优先级：**P0**＝缺口 ≤5 或源可达的快速补齐项；**P1**＝同源模板批量（东财/jin10/新浪系，可复用 `fetch_datacenter_pages`/`finalize_report`/`fetch_clist` 等既有基础设施）；**P2**＝受限源（需登录态/API key/浏览器/外部服务，实现时明确失败语义或标记跳过）。
+
+#### 9.2.1 按模块缺口总览
+
+| 模块 | 缺失 | 主数据源 | 优先级 | 实施策略 |
+|---|---|---|---|---|
+| economic | 195 | cdn.jin10.com(123)/data.eastmoney.com(60) | P1 | 金十 macro_* 同构模板（attr_id 递增）+ 东财 datacenter 模板批量 |
+| index | 91 | yun.ccxe.com.cn(19)/1.optbbs.com(18)/swsresearch(10) | P1 | 申万/中证/国证源按模板；qvix 期权波动率源需实测 |
+| stock | 81 | cninfo(13)/sina(11)/sse(11)/eastmoney(7) | P1 | cninfo 复用既有 fetch_cninfo；sina/sse 复用既有源；东财 fund_flow 族同构 |
+| fund | 80 | api.fund.eastmoney.com(27)/amac(14)/fund.eastmoney.com(14) | P1 | 东财基金 API 模板批量；amac 需验证反爬 |
+| stock_feature | 63 | push2(7)/10jqka(6)/sina(6)/finance.eastmoney(6) | P1 | 东财 push2 模板 + 同花顺/新浪既有基础设施 |
+| futures | 24 | portal.dce.com.cn(9)/tsite.shfe.com.cn(8) | P2 | DCE 412 反爬、shfe tsite DNS 不可解（§1.2.1 已知），标记受限 |
+| stock_fundamental | 22 | datacenter.eastmoney.com(10)/data.eastmoney.com(7) | P1 | datacenter 模板批量，复用 fetch_datacenter_pages |
+| movie | 12 | www.endata.com.cn(12) | P2 | 艺恩源需 JS(jm.js)+付费，标记受限 |
+| other | 8 | data.cpcadata.com(6) | P2 | 乘联会源，需实测 |
+| qhkc_web | 8 | qhkch.com(3)/内部(5) | P2 | 奇货可查工具类，需实测 |
+| air | 7 | aqistudy(4)/timeanddate(2) | P2 | 需 outcrypto.js/crypto.js 解密，v2.0 候选 |
+| article | 7 | 学术站点(7) | P2 | FRED/EPU 等学术源，模板简单但量小 |
+| currency | 5 | api.currencyscoop.com(5) | P2 | 需 API key（currencyscoop），标记受限 |
+| bond | 5 | bond.sse.com.cn(2)/github(2)/nafmii(1) | P0 | sse 债券汇总表 + nafmii 债务融资工具，可达性待实测 |
+| fortune | 4 | areppim(2)/forbes(1)/ikuyu(1) | P2 | 彭博富豪榜等，源可达性差（404/000），标记受限 |
+| energy | 4 | ets.cnemission.com(4) | P0→P2 | 碳交易：302 重定向需实测登录态，或标记受限 |
+| fx | 2 | investing.com(1)/baidu(1) | P0 | fx_quote_baidu 可达 ✓；currency_pair_map 需 investing 实测 |
+| crypto | 2 | datacenter-api.jin10.com(2) | P2 | 金十 502 当前不可达，标记受限 |
+| event | 2 | huiyan.baidu.com(2) | P2 | 百度迁徙需登录态 |
+| forex | 2 | push2.eastmoney.com(2) | P0 | 东财 ulist 可达 ✓，复用 push2 模板 |
+| nlp | 2 | api.ownthink.com(2) | P2 | 外部 AI 服务，标记受限 |
+| rate | 2 | www.chinamoney.com.cn(2) | P0 | chinamoney 404 需实测正确端点 |
+| utils | 2 | — | P0 | get_token/set_token 本地 token 管理，纯本地 |
+| cal | 3 | github(3) | P0 | 波动率计算（rv_from_*），纯本地计算无网络 |
+| qdii | 3 | www.jisilu.cn(3) | P0 | 集思录可达 ✓，但 JSL 需 cookie 两步流 |
+| reits | 3 | 95.push2.eastmoney.com(3) | P0 | 东财 push2 可达 ✓，复用 clist/kline 模板 |
+| exceptions | 6 | — | — | 异常类，对应 Rust core::error 已等价，无需实现 |
+| bank/hf/pro/tool/interest_rate | 各1 | 各异 | P0/P2 | 单函数项见 9.2.2 |
+
+#### 9.2.2 函数级清单（按模块，标记源可达性）
+
+> 可达性：**✓**＝curl 实测可达；**✗**＝实测不可达（302/404/502/DNS）；**?**＝未实测。
+> 受限源（需登录/API key/JS解密/外部服务）不阻塞实现，但按项目惯例（§9 反模式）以明确错误或 parity 跳过处理。
+
+**fx**（2 个）
+- [ ] `currency_pair_map` — cn.investing.com（fx/currency_investing.py）可达性 ?
+- [ ] `fx_quote_baidu` — finance.baidu.com（fx/fx_quote_baidu.py）可达性 200 ✓
+
+**news**（1 个）
+- [ ] `stock_news_em` — finance.eastmoney.com（news/news_stock.py）可达性 200 ✓
+
+**forex**（2 个）
+- [ ] `forex_hist_em` — push2.eastmoney.com（forex/forex_em.py）可达性 200 ✓
+- [ ] `forex_spot_em` — push2.eastmoney.com（forex/forex_em.py）可达性 200 ✓
+
+**reits**（3 个）
+- [ ] `reits_hist_em` — 95.push2.eastmoney.com（reits/reits_basic.py）可达性 200 ✓
+- [ ] `reits_hist_min_em` — 95.push2.eastmoney.com（reits/reits_basic.py）可达性 200 ✓
+- [ ] `reits_realtime_em` — 95.push2.eastmoney.com（reits/reits_basic.py）可达性 200 ✓
+
+**rate**（2 个）
+- [ ] `repo_rate_hist` — www.chinamoney.com.cn（rate/repo_rate.py）可达性 ?
+- [ ] `repo_rate_query` — www.chinamoney.com.cn（rate/repo_rate.py）可达性 ?
+
+**utils**（2 个）
+- [ ] `get_token` — ?（utils/token_process.py）可达性 ?
+- [ ] `set_token` — ?（utils/token_process.py）可达性 ?
+
+**cal**（3 个）
+- [ ] `rv_from_futures_zh_minute_sina` — github.com（cal/rv.py）可达性 ?
+- [ ] `rv_from_stock_zh_a_hist_min_em` — github.com（cal/rv.py）可达性 ?
+- [ ] `volatility_yz_rv` — github.com（cal/rv.py）可达性 ?
+
+**qdii**（3 个）
+- [ ] `qdii_a_index_jsl` — www.jisilu.cn（qdii/qdii_jsl.py）可达性 200 ✓
+- [ ] `qdii_e_comm_jsl` — www.jisilu.cn（qdii/qdii_jsl.py）可达性 200 ✓
+- [ ] `qdii_e_index_jsl` — www.jisilu.cn（qdii/qdii_jsl.py）可达性 200 ✓
+
+**tool**（1 个）
+- [ ] `tool_trade_date_hist_sina` — finance.sina.com.cn（tool/trade_date_hist.py）可达性 200 ✓
+
+**energy**（4 个）
+- [ ] `energy_carbon_bj` — ets.cnemission.com（energy/energy_carbon.py）可达性 302重定向
+- [ ] `energy_carbon_domestic` — ets.cnemission.com（energy/energy_carbon.py）可达性 302
+- [ ] `energy_carbon_eu` — ets.cnemission.com（energy/energy_carbon.py）可达性 302
+- [ ] `energy_carbon_sz` — ets.cnemission.com（energy/energy_carbon.py）可达性 302
+
+**bond**（5 个）
+- [ ] `bond_cash_summary_sse` — bond.sse.com.cn（bond/bond_summary.py）可达性 ?
+- [ ] `bond_deal_summary_sse` — bond.sse.com.cn（bond/bond_summary.py）可达性 ?
+- [ ] `bond_debt_nafmii` — www.nafmii.org.cn（bond/bond_nafmii.py）可达性 ?
+- [ ] `macro_china_bond_public` — github.com（bond/bond_china_money.py）可达性 ?
+- [ ] `macro_china_swap_rate` — github.com（bond/bond_china_money.py）可达性 ?
+
+**crypto**（2 个）
+- [ ] `crypto_bitcoin_cme` — datacenter-api.jin10.com（crypto/crypto_bitcoin_cme.py）可达性 502
+- [ ] `crypto_bitcoin_hold_report` — datacenter-api.jin10.com（crypto/crypto_hold.py）可达性 502
+
+**fortune**（4 个）
+- [ ] `forbes_rank` — www.forbeschina.com（fortune/fortune_forbes_500.py）可达性 ?
+- [ ] `index_bloomberg_billionaires` — stats.areppim.com（fortune/fortune_bloomberg.py）可达性 ?
+- [ ] `index_bloomberg_billionaires_hist` — stats.areppim.com（fortune/fortune_bloomberg.py）可达性 ?
+- [ ] `xincaifu_rank` — service.ikuyu.cn（fortune/fortune_xincaifu_500.py）可达性 ?
+
+**futures_derivative**（3 个）
+- [ ] `futures_hog_core` — xt.yangzhu.vip（futures_derivative/futures_hog.py）可达性 ?
+- [ ] `futures_hog_cost` — xt.yangzhu.vip（futures_derivative/futures_hog.py）可达性 ?
+- [ ] `futures_hog_supply` — xt.yangzhu.vip（futures_derivative/futures_hog.py）可达性 ?
+
+**economic**（195 个）
+- [ ] `crypto_js_spot` — datacenter-api.jin10.com（economic/macro_other.py）可达性 ?
+- [ ] `macro_australia_bank_rate` — data.eastmoney.com（economic/macro_australia.py）可达性 ?
+- [ ] `macro_australia_cpi_quarterly` — data.eastmoney.com（economic/macro_australia.py）可达性 ?
+- [ ] `macro_australia_cpi_yearly` — data.eastmoney.com（economic/macro_australia.py）可达性 ?
+- [ ] `macro_australia_ppi_quarterly` — data.eastmoney.com（economic/macro_australia.py）可达性 ?
+- [ ] `macro_australia_retail_rate_monthly` — data.eastmoney.com（economic/macro_australia.py）可达性 ?
+- [ ] `macro_australia_trade` — data.eastmoney.com（economic/macro_australia.py）可达性 ?
+- [ ] `macro_australia_unemployment_rate` — data.eastmoney.com（economic/macro_australia.py）可达性 ?
+- [ ] `macro_bank_australia_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_brazil_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_china_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_english_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_euro_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_india_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_japan_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_newzealand_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_russia_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_switzerland_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_bank_usa_interest_rate` — cdn.jin10.com（economic/macro_bank.py）可达性 ?
+- [ ] `macro_canada_bank_rate` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_core_cpi_monthly` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_core_cpi_yearly` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_cpi_monthly` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_cpi_yearly` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_gdp_monthly` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_new_house_rate` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_retail_rate_monthly` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_trade` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_canada_unemployment_rate` — data.eastmoney.com（economic/macro_canada.py）可达性 ?
+- [ ] `macro_china_agricultural_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_agricultural_product` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_bank_financing` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_bdti_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_bsi_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_central_bank_balance` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_commodity_price_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_construction_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_construction_price_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_cpi_monthly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_cpi_yearly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_cx_pmi_yearly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_cx_services_pmi_yearly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_energy_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_exports_yoy` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_foreign_exchange_gold` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_freight_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_fx_reserves_yearly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_gdp_yearly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_hk_building_amount` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_hk_building_volume` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_hk_cpi` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_hk_cpi_ratio` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_hk_gbp` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_hk_gbp_ratio` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_hk_ppi` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_hk_rate_of_unemployment` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_hk_trade_diff_ratio` — data.eastmoney.com（economic/macro_china_hk.py）可达性 ?
+- [ ] `macro_china_imports_yoy` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_industrial_production_yoy` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_insurance` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_insurance_income` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_international_tourism_fx` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_lpi_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_m2_yearly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_mobile_number` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_nbs_nation` — data.stats.gov.cn（economic/macro_china_nbs.py）可达性 ?
+- [ ] `macro_china_nbs_region` — data.stats.gov.cn（economic/macro_china_nbs.py）可达性 ?
+- [ ] `macro_china_non_man_pmi` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_passenger_load_factor` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_pmi_yearly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_postal_telecommunicational` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_ppi_yearly` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_real_estate` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_retail_price_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_shrzgm` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_society_electricity` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_society_traffic_volume` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_supply_of_money` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_trade_balance` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_urban_unemployment` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_vegetable_basket` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_china_yw_electronic_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_cnbs` — 114.115.232.154（economic/marco_cnbs.py）可达性 ?
+- [ ] `macro_cons_gold` — datacenter-api.jin10.com（economic/macro_constitute.py）可达性 ?
+- [ ] `macro_cons_opec_month` — datacenter-api.jin10.com（economic/macro_constitute.py）可达性 ?
+- [ ] `macro_cons_silver` — datacenter-api.jin10.com（economic/macro_constitute.py）可达性 ?
+- [ ] `macro_euro_cpi_mom` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_cpi_yoy` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_current_account_mom` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_employment_change_qoq` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_gdp_yoy` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_industrial_production_mom` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_lme_holding` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_lme_stock` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_manufacturing_pmi` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_ppi_mom` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_retail_sales_mom` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_sentix_investor_confidence` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_services_pmi` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_trade_balance` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_unemployment_rate_mom` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_euro_zew_economic_sentiment` — cdn.jin10.com（economic/macro_euro.py）可达性 ?
+- [ ] `macro_fx_sentiment` — datacenter-api.jin10.com（economic/macro_other.py）可达性 ?
+- [ ] `macro_germany_cpi_monthly` — data.eastmoney.com（economic/macro_germany.py）可达性 ?
+- [ ] `macro_germany_cpi_yearly` — data.eastmoney.com（economic/macro_germany.py）可达性 ?
+- [ ] `macro_germany_gdp` — data.eastmoney.com（economic/macro_germany.py）可达性 ?
+- [ ] `macro_germany_ifo` — data.eastmoney.com（economic/macro_germany.py）可达性 ?
+- [ ] `macro_germany_retail_sale_monthly` — data.eastmoney.com（economic/macro_germany.py）可达性 ?
+- [ ] `macro_germany_retail_sale_yearly` — data.eastmoney.com（economic/macro_germany.py）可达性 ?
+- [ ] `macro_germany_trade_adjusted` — data.eastmoney.com（economic/macro_germany.py）可达性 ?
+- [ ] `macro_germany_zew` — data.eastmoney.com（economic/macro_germany.py）可达性 ?
+- [ ] `macro_global_sox_index` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_info_ws` — api-one-wscn.awtmt.com（economic/macro_info_ws.py）可达性 ?
+- [ ] `macro_japan_bank_rate` — data.eastmoney.com（economic/macro_japan.py）可达性 ?
+- [ ] `macro_japan_core_cpi_yearly` — data.eastmoney.com（economic/macro_japan.py）可达性 ?
+- [ ] `macro_japan_cpi_yearly` — data.eastmoney.com（economic/macro_japan.py）可达性 ?
+- [ ] `macro_japan_head_indicator` — data.eastmoney.com（economic/macro_japan.py）可达性 ?
+- [ ] `macro_japan_unemployment_rate` — data.eastmoney.com（economic/macro_japan.py）可达性 ?
+- [ ] `macro_rmb_deposit` — data.10jqka.com.cn（economic/macro_finance_ths.py）可达性 ?
+- [ ] `macro_rmb_loan` — data.10jqka.com.cn（economic/macro_finance_ths.py）可达性 ?
+- [ ] `macro_shipping_bci` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_shipping_bcti` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_shipping_bdi` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_shipping_bpi` — cdn.jin10.com（economic/macro_china.py）可达性 ?
+- [ ] `macro_stock_finance` — data.10jqka.com.cn（economic/macro_finance_ths.py）可达性 ?
+- [ ] `macro_swiss_cpi_yearly` — data.eastmoney.com（economic/macro_swiss.py）可达性 ?
+- [ ] `macro_swiss_gbd_bank_rate` — data.eastmoney.com（economic/macro_swiss.py）可达性 ?
+- [ ] `macro_swiss_gbd_yearly` — data.eastmoney.com（economic/macro_swiss.py）可达性 ?
+- [ ] `macro_swiss_gdp_quarterly` — data.eastmoney.com（economic/macro_swiss.py）可达性 ?
+- [ ] `macro_swiss_svme` — data.eastmoney.com（economic/macro_swiss.py）可达性 ?
+- [ ] `macro_swiss_trade` — data.eastmoney.com（economic/macro_swiss.py）可达性 ?
+- [ ] `macro_uk_bank_rate` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_core_cpi_monthly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_core_cpi_yearly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_cpi_monthly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_cpi_yearly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_gdp_quarterly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_gdp_yearly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_halifax_monthly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_halifax_yearly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_retail_monthly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_retail_yearly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_rightmove_monthly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_rightmove_yearly` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_trade` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_uk_unemployment_rate` — data.eastmoney.com（economic/macro_uk.py）可达性 ?
+- [ ] `macro_usa_adp_employment` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_api_crude_stock` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_building_permits` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_business_inventories` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_cb_consumer_confidence` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_cftc_c_holding` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_cftc_merchant_currency_holding` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_cftc_merchant_goods_holding` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_cftc_nc_holding` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_cme_merchant_goods_holding` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_core_cpi_monthly` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_core_pce_price` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_core_ppi` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_cpi_monthly` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_cpi_yoy` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_crude_inner` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_current_account` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_durable_goods_orders` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_eia_crude_rate` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_exist_home_sales` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_export_price` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_factory_orders` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_gdp_monthly` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_house_price_index` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_house_starts` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_import_price` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_industrial_production` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_initial_jobless` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_ism_non_pmi` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_ism_pmi` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_job_cuts` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_lmci` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_michigan_consumer_sentiment` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_nahb_house_market_index` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_new_home_sales` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_nfib_small_business` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_non_farm` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_pending_home_sales` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_personal_spending` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_phs` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_pmi` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_ppi` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_real_consumer_spending` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_retail_sales` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_rig_count` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_services_pmi` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_spcs20` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_trade_balance` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+- [ ] `macro_usa_unemployment_rate` — cdn.jin10.com（economic/macro_usa.py）可达性 ?
+
+**index**（91 个）
+- [ ] `drewry_wci_index` — infogram.com（index/index_drewry.py）可达性 ?
+- [ ] `index_ai_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_all_cni` — hq.cnindex.com.cn（index/index_cni.py）可达性 ?
+- [ ] `index_analysis_daily_sw` — www.swsresearch.com（index/index_research_sw.py）可达性 ?
+- [ ] `index_analysis_monthly_sw` — www.swsresearch.com（index/index_research_sw.py）可达性 ?
+- [ ] `index_analysis_week_month_sw` — www.swsresearch.com（index/index_research_sw.py）可达性 ?
+- [ ] `index_analysis_weekly_sw` — www.swsresearch.com（index/index_research_sw.py）可达性 ?
+- [ ] `index_awpr_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_bei_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_bi_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_cci_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_ci_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_component_sw` — www.swsresearch.com（index/index_research_sw.py）可达性 ?
+- [ ] `index_csindex_all` — www.csindex.com.cn（index/index_csindex.py）可达性 ?
+- [ ] `index_dei_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_detail_cni` — hq.cnindex.com.cn（index/index_cni.py）可达性 ?
+- [ ] `index_detail_hist_adjust_cni` — hq.cnindex.com.cn（index/index_cni.py）可达性 ?
+- [ ] `index_detail_hist_cni` — hq.cnindex.com.cn（index/index_cni.py）可达性 ?
+- [ ] `index_eri` — zs.zjpwq.net（index/index_eri.py）可达性 ?
+- [ ] `index_fi_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_global_hist_em` — push2.eastmoney.com（index/index_global_em.py）可达性 ?
+- [ ] `index_global_hist_sina` — finance.sina.com.cn（index/index_global_sina.py）可达性 ?
+- [ ] `index_global_name_table` — finance.sina.com.cn（index/index_global_sina.py）可达性 ?
+- [ ] `index_global_spot_em` — push2.eastmoney.com（index/index_global_em.py）可达性 ?
+- [ ] `index_hist_cni` — hq.cnindex.com.cn（index/index_cni.py）可达性 ?
+- [ ] `index_hist_fund_sw` — www.swsresearch.com（index/index_research_fund_sw.py）可达性 ?
+- [ ] `index_hist_sw` — www.swsresearch.com（index/index_research_sw.py）可达性 ?
+- [ ] `index_hog_spot_price` — hqb.nxin.com（index/index_hog.py）可达性 ?
+- [ ] `index_ii_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_inner_quote_sugar_msweet` — www.msweet.com.cn（index/index_sugar.py）可达性 ?
+- [ ] `index_kq_fashion` — api.idx365.com（index/index_kq_ss.py）可达性 ?
+- [ ] `index_kq_fz` — www.kqindex.cn（index/index_kq_fz.py）可达性 ?
+- [ ] `index_li_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_min_sw` — www.swsresearch.com（index/index_research_sw.py）可达性 ?
+- [ ] `index_neaw_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_neei_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_nei_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_news_sentiment_scope` — www.chinascope.com（index/index_zh_a_scope.py）可达性 ?
+- [ ] `index_option_1000index_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_1000index_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_100etf_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_100etf_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_300etf_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_300etf_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_300index_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_300index_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_500etf_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_500etf_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_50etf_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_50etf_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_50index_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_50index_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_cyb_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_cyb_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_kcb_min_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_option_kcb_qvix` — 1.optbbs.com（index/index_option_qvix.py）可达性 ?
+- [ ] `index_outer_quote_sugar_msweet` — www.msweet.com.cn（index/index_sugar.py）可达性 ?
+- [ ] `index_pmi_com_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_pmi_man_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_pmi_ser_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_price_cflp` — index.0256.cn（index/index_cflp.py）可达性 ?
+- [ ] `index_qli_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_realtime_fund_sw` — www.swsresearch.com（index/index_research_fund_sw.py）可达性 ?
+- [ ] `index_realtime_sw` — www.swsresearch.com（index/index_research_sw.py）可达性 ?
+- [ ] `index_si_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_stock_cons` — oss-ch.csindex.com.cn（index/index_cons.py）可达性 ?
+- [ ] `index_stock_cons_csindex` — oss-ch.csindex.com.cn（index/index_cons.py）可达性 ?
+- [ ] `index_stock_cons_sina` — oss-ch.csindex.com.cn（index/index_cons.py）可达性 ?
+- [ ] `index_stock_cons_weight_csindex` — oss-ch.csindex.com.cn（index/index_cons.py）可达性 ?
+- [ ] `index_stock_info` — oss-ch.csindex.com.cn（index/index_cons.py）可达性 ?
+- [ ] `index_sugar_msweet` — www.msweet.com.cn（index/index_sugar.py）可达性 ?
+- [ ] `index_ti_cx` — yun.ccxe.com.cn（index/index_cx.py）可达性 ?
+- [ ] `index_us_stock_sina` — finance.sina.com.cn（index/index_stock_us_sina.py）可达性 ?
+- [ ] `index_volume_cflp` — index.0256.cn（index/index_cflp.py）可达性 ?
+- [ ] `index_yw` — apiserver.chinagoods.com（index/index_yw.py）可达性 ?
+- [ ] `stock_a_code_to_symbol` — oss-ch.csindex.com.cn（index/index_cons.py）可达性 ?
+- [ ] `stock_hk_index_daily_em` — 15.push2.eastmoney.com（index/index_stock_hk.py）可达性 ?
+- [ ] `stock_hk_index_daily_sina` — 15.push2.eastmoney.com（index/index_stock_hk.py）可达性 ?
+- [ ] `stock_hk_index_spot_em` — 15.push2.eastmoney.com（index/index_stock_hk.py）可达性 ?
+- [ ] `stock_hk_index_spot_sina` — 15.push2.eastmoney.com（index/index_stock_hk.py）可达性 ?
+- [ ] `stock_zh_index_daily` — 33.push2.eastmoney.com（index/index_stock_zh.py）可达性 ?
+- [ ] `stock_zh_index_daily_em` — 33.push2.eastmoney.com（index/index_stock_zh.py）可达性 ?
+- [ ] `stock_zh_index_daily_tx` — 33.push2.eastmoney.com（index/index_stock_zh.py）可达性 ?
+- [ ] `stock_zh_index_hist_csindex` — oss-ch.csindex.com.cn（index/index_stock_zh_csindex.py）可达性 ?
+- [ ] `stock_zh_index_spot_em` — 33.push2.eastmoney.com（index/index_stock_zh.py）可达性 ?
+- [ ] `stock_zh_index_spot_sina` — 33.push2.eastmoney.com（index/index_stock_zh.py）可达性 ?
+- [ ] `stock_zh_index_value_csindex` — oss-ch.csindex.com.cn（index/index_stock_zh_csindex.py）可达性 ?
+- [ ] `sw_index_first_info` — legulegu.com（index/index_sw.py）可达性 ?
+- [ ] `sw_index_second_info` — legulegu.com（index/index_sw.py）可达性 ?
+- [ ] `sw_index_third_cons` — legulegu.com（index/index_sw.py）可达性 ?
+- [ ] `sw_index_third_info` — legulegu.com（index/index_sw.py）可达性 ?
+
+**stock**（81 个）
+- [ ] `get_us_stock_name` — finance.sina.com.cn（stock/stock_us_sina.py）可达性 ?
+- [ ] `stock_allotment_cninfo` — webapi.cninfo.com.cn（stock/stock_allotment_cninfo.py）可达性 ?
+- [ ] `stock_board_concept_hist_min_em` — 17.push2.eastmoney.com（stock/stock_board_concept_em.py）可达性 ?
+- [ ] `stock_board_concept_spot_em` — 17.push2.eastmoney.com（stock/stock_board_concept_em.py）可达性 ?
+- [ ] `stock_board_industry_hist_min_em` — 17.push2.eastmoney.com（stock/stock_board_industry_em.py）可达性 ?
+- [ ] `stock_board_industry_spot_em` — 17.push2.eastmoney.com（stock/stock_board_industry_em.py）可达性 ?
+- [ ] `stock_cg_equity_mortgage_cninfo` — webapi.cninfo.com.cn（stock/stock_cg_equity_mortgage.py）可达性 ?
+- [ ] `stock_cg_guarantee_cninfo` — webapi.cninfo.com.cn（stock/stock_cg_guarantee.py）可达性 ?
+- [ ] `stock_cg_lawsuit_cninfo` — webapi.cninfo.com.cn（stock/stock_cg_lawsuit.py）可达性 ?
+- [ ] `stock_concept_fund_flow_hist` — data.eastmoney.com（stock/stock_fund_em.py）可达性 ?
+- [ ] `stock_hk_daily` — stock.finance.sina.com.cn（stock/stock_hk_sina.py）可达性 ?
+- [ ] `stock_hk_famous_spot_em` — 69.push2.eastmoney.com（stock/stock_hk_famous.py）可达性 ?
+- [ ] `stock_hk_fhpx_detail_ths` — basic.10jqka.com.cn（stock/stock_hk_fhpx_ths.py）可达性 ?
+- [ ] `stock_hk_hot_rank_detail_em` — emappdata.eastmoney.com（stock/stock_hk_hot_rank_em.py）可达性 ?
+- [ ] `stock_hk_hot_rank_detail_realtime_em` — emappdata.eastmoney.com（stock/stock_hk_hot_rank_em.py）可达性 ?
+- [ ] `stock_hk_hot_rank_em` — emappdata.eastmoney.com（stock/stock_hk_hot_rank_em.py）可达性 ?
+- [ ] `stock_hk_hot_rank_latest_em` — emappdata.eastmoney.com（stock/stock_hk_hot_rank_em.py）可达性 ?
+- [ ] `stock_hold_change_cninfo` — webapi.cninfo.com.cn（stock/stock_hold_control_cninfo.py）可达性 ?
+- [ ] `stock_hold_control_cninfo` — webapi.cninfo.com.cn（stock/stock_hold_control_cninfo.py）可达性 ?
+- [ ] `stock_hold_management_detail_cninfo` — webapi.cninfo.com.cn（stock/stock_hold_control_cninfo.py）可达性 ?
+- [ ] `stock_hold_num_cninfo` — webapi.cninfo.com.cn（stock/stock_hold_num_cninfo.py）可达性 ?
+- [ ] `stock_hot_search_baidu` — finance.pae.baidu.com（stock/stock_hot_search_baidu.py）可达性 ?
+- [ ] `stock_hsgt_sh_hk_spot_em` — push2.eastmoney.com（stock/stock_hsgt_em.py）可达性 ?
+- [ ] `stock_individual_fund_flow_rank` — data.eastmoney.com（stock/stock_fund_em.py）可达性 ?
+- [ ] `stock_individual_spot_xq` — stock.xueqiu.com（stock/stock_xq.py）可达性 ?
+- [ ] `stock_industry_category_cninfo` — webapi.cninfo.com.cn（stock/stock_industry_cninfo.py）可达性 ?
+- [ ] `stock_industry_change_cninfo` — webapi.cninfo.com.cn（stock/stock_industry_cninfo.py）可达性 ?
+- [ ] `stock_industry_clf_hist_sw` — www.swhyresearch.com（stock/stock_industry_sw.py）可达性 ?
+- [ ] `stock_industry_pe_ratio_cninfo` — webapi.cninfo.com.cn（stock/stock_industry_pe_cninfo.py）可达性 ?
+- [ ] `stock_info_a_code_name` — query.sse.com.cn（stock/stock_info.py）可达性 ?
+- [ ] `stock_info_bj_name_code` — query.sse.com.cn（stock/stock_info.py）可达性 ?
+- [ ] `stock_info_change_name` — query.sse.com.cn（stock/stock_info.py）可达性 ?
+- [ ] `stock_info_sh_delist` — query.sse.com.cn（stock/stock_info.py）可达性 ?
+- [ ] `stock_info_sh_name_code` — query.sse.com.cn（stock/stock_info.py）可达性 ?
+- [ ] `stock_info_sz_change_name` — query.sse.com.cn（stock/stock_info.py）可达性 ?
+- [ ] `stock_info_sz_delist` — query.sse.com.cn（stock/stock_info.py）可达性 ?
+- [ ] `stock_info_sz_name_code` — query.sse.com.cn（stock/stock_info.py）可达性 ?
+- [ ] `stock_intraday_em` — 70.push2.eastmoney.com（stock/stock_intraday_em.py）可达性 ?
+- [ ] `stock_intraday_sina` — quote.eastmoney.com（stock/stock_intraday_sina.py）可达性 ?
+- [ ] `stock_js_weibo_nlp_time` — datacenter-api.jin10.com（stock/stock_weibo_nlp.py）可达性 ?
+- [ ] `stock_js_weibo_report` — datacenter-api.jin10.com（stock/stock_weibo_nlp.py）可达性 ?
+- [ ] `stock_main_fund_flow` — data.eastmoney.com（stock/stock_fund_em.py）可达性 ?
+- [ ] `stock_market_fund_flow` — data.eastmoney.com（stock/stock_fund_em.py）可达性 ?
+- [ ] `stock_news_main_cx` — cxdata.caixin.com（stock/stock_news_cx.py）可达性 ?
+- [ ] `stock_price_js` — calendar-api.ushknews.com（stock/stock_us_js.py）可达性 ?
+- [ ] `stock_rank_forecast_cninfo` — webapi.cninfo.com.cn（stock/stock_rank_forecast.py）可达性 ?
+- [ ] `stock_sector_detail` — biz.finance.sina.com.cn（stock/stock_industry.py）可达性 ?
+- [ ] `stock_sector_fund_flow_hist` — data.eastmoney.com（stock/stock_fund_em.py）可达性 ?
+- [ ] `stock_sector_fund_flow_rank` — data.eastmoney.com（stock/stock_fund_em.py）可达性 ?
+- [ ] `stock_sector_fund_flow_summary` — data.eastmoney.com（stock/stock_fund_em.py）可达性 ?
+- [ ] `stock_sector_spot` — biz.finance.sina.com.cn（stock/stock_industry.py）可达性 ?
+- [ ] `stock_share_change_cninfo` — webapi.cninfo.com.cn（stock/stock_share_changes_cninfo.py）可达性 ?
+- [ ] `stock_share_hold_change_bse` — query.sse.com.cn（stock/stock_share_hold.py）可达性 ?
+- [ ] `stock_share_hold_change_sse` — query.sse.com.cn（stock/stock_share_hold.py）可达性 ?
+- [ ] `stock_share_hold_change_szse` — query.sse.com.cn（stock/stock_share_hold.py）可达性 ?
+- [ ] `stock_sse_deal_daily` — docs.static.szse.cn（stock/stock_summary.py）可达性 ?
+- [ ] `stock_sse_summary` — docs.static.szse.cn（stock/stock_summary.py）可达性 ?
+- [ ] `stock_staq_net_stop` — 5.push2.eastmoney.com（stock/stock_stop.py）可达性 ?
+- [ ] `stock_szse_area_summary` — docs.static.szse.cn（stock/stock_summary.py）可达性 ?
+- [ ] `stock_szse_sector_summary` — docs.static.szse.cn（stock/stock_summary.py）可达性 ?
+- [ ] `stock_szse_summary` — docs.static.szse.cn（stock/stock_summary.py）可达性 ?
+- [ ] `stock_us_daily` — finance.sina.com.cn（stock/stock_us_sina.py）可达性 ?
+- [ ] `stock_us_famous_spot_em` — 69.push2.eastmoney.com（stock/stock_us_famous.py）可达性 ?
+- [ ] `stock_us_pink_spot_em` — 23.push2.eastmoney.com（stock/stock_us_pink.py）可达性 ?
+- [ ] `stock_us_spot` — finance.sina.com.cn（stock/stock_us_sina.py）可达性 ?
+- [ ] `stock_zh_a_cdr_daily` — finance.sina.com.cn（stock/stock_zh_a_sina.py）可达性 ?
+- [ ] `stock_zh_a_daily` — finance.sina.com.cn（stock/stock_zh_a_sina.py）可达性 ?
+- [ ] `stock_zh_a_new` — 40.push2.eastmoney.com（stock/stock_zh_a_special.py）可达性 ?
+- [ ] `stock_zh_a_spot` — finance.sina.com.cn（stock/stock_zh_a_sina.py）可达性 ?
+- [ ] `stock_zh_a_spot_tx` — proxy.finance.qq.com（stock/stock_zh_a_tx.py）可达性 ?
+- [ ] `stock_zh_a_stop_em` — 40.push2.eastmoney.com（stock/stock_zh_a_special.py）可达性 ?
+- [ ] `stock_zh_a_tick_tx_js` — gu.qq.com（stock/stock_zh_a_tick_tx.py）可达性 ?
+- [ ] `stock_zh_ah_daily` — gu.qq.com（stock/stock_zh_ah_tx.py）可达性 ?
+- [ ] `stock_zh_ah_name` — gu.qq.com（stock/stock_zh_ah_tx.py）可达性 ?
+- [ ] `stock_zh_ah_spot` — gu.qq.com（stock/stock_zh_ah_tx.py）可达性 ?
+- [ ] `stock_zh_ah_spot_em` — push2.eastmoney.com（stock/stock_hsgt_em.py）可达性 ?
+- [ ] `stock_zh_b_daily` — finance.sina.com.cn（stock/stock_zh_b_sina.py）可达性 ?
+- [ ] `stock_zh_b_minute` — finance.sina.com.cn（stock/stock_zh_b_sina.py）可达性 ?
+- [ ] `stock_zh_b_spot` — finance.sina.com.cn（stock/stock_zh_b_sina.py）可达性 ?
+- [ ] `stock_zh_kcb_daily` — finance.sina.com.cn（stock/stock_zh_kcb_sina.py）可达性 ?
+- [ ] `stock_zh_kcb_spot` — finance.sina.com.cn（stock/stock_zh_kcb_sina.py）可达性 ?
+
+**fund**（80 个）
+- [ ] `amac_aoin_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_fund_abs` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_fund_account_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_fund_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_fund_sub_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_futures_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_manager_cancelled_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_manager_classify_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_manager_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_member_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_member_sub_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_person_bond_org_list` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_person_fund_org_list` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `amac_securities_info` — gs.amac.org.cn（fund/fund_amac.py）可达性 ?
+- [ ] `fund_announcement_dividend_em` — api.fund.eastmoney.com（fund/fund_announcement_em.py）可达性 ?
+- [ ] `fund_announcement_personnel_em` — api.fund.eastmoney.com（fund/fund_announcement_em.py）可达性 ?
+- [ ] `fund_announcement_report_em` — api.fund.eastmoney.com（fund/fund_announcement_em.py）可达性 ?
+- [ ] `fund_aum_em` — fund.eastmoney.com（fund/fund_aum_em.py）可达性 ?
+- [ ] `fund_aum_hist_em` — fund.eastmoney.com（fund/fund_aum_em.py）可达性 ?
+- [ ] `fund_aum_trend_em` — fund.eastmoney.com（fund/fund_aum_em.py）可达性 ?
+- [ ] `fund_cf_em` — fund.eastmoney.com（fund/fund_fhsp_em.py）可达性 ?
+- [ ] `fund_etf_category_sina` — finance.sina.com.cn（fund/fund_etf_sina.py）可达性 ?
+- [ ] `fund_etf_dividend_sina` — finance.sina.com.cn（fund/fund_etf_sina.py）可达性 ?
+- [ ] `fund_etf_fund_daily_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_etf_fund_info_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_etf_hist_min_em` — 88.push2.eastmoney.com（fund/fund_etf_em.py）可达性 ?
+- [ ] `fund_etf_hist_sina` — finance.sina.com.cn（fund/fund_etf_sina.py）可达性 ?
+- [ ] `fund_etf_scale_sse` — query.sse.com.cn（fund/fund_etf_sse.py）可达性 ?
+- [ ] `fund_etf_scale_szse` — fund.szse.cn（fund/fund_etf_szse.py）可达性 ?
+- [ ] `fund_exchange_rank_em` — api.fund.eastmoney.com（fund/fund_rank_em.py）可达性 ?
+- [ ] `fund_fee_em` — fundf10.eastmoney.com（fund/fund_fee_em.py）可达性 ?
+- [ ] `fund_fh_em` — fund.eastmoney.com（fund/fund_fhsp_em.py）可达性 ?
+- [ ] `fund_fh_rank_em` — fund.eastmoney.com（fund/fund_fhsp_em.py）可达性 ?
+- [ ] `fund_financial_fund_daily_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_financial_fund_info_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_graded_fund_daily_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_graded_fund_info_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_hk_fund_hist_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_hk_rank_em` — api.fund.eastmoney.com（fund/fund_rank_em.py）可达性 ?
+- [ ] `fund_hold_structure_em` — fund.eastmoney.com（fund/fund_scale_em.py）可达性 ?
+- [ ] `fund_individual_achievement_xq` — danjuanfunds.com（fund/fund_xq.py）可达性 ?
+- [ ] `fund_individual_analysis_xq` — danjuanfunds.com（fund/fund_xq.py）可达性 ?
+- [ ] `fund_individual_basic_info_xq` — danjuanfunds.com（fund/fund_xq.py）可达性 ?
+- [ ] `fund_individual_detail_hold_xq` — danjuanfunds.com（fund/fund_xq.py）可达性 ?
+- [ ] `fund_individual_detail_info_xq` — danjuanfunds.com（fund/fund_xq.py）可达性 ?
+- [ ] `fund_individual_profit_probability_xq` — danjuanfunds.com（fund/fund_xq.py）可达性 ?
+- [ ] `fund_info_index_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_info_ths` — fund.10jqka.com.cn（fund/fund_info_ths.py）可达性 ?
+- [ ] `fund_lcx_rank_em` — api.fund.eastmoney.com（fund/fund_rank_em.py）可达性 ?
+- [ ] `fund_lof_hist_em` — 2.push2.eastmoney.com（fund/fund_lof_em.py）可达性 ?
+- [ ] `fund_lof_hist_min_em` — 2.push2.eastmoney.com（fund/fund_lof_em.py）可达性 ?
+- [ ] `fund_manager_em` — fund.eastmoney.com（fund/fund_manager.py）可达性 ?
+- [ ] `fund_money_fund_daily_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_money_fund_info_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_money_rank_em` — api.fund.eastmoney.com（fund/fund_rank_em.py）可达性 ?
+- [ ] `fund_name_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_new_found_em` — fund.eastmoney.com（fund/fund_init_em.py）可达性 ?
+- [ ] `fund_new_found_ths` — fund.10jqka.com.cn（fund/fund_init_ths.py）可达性 ?
+- [ ] `fund_open_fund_daily_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_open_fund_info_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_open_fund_rank_em` — api.fund.eastmoney.com（fund/fund_rank_em.py）可达性 ?
+- [ ] `fund_overview_em` — fundf10.eastmoney.com（fund/fund_overview_em.py）可达性 ?
+- [ ] `fund_portfolio_bond_hold_em` — api.fund.eastmoney.com（fund/fund_portfolio_em.py）可达性 ?
+- [ ] `fund_portfolio_change_em` — api.fund.eastmoney.com（fund/fund_portfolio_em.py）可达性 ?
+- [ ] `fund_portfolio_hold_em` — api.fund.eastmoney.com（fund/fund_portfolio_em.py）可达性 ?
+- [ ] `fund_portfolio_industry_allocation_em` — api.fund.eastmoney.com（fund/fund_portfolio_em.py）可达性 ?
+- [ ] `fund_purchase_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+- [ ] `fund_rating_all` — fund.eastmoney.com（fund/fund_rating.py）可达性 ?
+- [ ] `fund_rating_ja` — fund.eastmoney.com（fund/fund_rating.py）可达性 ?
+- [ ] `fund_rating_sh` — fund.eastmoney.com（fund/fund_rating.py）可达性 ?
+- [ ] `fund_rating_zs` — fund.eastmoney.com（fund/fund_rating.py）可达性 ?
+- [ ] `fund_report_asset_allocation_cninfo` — webapi.cninfo.com.cn（fund/fund_report_cninfo.py）可达性 ?
+- [ ] `fund_report_industry_allocation_cninfo` — webapi.cninfo.com.cn（fund/fund_report_cninfo.py）可达性 ?
+- [ ] `fund_report_stock_cninfo` — webapi.cninfo.com.cn（fund/fund_report_cninfo.py）可达性 ?
+- [ ] `fund_scale_change_em` — fund.eastmoney.com（fund/fund_scale_em.py）可达性 ?
+- [ ] `fund_scale_close_sina` — vip.stock.finance.sina.com.cn（fund/fund_scale_sina.py）可达性 ?
+- [ ] `fund_scale_daily_szse` — www.szse.cn（fund/fund_scale_szse.py）可达性 ?
+- [ ] `fund_scale_open_sina` — vip.stock.finance.sina.com.cn（fund/fund_scale_sina.py）可达性 ?
+- [ ] `fund_scale_structured_sina` — vip.stock.finance.sina.com.cn（fund/fund_scale_sina.py）可达性 ?
+- [ ] `fund_value_estimation_em` — api.fund.eastmoney.com（fund/fund_em.py）可达性 ?
+
+**stock_feature**（63 个）
+- [ ] `stock_a_all_pb` — legulegu.com（stock_feature/stock_all_pb.py）可达性 ?
+- [ ] `stock_a_below_net_asset_statistics` — legulegu.com（stock_feature/stock_a_below_net_asset_statistics.py）可达性 ?
+- [ ] `stock_a_high_low_statistics` — www.legulegu.com（stock_feature/stock_a_high_low.py）可达性 ?
+- [ ] `stock_board_change_em` — push2ex.eastmoney.com（stock_feature/stock_pankou_em.py）可达性 ?
+- [ ] `stock_board_concept_index_ths` — d.10jqka.com.cn（stock_feature/stock_board_concept_ths.py）可达性 ?
+- [ ] `stock_board_concept_summary_ths` — d.10jqka.com.cn（stock_feature/stock_board_concept_ths.py）可达性 ?
+- [ ] `stock_board_industry_index_ths` — d.10jqka.com.cn（stock_feature/stock_board_industry_ths.py）可达性 ?
+- [ ] `stock_board_industry_summary_ths` — d.10jqka.com.cn（stock_feature/stock_board_industry_ths.py）可达性 ?
+- [ ] `stock_changes_em` — push2ex.eastmoney.com（stock_feature/stock_pankou_em.py）可达性 ?
+- [ ] `stock_classify_sina` — vip.stock.finance.sina.com.cn（stock_feature/stock_classify_sina.py）可达性 ?
+- [ ] `stock_concept_cons_futu` — www.futunn.com（stock_feature/stock_concept_futu.py）可达性 ?
+- [ ] `stock_cyq_em` — push2his.eastmoney.com（stock_feature/stock_cyq_em.py）可达性 ?
+- [ ] `stock_hk_hist` — 28.push2.eastmoney.com（stock_feature/stock_hist_em.py）可达性 ?
+- [ ] `stock_hk_hist_min_em` — 28.push2.eastmoney.com（stock_feature/stock_hist_em.py）可达性 ?
+- [ ] `stock_hk_indicator_eniu` — eniu.com（stock_feature/stock_a_indicator.py）可达性 ?
+- [ ] `stock_hk_valuation_baidu` — finance.baidu.com（stock_feature/stock_hk_valuation_baidu.py）可达性 ?
+- [ ] `stock_hot_deal_xq` — xueqiu.com（stock_feature/stock_hot_xq.py）可达性 ?
+- [ ] `stock_hsgt_fund_min_em` — data.eastmoney.com（stock_feature/stock_hsgt_min_em.py）可达性 ?
+- [ ] `stock_info_cjzc_em` — finance.eastmoney.com（stock_feature/stock_info.py）可达性 ?
+- [ ] `stock_info_global_cls` — finance.eastmoney.com（stock_feature/stock_info.py）可达性 ?
+- [ ] `stock_info_global_em` — finance.eastmoney.com（stock_feature/stock_info.py）可达性 ?
+- [ ] `stock_info_global_futu` — finance.eastmoney.com（stock_feature/stock_info.py）可达性 ?
+- [ ] `stock_info_global_sina` — finance.eastmoney.com（stock_feature/stock_info.py）可达性 ?
+- [ ] `stock_info_global_ths` — finance.eastmoney.com（stock_feature/stock_info.py）可达性 ?
+- [ ] `stock_inner_trade_xq` — xueqiu.com（stock_feature/stock_inner_trade_xq.py）可达性 ?
+- [ ] `stock_ipo_benefit_ths` — d.10jqka.com.cn（stock_feature/stock_board_industry_ths.py）可达性 ?
+- [ ] `stock_irm_ans_cninfo` — irm.cninfo.com.cn（stock_feature/stock_irm_cninfo.py）可达性 ?
+- [ ] `stock_irm_cninfo` — irm.cninfo.com.cn（stock_feature/stock_irm_cninfo.py）可达性 ?
+- [ ] `stock_lh_yyb_capital` — data.10jqka.com.cn（stock_feature/stock_lh_yybpm.py）可达性 ?
+- [ ] `stock_lh_yyb_control` — data.10jqka.com.cn（stock_feature/stock_lh_yybpm.py）可达性 ?
+- [ ] `stock_lh_yyb_most` — data.10jqka.com.cn（stock_feature/stock_lh_yybpm.py）可达性 ?
+- [ ] `stock_lhb_detail_daily_sina` — vip.stock.finance.sina.com.cn（stock_feature/stock_lhb_sina.py）可达性 ?
+- [ ] `stock_lhb_ggtj_sina` — vip.stock.finance.sina.com.cn（stock_feature/stock_lhb_sina.py）可达性 ?
+- [ ] `stock_lhb_jgmx_sina` — vip.stock.finance.sina.com.cn（stock_feature/stock_lhb_sina.py）可达性 ?
+- [ ] `stock_lhb_jgzz_sina` — vip.stock.finance.sina.com.cn（stock_feature/stock_lhb_sina.py）可达性 ?
+- [ ] `stock_lhb_yytj_sina` — vip.stock.finance.sina.com.cn（stock_feature/stock_lhb_sina.py）可达性 ?
+- [ ] `stock_margin_bse` — www.bse.cn（stock_feature/stock_margin_bse.py）可达性 ?
+- [ ] `stock_margin_detail_bse` — www.bse.cn（stock_feature/stock_margin_bse.py）可达性 ?
+- [ ] `stock_margin_detail_szse` — www.szse.cn（stock_feature/stock_margin_szse.py）可达性 ?
+- [ ] `stock_margin_ratio_pa` — query.sse.com.cn（stock_feature/stock_margin_sse.py）可达性 ?
+- [ ] `stock_margin_underlying_info_bse` — www.bse.cn（stock_feature/stock_margin_bse.py）可达性 ?
+- [ ] `stock_margin_underlying_info_szse` — www.szse.cn（stock_feature/stock_margin_szse.py）可达性 ?
+- [ ] `stock_market_activity_legu` — legulegu.com（stock_feature/stock_market_legu.py）可达性 ?
+- [ ] `stock_report_disclosure` — www.cninfo.com.cn（stock_feature/stock_yjyg_cninfo.py）可达性 ?
+- [ ] `stock_research_report_em` — data.eastmoney.com（stock_feature/stock_research_report_em.py）可达性 ?
+- [ ] `stock_sgt_reference_exchange_rate_sse` — query.sse.com.cn（stock_feature/stock_hsgt_exchange_rate.py）可达性 ?
+- [ ] `stock_sgt_reference_exchange_rate_szse` — query.sse.com.cn（stock_feature/stock_hsgt_exchange_rate.py）可达性 ?
+- [ ] `stock_sgt_settlement_exchange_rate_sse` — query.sse.com.cn（stock_feature/stock_hsgt_exchange_rate.py）可达性 ?
+- [ ] `stock_sgt_settlement_exchange_rate_szse` — query.sse.com.cn（stock_feature/stock_hsgt_exchange_rate.py）可达性 ?
+- [ ] `stock_sns_sseinfo` — sns.sseinfo.com（stock_feature/stock_sns_sseinfo.py）可达性 ?
+- [ ] `stock_us_hist` — 28.push2.eastmoney.com（stock_feature/stock_hist_em.py）可达性 ?
+- [ ] `stock_us_hist_min_em` — 28.push2.eastmoney.com（stock_feature/stock_hist_em.py）可达性 ?
+- [ ] `stock_us_spot_em` — 28.push2.eastmoney.com（stock_feature/stock_hist_em.py）可达性 ?
+- [ ] `stock_us_valuation_baidu` — gushitong.baidu.com（stock_feature/stock_us_valuation_baidu.py）可达性 ?
+- [ ] `stock_xgsr_ths` — d.10jqka.com.cn（stock_feature/stock_board_industry_ths.py）可达性 ?
+- [ ] `stock_yzxdr_em` — data.eastmoney.com（stock_feature/stock_yzxdr_em.py）可达性 ?
+- [ ] `stock_zh_a_disclosure_relation_cninfo` — www.cninfo.com.cn（stock_feature/stock_disclosure_cninfo.py）可达性 ?
+- [ ] `stock_zh_a_disclosure_report_cninfo` — www.cninfo.com.cn（stock_feature/stock_disclosure_cninfo.py）可达性 ?
+- [ ] `stock_zh_a_hist_pre_min_em` — 28.push2.eastmoney.com（stock_feature/stock_hist_em.py）可达性 ?
+- [ ] `stock_zh_a_hist_tx` — gu.qq.com（stock_feature/stock_hist_tx.py）可达性 ?
+- [ ] `stock_zh_ab_comparison_em` — 28.push2.eastmoney.com（stock_feature/stock_hist_em.py）可达性 ?
+- [ ] `stock_zh_valuation_baidu` — gushitong.baidu.com（stock_feature/stock_zh_valuation_baidu.py）可达性 ?
+- [ ] `stock_zh_vote_baidu` — finance.pae.baidu.com（stock_feature/stock_zh_vote_baidu.py）可达性 ?
+
+**futures**（24 个）
+- [ ] `futures_dce_position_rank` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `futures_dce_position_rank_other` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `futures_delivery_match_czce` — tsite.shfe.com.cn（futures/futures_to_spot.py）可达性 ?
+- [ ] `futures_gfex_position_rank` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `futures_spot_price` — www.100ppi.com（futures/futures_basis.py）可达性 ?
+- [ ] `futures_spot_price_daily` — www.100ppi.com（futures/futures_basis.py）可达性 ?
+- [ ] `futures_spot_price_previous` — www.100ppi.com（futures/futures_basis.py）可达性 ?
+- [ ] `get_cffex_daily` — tsite.shfe.com.cn（futures/futures_daily_bar.py）可达性 ?
+- [ ] `get_cffex_rank_table` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `get_czce_daily` — tsite.shfe.com.cn（futures/futures_daily_bar.py）可达性 ?
+- [ ] `get_dce_daily` — tsite.shfe.com.cn（futures/futures_daily_bar.py）可达性 ?
+- [ ] `get_dce_rank_table` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `get_futures_daily` — tsite.shfe.com.cn（futures/futures_daily_bar.py）可达性 ?
+- [ ] `get_gfex_daily` — tsite.shfe.com.cn（futures/futures_daily_bar.py）可达性 ?
+- [ ] `get_ine_daily` — tsite.shfe.com.cn（futures/futures_daily_bar.py）可达性 ?
+- [ ] `get_rank_sum` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `get_rank_sum_daily` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `get_rank_table_czce` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `get_receipt` — www.czce.com.cn（futures/receipt.py）可达性 ?
+- [ ] `get_roll_yield` — ?（futures/futures_roll_yield.py）可达性 ?
+- [ ] `get_roll_yield_bar` — ?（futures/futures_roll_yield.py）可达性 ?
+- [ ] `get_shfe_daily` — tsite.shfe.com.cn（futures/futures_daily_bar.py）可达性 ?
+- [ ] `get_shfe_rank_table` — portal.dce.com.cn（futures/cot.py）可达性 ?
+- [ ] `match_main_contract` — finance.sina.com.cn（futures_derivative/futures_index_sina.py）可达性 ?
+
+**stock_fundamental**（22 个）
+- [ ] `stock_add_stock` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_circulate_stock_holder` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_financial_abstract` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_financial_analysis_indicator` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_financial_report_sina` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_fund_stock_holder` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_history_dividend` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_history_dividend_detail` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_hk_profit_forecast_et` — data.eastmoney.com（stock_fundamental/stock_profit_forecast_hk_etnet.py）可达性 ?
+- [ ] `stock_institute_hold` — vip.stock.finance.sina.com.cn（stock_fundamental/stock_hold.py）可达性 ?
+- [ ] `stock_institute_hold_detail` — vip.stock.finance.sina.com.cn（stock_fundamental/stock_hold.py）可达性 ?
+- [ ] `stock_institute_recommend` — stock.finance.sina.com.cn（stock_fundamental/stock_recommend.py）可达性 ?
+- [ ] `stock_institute_recommend_detail` — stock.finance.sina.com.cn（stock_fundamental/stock_recommend.py）可达性 ?
+- [ ] `stock_ipo_info` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_main_stock_holder` — datacenter.eastmoney.com（stock_fundamental/stock_finance_sina.py）可达性 ?
+- [ ] `stock_register_all_em` — data.eastmoney.com（stock_fundamental/stock_register_em.py）可达性 ?
+- [ ] `stock_register_bj` — data.eastmoney.com（stock_fundamental/stock_register_em.py）可达性 ?
+- [ ] `stock_register_cyb` — data.eastmoney.com（stock_fundamental/stock_register_em.py）可达性 ?
+- [ ] `stock_register_kcb` — data.eastmoney.com（stock_fundamental/stock_register_em.py）可达性 ?
+- [ ] `stock_register_sh` — data.eastmoney.com（stock_fundamental/stock_register_em.py）可达性 ?
+- [ ] `stock_register_sz` — data.eastmoney.com（stock_fundamental/stock_register_em.py）可达性 ?
+- [ ] `stock_zyjs_ths` — basic.10jqka.com.cn（stock_fundamental/stock_zyjs_ths.py）可达性 ?
+
+**movie**（12 个）
+- [ ] `business_value_artist` — www.endata.com.cn（movie/artist_yien.py）可达性 ?
+- [ ] `movie_boxoffice_cinema_daily` — www.endata.com.cn（movie/movie_yien.py）可达性 ?
+- [ ] `movie_boxoffice_cinema_weekly` — www.endata.com.cn（movie/movie_yien.py）可达性 ?
+- [ ] `movie_boxoffice_daily` — www.endata.com.cn（movie/movie_yien.py）可达性 ?
+- [ ] `movie_boxoffice_monthly` — www.endata.com.cn（movie/movie_yien.py）可达性 ?
+- [ ] `movie_boxoffice_realtime` — www.endata.com.cn（movie/movie_yien.py）可达性 ?
+- [ ] `movie_boxoffice_weekly` — www.endata.com.cn（movie/movie_yien.py）可达性 ?
+- [ ] `movie_boxoffice_yearly` — www.endata.com.cn（movie/movie_yien.py）可达性 ?
+- [ ] `movie_boxoffice_yearly_first_week` — www.endata.com.cn（movie/movie_yien.py）可达性 ?
+- [ ] `online_value_artist` — www.endata.com.cn（movie/artist_yien.py）可达性 ?
+- [ ] `video_tv` — www.endata.com.cn（movie/video_yien.py）可达性 ?
+- [ ] `video_variety_show` — www.endata.com.cn（movie/video_yien.py）可达性 ?
+
+**other**（8 个）
+- [ ] `car_market_cate_cpca` — data.cpcadata.com（other/other_car_cpca.py）可达性 ?
+- [ ] `car_market_country_cpca` — data.cpcadata.com（other/other_car_cpca.py）可达性 ?
+- [ ] `car_market_fuel_cpca` — data.cpcadata.com（other/other_car_cpca.py）可达性 ?
+- [ ] `car_market_man_rank_cpca` — data.cpcadata.com（other/other_car_cpca.py）可达性 ?
+- [ ] `car_market_segment_cpca` — data.cpcadata.com（other/other_car_cpca.py）可达性 ?
+- [ ] `car_market_total_cpca` — data.cpcadata.com（other/other_car_cpca.py）可达性 ?
+- [ ] `car_sale_rank_gasgoo` — i.gasgoo.com（other/other_car_gasgoo.py）可达性 ?
+- [ ] `game_hot_rank_taptap` — www.taptap.cn（other/other_taptap.py）可达性 ?
+
+**qhkc_web**（8 个）
+- [ ] `get_qhkc_fund_bs` — ?（qhkc_web/qhkc_fund.py）可达性 ?
+- [ ] `get_qhkc_fund_money_change` — ?（qhkc_web/qhkc_fund.py）可达性 ?
+- [ ] `get_qhkc_fund_position` — ?（qhkc_web/qhkc_fund.py）可达性 ?
+- [ ] `get_qhkc_index` — qhkch.com（qhkc_web/qhkc_index.py）可达性 ?
+- [ ] `get_qhkc_index_profit_loss` — qhkch.com（qhkc_web/qhkc_index.py）可达性 ?
+- [ ] `get_qhkc_index_trend` — qhkch.com（qhkc_web/qhkc_index.py）可达性 ?
+- [ ] `qhkc_tool_foreign` — ?（qhkc_web/qhkc_tool.py）可达性 ?
+- [ ] `qhkc_tool_gdp` — ?（qhkc_web/qhkc_tool.py）可达性 ?
+
+**air**（7 个）
+- [ ] `air_city_table` — www.aqistudy.cn（air/air_zhenqi.py）可达性 ?
+- [ ] `air_quality_hebei` — 110.249.223.67（air/air_hebei.py）可达性 ?
+- [ ] `air_quality_hist` — www.aqistudy.cn（air/air_zhenqi.py）可达性 ?
+- [ ] `air_quality_rank` — www.aqistudy.cn（air/air_zhenqi.py）可达性 ?
+- [ ] `air_quality_watch_point` — www.aqistudy.cn（air/air_zhenqi.py）可达性 ?
+- [ ] `sunrise_daily` — www.timeanddate.com（air/sunrise_tad.py）可达性 ?
+- [ ] `sunrise_monthly` — www.timeanddate.com（air/sunrise_tad.py）可达性 ?
+
+**article**（7 个）
+- [ ] `article_epu_index` — www.policyuncertainty.com（article/epu_index.py）可达性 ?
+- [ ] `article_ff_crr` — mba.tuck.dartmouth.edu（article/ff_factor.py）可达性 ?
+- [ ] `article_oman_rv` — dachxiu.chicagobooth.edu（article/risk_rv.py）可达性 ?
+- [ ] `article_oman_rv_short` — dachxiu.chicagobooth.edu（article/risk_rv.py）可达性 ?
+- [ ] `article_rlab_rv` — dachxiu.chicagobooth.edu（article/risk_rv.py）可达性 ?
+- [ ] `fred_md` — research.stlouisfed.org（article/fred_md.py）可达性 ?
+- [ ] `fred_qd` — research.stlouisfed.org（article/fred_md.py）可达性 ?
+
+**currency**（5 个）
+- [ ] `currency_convert` — api.currencyscoop.com（currency/currency.py）可达性 ?
+- [ ] `currency_currencies` — api.currencyscoop.com（currency/currency.py）可达性 ?
+- [ ] `currency_history` — api.currencyscoop.com（currency/currency.py）可达性 ?
+- [ ] `currency_latest` — api.currencyscoop.com（currency/currency.py）可达性 ?
+- [ ] `currency_time_series` — api.currencyscoop.com（currency/currency.py）可达性 ?
+
+**event**（2 个）
+- [ ] `migration_area_baidu` — huiyan.baidu.com（event/migration.py）可达性 ?
+- [ ] `migration_scale_baidu` — huiyan.baidu.com（event/migration.py）可达性 ?
+
+**nlp**（2 个）
+- [ ] `nlp_answer` — api.ownthink.com（nlp/nlp_interface.py）可达性 ?
+- [ ] `nlp_ownthink` — api.ownthink.com（nlp/nlp_interface.py）可达性 ?
+
+**bank**（1 个）
+- [ ] `bank_fjcf_table_detail` — www.nfra.gov.cn（bank/bank_cbirc_2020.py）可达性 ?
+
+**hf**（1 个）
+- [ ] `hf_sp_500` — github.com（hf/hf_sp500.py）可达性 ?
+
+**pro**（1 个）
+- [ ] `pro_api` — ?（pro/data_pro.py）可达性 ?
+
 
 ---
 

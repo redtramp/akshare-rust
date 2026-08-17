@@ -25,6 +25,7 @@ pub mod currency;
 pub mod economic;
 pub mod energy;
 pub mod exchange;
+pub mod forex;
 pub mod fortune;
 pub mod fund;
 pub mod futures;
@@ -34,6 +35,7 @@ pub mod interest_rate;
 pub mod legu;
 pub mod news;
 pub mod option;
+pub mod reits;
 pub mod sina;
 pub mod sources;
 pub mod spot;
@@ -41,6 +43,7 @@ pub mod stock;
 pub mod stock_feature;
 pub mod stock_fund_flow;
 pub mod stock_fundamental;
+pub mod tool;
 pub mod xueqiu;
 
 /// 库版本（与 Cargo.toml 保持一致）

@@ -194,6 +194,18 @@ pub fn sina_js_decode(encoded: &str) -> Result<String> {
     engine.load_and_call("sina.js", js, &format!("JSON.stringify(d({arg}))"))
 }
 
+/// 新浪美股列表 URL 哈希（对应 akshare `js_hash_text` 的 `d()`）。
+///
+/// 入参为 `US_CategoryService.getList?page=...` 字符串，返回 16 字符哈希，
+/// 用于拼接 `us_sina_stock_list_url` 的 `CallbackList[{}]` 占位。
+pub fn us_sina_hash_decode(encoded: &str) -> Result<String> {
+    let js = include_str!("../../assets/js/us_sina_hash.js");
+    let mut engine = JsEngine::new()?;
+    let arg = serde_json::to_string(encoded)
+        .map_err(|e| AkshareError::json("us_sina_hash.js 参数序列化失败", e.to_string()))?;
+    engine.load_and_call("us_sina_hash.js", js, &format!("d({arg})"))
+}
+
 /// 同花顺 token（对应 akshare `v()`）。
 pub fn ths_get_v() -> Result<String> {
     let js = include_str!("../../assets/js/ths.js");

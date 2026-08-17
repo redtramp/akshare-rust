@@ -647,6 +647,4562 @@ fn board_hist(
     df.select(&BOARD_HIST_SELECT)
 }
 
+/// 板块实时行情公共实现（对应 akshare `stock_board_*_spot_em`）。
+///
+/// `91.push2.eastmoney.com/api/qt/stock/get`，`fltt=1`（原始值×100）。
+/// akshare：`from_dict(orient="index")` → 列名 `item/value`，全部 ×1e-2，
+/// 成交量/成交额两行（第 5/6 行）再 ×1e2 恢复（本身已是正常单位）。
+fn board_spot(http: &HttpClient, code: &str) -> Result<Df> {
+    const URL: &str = "https://91.push2.eastmoney.com/api/qt/stock/get";
+    let params = json!({
+        "fields": "f43,f44,f45,f46,f47,f48,f170,f171,f168,f169",
+        "mpi": "1000",
+        "invt": "2",
+        "fltt": "1",
+        "secid": format!("90.{code}"),
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let value = http.get_json(URL, &params, None)?;
+    let data = value
+        .get("data")
+        .ok_or_else(|| AkshareError::Empty("板块行情无 data".into()))?;
+    let obj = data
+        .as_object()
+        .ok_or_else(|| AkshareError::Empty("板块行情 data 非对象".into()))?;
+    // 顺序与 akshare field_map 一致：最新,最高,最低,开盘,成交量,成交额,涨跌幅,振幅,换手率,涨跌额
+    const ITEMS: [(&str, &str); 10] = [
+        ("f43", "最新"),
+        ("f44", "最高"),
+        ("f45", "最低"),
+        ("f46", "开盘"),
+        ("f47", "成交量"),
+        ("f48", "成交额"),
+        ("f170", "涨跌幅"),
+        ("f171", "振幅"),
+        ("f168", "换手率"),
+        ("f169", "涨跌额"),
+    ];
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(10);
+    for (i, (k, name)) in ITEMS.iter().enumerate() {
+        let raw = obj.get(*k).map(|x| x.to_string());
+        // 成交量/成交额保持原值（akshare 先 ×1e-2 再对这两行 ×1e2 恢复）；
+        // 其余 ×1e-2（fltt=1 原始值为百分位）
+        let processed = if i == 4 || i == 5 {
+            raw
+        } else {
+            raw.and_then(|s| s.parse::<f64>().ok().map(|f| (f * 1e-2).to_string()))
+        };
+        rows.push(vec![Some((*name).to_string()), processed]);
+    }
+    let mut df = Df::from_string_rows(&["item", "value"], &rows)?;
+    df.cast_numeric(&["value"])?;
+    Ok(df)
+}
+
+/// 行业板块实时行情（对应 akshare [`akshare.stock_board_industry_spot_em`]）。
+///
+/// `symbol`: 板块名称或东财板块代码（如 `"小金属"` / `"BK1027"`）。
+///
+/// # 返回列
+/// `item, value`（item 为 最新/最高/最低/开盘/成交量/成交额/涨跌幅/振幅/换手率/涨跌额）
+pub fn stock_board_industry_spot_em(symbol: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let code = resolve_board_code(&http, "m:90 t:2 f:!50", INDUSTRY_NAME_FIELDS, symbol)?;
+    board_spot(&http, &code)
+}
+
+/// 概念板块实时行情（对应 akshare [`akshare.stock_board_concept_spot_em`]）。
+///
+/// `symbol`: 概念板块名称或代码（如 `"可燃冰"` / `"BK0818"`）。
+///
+/// # 返回列
+/// `item, value`
+pub fn stock_board_concept_spot_em(symbol: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let code = resolve_board_code(&http, "m:90 t:3 f:!50", CONCEPT_NAME_FIELDS, symbol)?;
+    board_spot(&http, &code)
+}
+
+/// 板块分时/分钟历史行情公共实现（对应 akshare `stock_board_*_hist_min_em`）。
+fn board_hist_min(http: &HttpClient, code: &str, period: &str) -> Result<Df> {
+    let secid = format!("90.{code}");
+    if period == "1" {
+        // 分时：trends2，ndays=1, iscr=0，8 字段（f58 为最新价，akshare 命名）
+        let trends = fetch_trends(http, &secid, "1", "0")?;
+        let rows: Vec<Vec<Option<String>>> = trends
+            .iter()
+            .map(|t| t.iter().map(|s| Some(s.clone())).collect())
+            .collect();
+        const COLS: [&str; 8] = [
+            "日期时间",
+            "开盘",
+            "收盘",
+            "最高",
+            "最低",
+            "成交量",
+            "成交额",
+            "最新价",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &rows)?;
+        df.cast_numeric(&COLS[1..])?;
+        Ok(df)
+    } else {
+        match period {
+            "5" | "15" | "30" | "60" => {}
+            other => {
+                return Err(AkshareError::Param(format!(
+                    "无效 period: {other}，可选 1/5/15/30/60"
+                )))
+            }
+        }
+        let klines = fetch_kline_min(http, &secid, period, "1")?;
+        // 11 字段：日期时间,开盘,收盘,最高,最低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率
+        // akshare select 顺序：日期时间,开盘,收盘,最高,最低,涨跌幅,涨跌额,成交量,成交额,振幅,换手率
+        let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(klines.len());
+        for k in &klines {
+            let pick = |i: usize| k.get(i).map(|s| Some(s.clone())).unwrap_or(None);
+            rows.push(vec![
+                pick(0),
+                pick(1),
+                pick(2),
+                pick(3),
+                pick(4),
+                pick(8),
+                pick(9),
+                pick(5),
+                pick(6),
+                pick(7),
+                pick(10),
+            ]);
+        }
+        const COLS: [&str; 11] = [
+            "日期时间",
+            "开盘",
+            "收盘",
+            "最高",
+            "最低",
+            "涨跌幅",
+            "涨跌额",
+            "成交量",
+            "成交额",
+            "振幅",
+            "换手率",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &rows)?;
+        df.cast_numeric(&COLS[1..])?;
+        Ok(df)
+    }
+}
+
+/// 行业板块分时/分钟历史行情（对应 akshare [`akshare.stock_board_industry_hist_min_em`]）。
+///
+/// - `symbol`: 板块名称或东财板块代码
+/// - `period`: `"1"`（分时）/ `"5"` / `"15"` / `"30"` / `"60"`（分钟）
+///
+/// # 返回列
+/// `日期时间, 开盘, 收盘, 最高, 最低, 涨跌幅, 涨跌额, 成交量, 成交额, 振幅, 换手率`
+/// （period=1 时为 `日期时间, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 最新价`）
+pub fn stock_board_industry_hist_min_em(symbol: &str, period: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let code = resolve_board_code(&http, "m:90 t:2 f:!50", INDUSTRY_NAME_FIELDS, symbol)?;
+    board_hist_min(&http, &code, period)
+}
+
+/// 概念板块分时/分钟历史行情（对应 akshare [`akshare.stock_board_concept_hist_min_em`]）。
+///
+/// - `symbol`: 概念板块名称或代码
+/// - `period`: `"1"`（分时）/ `"5"` / `"15"` / `"30"` / `"60"`（分钟）
+///
+/// # 返回列
+/// 同 [`stock_board_industry_hist_min_em`]
+pub fn stock_board_concept_hist_min_em(symbol: &str, period: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let code = resolve_board_code(&http, "m:90 t:3 f:!50", CONCEPT_NAME_FIELDS, symbol)?;
+    board_hist_min(&http, &code, period)
+}
+
+// === BATCH36-C 上交所股票列表/终止上市（query.sse.com.cn JSON）===
+//
+// 对应 akshare `stock/stock_info.py` 的 `stock_info_sh_name_code` /
+// `stock_info_sh_delist`。走 `query.sse.com.cn` JSON（与 `stock_margin_sse` 同源），
+// 键名 rename + 列序对齐 akshare。
+
+const SSE_QUERY_REFERER: &str = "https://www.sse.com.cn/assortment/stock/list/share/";
+const SSE_QUERY_HEADERS: &[(&str, &str)] = &[
+    ("Host", "query.sse.com.cn"),
+    ("Pragma", "no-cache"),
+    ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+];
+
+/// 上交所-股票列表（对应 akshare [`akshare.stock_info_sh_name_code`]）。
+///
+/// - `symbol`: `"主板A股"` / `"主板B股"` / `"科创板"`
+///
+/// # 返回列
+/// `证券代码, 证券简称, 证券全称, 公司简称, 公司全称, 上市日期`
+pub fn stock_info_sh_name_code(symbol: &str) -> Result<Df> {
+    let st = match symbol {
+        "主板A股" => "1",
+        "主板B股" => "2",
+        "科创板" => "8",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 主板A股/主板B股/科创板"
+            )))
+        }
+    };
+    let url = "https://query.sse.com.cn/sseQuery/commonQuery.do";
+    let params = json!({
+        "STOCK_TYPE": st,
+        "REG_PROVINCE": "",
+        "CSRC_CODE": "",
+        "STOCK_CODE": "",
+        "sqlId": "COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L",
+        "COMPANY_STATUS": "2,4,5,7,8",
+        "type": "inParams",
+        "isPagination": "true",
+        "pageHelp.cacheSize": "1",
+        "pageHelp.beginPage": "1",
+        "pageHelp.pageSize": "10000",
+        "pageHelp.pageNo": "1",
+        "pageHelp.endPage": "1",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data =
+        http.get_json_with_headers(url, &params, SSE_QUERY_HEADERS, Some(SSE_QUERY_REFERER))?;
+    let rows = data
+        .get("result")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let code_key = if symbol == "主板B股" {
+        "B_STOCK_CODE"
+    } else {
+        "A_STOCK_CODE"
+    };
+    let rename = [
+        (code_key, "证券代码"),
+        ("SEC_NAME_CN", "证券简称"),
+        ("SEC_NAME_FULL", "证券全称"),
+        ("COMPANY_ABBR", "公司简称"),
+        ("FULL_NAME", "公司全称"),
+        ("LIST_DATE", "上市日期"),
+    ];
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("A_STOCK_CODE").or_else(|| f("B_STOCK_CODE")),
+            f("SEC_NAME_CN"),
+            f("SEC_NAME_FULL"),
+            f("COMPANY_ABBR"),
+            f("FULL_NAME"),
+            f("LIST_DATE"),
+        ]);
+    }
+    let _ = rename;
+    const COLS: [&str; 6] = [
+        "证券代码",
+        "证券简称",
+        "证券全称",
+        "公司简称",
+        "公司全称",
+        "上市日期",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["上市日期"])?;
+    Ok(df)
+}
+
+/// 上交所-终止上市公司（对应 akshare [`akshare.stock_info_sh_delist`]）。
+///
+/// - `symbol`: `"全部"` / `"沪市"` / `"科创板"`
+///
+/// # 返回列
+/// `公司代码, 公司简称, 上市日期, 暂停上市日期`
+pub fn stock_info_sh_delist(symbol: &str) -> Result<Df> {
+    let st = match symbol {
+        "全部" => "1,2,8",
+        "沪市" => "1,2",
+        "科创板" => "8",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 全部/沪市/科创板"
+            )))
+        }
+    };
+    let url = "https://query.sse.com.cn/commonQuery.do";
+    let params = json!({
+        "sqlId": "COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L",
+        "isPagination": "true",
+        "STOCK_CODE": "",
+        "CSRC_CODE": "",
+        "REG_PROVINCE": "",
+        "STOCK_TYPE": st,
+        "COMPANY_STATUS": "3",
+        "type": "inParams",
+        "pageHelp.cacheSize": "1",
+        "pageHelp.beginPage": "1",
+        "pageHelp.pageSize": "500",
+        "pageHelp.pageNo": "1",
+        "pageHelp.endPage": "1",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data =
+        http.get_json_with_headers(url, &params, SSE_QUERY_HEADERS, Some(SSE_QUERY_REFERER))?;
+    let rows = data
+        .get("result")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("COMPANY_CODE"),
+            f("COMPANY_ABBR"),
+            f("LIST_DATE"),
+            f("DELIST_DATE"),
+        ]);
+    }
+    const COLS: [&str; 4] = ["公司代码", "公司简称", "上市日期", "暂停上市日期"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["上市日期", "暂停上市日期"])?;
+    Ok(df)
+}
+
+/// 上交所-董监高人员股份变动（对应 akshare [`akshare.stock_share_hold_change_sse`]）。
+///
+/// - `symbol`: `"全部"` 或具体股票代码（如 `"600000"`）
+///
+/// `query.sse.com.cn/commonQuery.do`（`COMMON_SSE_XXPL_CXJL_SSGSGFBDQK_S`）分页。
+///
+/// # 返回列
+/// `股票种类, 公司名称, 姓名, 职务, 变动日期, 变动原因, 本次变动平均价格,
+/// 变动后持股数, 货币种类, 公司代码`
+pub fn stock_share_hold_change_sse(symbol: &str) -> Result<Df> {
+    let url = "https://query.sse.com.cn/commonQuery.do";
+    let mut params = json!({
+        "isPagination": "true",
+        "pageHelp.pageSize": "100",
+        "pageHelp.pageNo": "1",
+        "pageHelp.beginPage": "1",
+        "pageHelp.cacheSize": "1",
+        "pageHelp.endPage": "1",
+        "sqlId": "COMMON_SSE_XXPL_CXJL_SSGSGFBDQK_S",
+        "COMPANY_CODE": "",
+        "NAME": "",
+        "BEGIN_DATE": "1990-01-01",
+        "END_DATE": "2050-01-01",
+        "BOARDTYPE": "",
+    });
+    if symbol != "全部" {
+        params
+            .as_object_mut()
+            .unwrap()
+            .insert("COMPANY_CODE".into(), Value::String(symbol.into()));
+    }
+    let mut params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let first =
+        http.get_json_with_headers(url, &params, SSE_QUERY_HEADERS, Some(SSE_QUERY_REFERER))?;
+    let page_count = first
+        .get("pageHelp")
+        .and_then(|p| p.get("pageCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v.get("result").and_then(Value::as_array) {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=page_count {
+        params.insert("pageHelp.pageNo".into(), json!(page.to_string()));
+        params.insert("pageHelp.beginPage".into(), json!(page.to_string()));
+        params.insert("pageHelp.endPage".into(), json!(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_json_with_headers(url, &params, SSE_QUERY_HEADERS, Some(SSE_QUERY_REFERER)) {
+            Ok(v) => append(&v, &mut rows),
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("STOCK_TYPE"),
+            f("COMPANY_ABBR"),
+            f("NAME"),
+            f("DUTY"),
+            f("CHANGE_DATE"),
+            f("CHANGE_REASON"),
+            f("CURRENT_AVG_PRICE"),
+            f("HOLDSTOCK_NUM"),
+            f("CURRENCY_TYPE"),
+            f("COMPANY_CODE"),
+        ]);
+    }
+    const COLS: [&str; 10] = [
+        "股票种类",
+        "公司名称",
+        "姓名",
+        "职务",
+        "变动日期",
+        "变动原因",
+        "本次变动平均价格",
+        "变动后持股数",
+        "货币种类",
+        "公司代码",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["变动日期"])?;
+    df.cast_numeric(&["本次变动平均价格", "变动后持股数"])?;
+    Ok(df)
+}
+
+/// 深交所-董监高人员股份变动（对应 akshare [`akshare.stock_share_hold_change_szse`]）。
+///
+/// - `symbol`: `"全部"` 或具体股票代码
+///
+/// `szse.cn/api/report/ShowReport/data`（`1801_cxda`）JSON 分页。
+///
+/// # 返回列
+/// `证券代码, 证券简称, 董监高姓名, 变动日期, 变动股份数量, 成交均价, 变动原因,
+/// 变动比例, 当日结存股数, 股份变动人姓名, 职务, 变动人与董监高的关系`
+pub fn stock_share_hold_change_szse(symbol: &str) -> Result<Df> {
+    let url = "https://www.szse.cn/api/report/ShowReport/data";
+    let mut params = Map::new();
+    params.insert("SHOWTYPE".into(), Value::String("JSON".into()));
+    params.insert("CATALOGID".into(), Value::String("1801_cxda".into()));
+    params.insert("TABKEY".into(), Value::String("tab1".into()));
+    params.insert("PAGENO".into(), Value::String("1".into()));
+    params.insert("random".into(), Value::String("0.7874198771222201".into()));
+    if symbol != "全部" {
+        params.insert("txtDMorJC".into(), Value::String(symbol.into()));
+    }
+    let http = HttpClient::default();
+    let headers: &[(&str, &str)] = &[(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36",
+    )];
+    let first = http.get_json_with_headers(url, &params, headers, None)?;
+    let page_count = first
+        .get(0)
+        .and_then(|o| o.get("metadata"))
+        .and_then(|m| m.get("pagecount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v
+            .get(0)
+            .and_then(|o| o.get("data"))
+            .and_then(Value::as_array)
+        {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=page_count {
+        params.insert("PAGENO".into(), Value::String(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_json_with_headers(url, &params, headers, None) {
+            Ok(v) => append(&v, &mut rows),
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("zqdm"),
+            f("zqjc"),
+            f("ggxm"),
+            f("jyrq"),
+            f("bdgs"),
+            f("bdjj"),
+            f("bdyy"),
+            f("cgbdbl"),
+            f("cgzs"),
+            f("gdxm"),
+            f("zw"),
+            f("gxlb"),
+        ]);
+    }
+    const COLS: [&str; 12] = [
+        "证券代码",
+        "证券简称",
+        "董监高姓名",
+        "变动日期",
+        "变动股份数量",
+        "成交均价",
+        "变动原因",
+        "变动比例",
+        "当日结存股数",
+        "股份变动人姓名",
+        "职务",
+        "变动人与董监高的关系",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["变动日期"])?;
+    df.cast_numeric(&["变动股份数量", "成交均价", "变动比例"])?;
+    df.strip_commas(&["当日结存股数"])?;
+    df.cast_numeric(&["当日结存股数"])?;
+    Ok(df)
+}
+
+/// 北交所-董监高人员股份变动（对应 akshare [`akshare.stock_share_hold_change_bse`]）。
+///
+/// - `symbol`: 股票代码，如 `"430489"`
+///
+/// `bse.cn/djgCgbdController/getDjgCgbdList.do`（`null(...)` JSONP 解包）分页。
+///
+/// # 返回列
+/// `代码, 简称, 姓名, 职务, 变动日期, 变动原因, 变动均价, 变动股数,
+/// 变动前持股数, 变动后持股数`
+pub fn stock_share_hold_change_bse(symbol: &str) -> Result<Df> {
+    let url = "https://www.bse.cn/djgCgbdController/getDjgCgbdList.do";
+    let mut params = Map::new();
+    params.insert("page".into(), Value::String("0".into()));
+    params.insert("typejb".into(), Value::String("T".into()));
+    if !symbol.is_empty() {
+        params.insert("xxzqdm".into(), Value::String(symbol.into()));
+    }
+    let http = HttpClient::default();
+    let headers: &[(&str, &str)] = &[(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36",
+    )];
+    let parse_bse = |text: &str| -> Result<Value> {
+        let t = text.trim();
+        let t = t.strip_prefix("null(").unwrap_or(t);
+        let t = t.strip_suffix(')').unwrap_or(t);
+        serde_json::from_str(t).map_err(|e| AkshareError::json(url, e.to_string()))
+    };
+    let first_text = http.get_text_with_headers(url, &params, headers, None)?;
+    let first = parse_bse(&first_text)?;
+    let total_pages = first
+        .get(0)
+        .and_then(|o| o.get("result"))
+        .and_then(|r| r.get("totalPages"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v
+            .get(0)
+            .and_then(|o| o.get("result"))
+            .and_then(|r| r.get("content"))
+            .and_then(Value::as_array)
+        {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 1..total_pages {
+        params.insert("page".into(), Value::String(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_text_with_headers(url, &params, headers, None) {
+            Ok(t) => {
+                if let Ok(v) = parse_bse(&t) {
+                    append(&v, &mut rows);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("stockCode"),
+            f("stockName"),
+            f("djgName"),
+            f("duty"),
+            f("changeDate"),
+            f("reason"),
+            f("price"),
+            f("changeAmount"),
+            f("preAmount"),
+            f("newAmount"),
+        ]);
+    }
+    const COLS: [&str; 10] = [
+        "代码",
+        "简称",
+        "姓名",
+        "职务",
+        "变动日期",
+        "变动原因",
+        "变动均价",
+        "变动股数",
+        "变动前持股数",
+        "变动后持股数",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["变动日期"])?;
+    df.cast_numeric(&["变动均价", "变动股数", "变动前持股数", "变动后持股数"])?;
+    Ok(df)
+}
+
+/// 北交所-股票列表（对应 akshare [`akshare.stock_info_bj_name_code`]）。
+///
+/// POST `nqxxCnzq.do` 分页拉取；响应为 `[{"totalPages":N,"content":[...]}]` 形式，
+/// 每页 `content` 含 48 列（位置式列名表，`-` 为占位），取 8 列。
+///
+/// # 返回列
+/// `证券代码, 证券简称, 总股本, 流通股本, 上市日期, 所属行业, 地区, 报告日期`
+pub fn stock_info_bj_name_code() -> Result<Df> {
+    const URL: &str = "https://www.bse.cn/nqxxController/nqxxCnzq.do";
+    let headers: &[(&str, &str)] = &[(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+    )];
+    let http = HttpClient::default();
+
+    // 首页：确定 totalPages
+    let params = json!({
+        "page": "0",
+        "typejb": "T",
+        "xxfcbj[]": "2",
+        "xxzqdm": "",
+        "sortfield": "xxzqdm",
+        "sorttype": "asc",
+    });
+    let mut params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+
+    let parse_first = |text: &str| -> Result<Value> {
+        let start = text
+            .find('[')
+            .ok_or_else(|| AkshareError::Empty("北交所响应无数组".into()))?;
+        let sub = &text[start..];
+        // 尾部可能带 `;` 或尾括号，取最后一个 `]` 作为结束
+        let end = sub.rfind(']').unwrap_or(sub.len() - 1);
+        serde_json::from_str(&sub[..=end]).map_err(|e| AkshareError::json(URL, e.to_string()))
+    };
+
+    let first_text = http.post_form_text(URL, &params, headers)?;
+    let first: Value = parse_first(&first_text)?;
+    let total_pages = first
+        .get(0)
+        .and_then(|o| o.get("totalPages"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1) as usize;
+
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    let mut append_page = |page: usize, arr: &Value| {
+        let content = arr
+            .get(0)
+            .and_then(|o| o.get("content"))
+            .and_then(Value::as_array);
+        if let Some(content) = content {
+            for row in content {
+                let f = |k: &str| row.get(k).and_then(json_value_to_string);
+                out.push(vec![
+                    f("xxzqdm"),
+                    f("xxzqjc"),
+                    f("zgb"),
+                    f("ltgb"),
+                    f("ssrq"),
+                    f("sshy"),
+                    f("dq"),
+                    f("bgrq"),
+                ]);
+            }
+        }
+        let _ = page;
+    };
+    append_page(0, &first);
+
+    for page in 1..total_pages {
+        params.insert("page".into(), json!(page));
+        // 随机延迟，避免请求过频
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        if let Ok(text) = http.post_form_text(URL, &params, headers) {
+            if let Ok(arr) = parse_first(&text) {
+                append_page(page, &arr);
+            }
+        }
+    }
+
+    // 位置式列名表 → 目标 8 列（akshare 用 48 列占位表后 select）
+    const COLS: [&str; 8] = [
+        "证券代码",
+        "证券简称",
+        "总股本",
+        "流通股本",
+        "上市日期",
+        "所属行业",
+        "地区",
+        "报告日期",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["上市日期", "报告日期"])?;
+    df.cast_numeric(&["总股本", "流通股本"])?;
+    Ok(df)
+}
+
+// === BATCH36-D 东财知名港股/美股（69.push2 clist，diff 为对象）===
+//
+// 对应 akshare `stock/stock_hk_famous.py` / `stock/stock_us_famous.py`。
+// 接口 `data.diff` 为「序号→行」对象（非数组），akshare 经
+// `pd.DataFrame(diff).T` + 位置式列名表取 12 列；Rust 侧按键序展开行列表，
+// 直接按目标列契约构建（列名与 akshare 逐字对齐）。
+
+/// 知名股实时行情公共实现（69.push2 clist，diff 对象 → 12 列）。
+fn famous_spot(fs: &str) -> Result<Df> {
+    const URL: &str = "https://69.push2.eastmoney.com/api/qt/clist/get";
+    let params = json!({
+        "pn": "1",
+        "pz": "50000",
+        "po": "1",
+        "np": "2",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2",
+        "invt": "2",
+        "dect": "1",
+        "wbp2u": "|0|0|0|web",
+        "fid": "f3",
+        "fs": fs,
+        "fields": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f26,f22,f33,f11,f62,f128,f136,f115,f152",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json(URL, &params, None)?;
+    let diff = value
+        .get("data")
+        .and_then(|d| d.get("diff"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    // diff 为对象（键为序号）或数组，统一展开为行列表
+    let mut rows_vec: Vec<Value> = Vec::new();
+    match diff {
+        Value::Array(arr) => rows_vec = arr,
+        Value::Object(map) => {
+            let mut entries: Vec<_> = map.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            rows_vec = entries.into_iter().map(|(_, v)| v).collect();
+        }
+        _ => {}
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows_vec.len());
+    for (i, row) in rows_vec.iter().enumerate() {
+        let f = |k: &str| row.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()), // 序号
+            f("f12"),
+            f("f14"),
+            f("f2"),
+            f("f4"),
+            f("f3"),
+            f("f17"),
+            f("f15"),
+            f("f16"),
+            f("f18"),
+            f("f5"),
+            f("f6"),
+        ]);
+    }
+    const COLS: [&str; 12] = [
+        "序号",
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "今开",
+        "最高",
+        "最低",
+        "昨收",
+        "成交量",
+        "成交额",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[3..])?;
+    Ok(df)
+}
+
+/// 东财-港股市场-知名港股实时行情（对应 akshare [`akshare.stock_hk_famous_spot_em`]）。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌额, 涨跌幅, 今开, 最高, 最低, 昨收, 成交量, 成交额`
+pub fn stock_hk_famous_spot_em() -> Result<Df> {
+    famous_spot("b:DLMK0106")
+}
+
+/// 东财-美股市场-知名美股实时行情（对应 akshare [`akshare.stock_us_famous_spot_em`]）。
+///
+/// - `symbol`: `"科技类"` / `"金融类"` / `"医药食品类"` / `"媒体类"` / `"汽车能源类"` / `"制造零售类"`
+///
+/// # 返回列
+/// 同 [`stock_hk_famous_spot_em`]
+pub fn stock_us_famous_spot_em(symbol: &str) -> Result<Df> {
+    let mk = match symbol {
+        "科技类" => "0216",
+        "金融类" => "0217",
+        "医药食品类" => "0218",
+        "媒体类" => "0220",
+        "汽车能源类" => "0219",
+        "制造零售类" => "0221",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 科技类/金融类/医药食品类/媒体类/汽车能源类/制造零售类"
+            )))
+        }
+    };
+    famous_spot(&format!("b:MK{mk}"))
+}
+
+/// 腾讯证券-沪深京-实时行情（对应 akshare [`akshare.stock_zh_a_spot_tx`]）。
+///
+/// `proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList` 分页（count=200），
+/// 按 `code` 去重；列名为接口原键（akshare 不重命名，28 列）。
+///
+/// # 返回列
+/// `code, hsl, lb, ltsz, name, pe_ttm, pn, speed, state, stock_type, turnover,
+/// volume, zd, zdf, zdf_d10, zdf_d20, zdf_d5, zdf_d60, zdf_w52, zdf_y, zf,
+/// zljlr, zllc, zllc_d5, zllr, zllr_d5, zsz, zxj`
+pub fn stock_zh_a_spot_tx() -> Result<Df> {
+    const URL: &str = "https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList";
+    const PAGE_SIZE: u64 = 200;
+    let http = HttpClient::default();
+
+    let params = json!({
+        "_appver": "11.17.0",
+        "board_code": "aStock",
+        "sort_type": "price",
+        "direct": "down",
+        "offset": "0",
+        "count": PAGE_SIZE.to_string(),
+    });
+    let mut params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+
+    let first = http.get_json(URL, &params, None)?;
+    let total = first
+        .get("data")
+        .and_then(|d| d.get("total"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let mut rows = first
+        .get("data")
+        .and_then(|d| d.get("rank_list"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let total_pages = total.div_ceil(PAGE_SIZE);
+    for page in 1..total_pages {
+        params.insert("offset".into(), json!((page * PAGE_SIZE).to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_json(URL, &params, None) {
+            Ok(v) => {
+                if let Some(list) = v
+                    .get("data")
+                    .and_then(|d| d.get("rank_list"))
+                    .and_then(Value::as_array)
+                {
+                    rows.extend(list.iter().cloned());
+                } else {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    // drop_duplicates(subset=["code"])
+    let mut seen = std::collections::HashSet::new();
+    rows.retain(|r| {
+        let code = r
+            .get("code")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        seen.insert(code)
+    });
+    Df::from_json_rows(&rows)
+}
+
+/// 东财-行情中心-沪深个股-两网及退市（对应 akshare [`akshare.stock_zh_a_stop_em`]）。
+///
+/// 40.push2 clist（`fs=m:0 s:3`），与 A 股快照同字段集；位置式列名 + 17 列 select。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌幅, 涨跌额, 成交量, 成交额, 振幅, 最高, 最低,
+/// 今开, 昨收, 量比, 换手率, 市盈率-动态, 市净率`
+pub fn stock_zh_a_stop_em() -> Result<Df> {
+    let urls = push2_urls("/api/qt/clist/get");
+    let params = json!({
+        "pn": "1",
+        "pz": "100",
+        "po": "1",
+        "np": "1",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2",
+        "invt": "2",
+        "fid": "f3",
+        "fs": "m:0 s:3",
+        "fields": "f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let df = fetch_clist(&http, &urls, &params)?;
+    // 位置式列名表（akshare 30 列含占位 "_"），对应 fetch_clist 的 index + 字段序
+    let rename = [
+        ("index", "序号"),
+        ("f2", "最新价"),
+        ("f3", "涨跌幅"),
+        ("f4", "涨跌额"),
+        ("f5", "成交量"),
+        ("f6", "成交额"),
+        ("f7", "振幅"),
+        ("f8", "换手率"),
+        ("f9", "市盈率-动态"),
+        ("f10", "量比"),
+        ("f12", "代码"),
+        ("f14", "名称"),
+        ("f15", "最高"),
+        ("f16", "最低"),
+        ("f17", "今开"),
+        ("f18", "昨收"),
+        ("f25", "市净率"),
+    ];
+    let select = [
+        "序号",
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌幅",
+        "涨跌额",
+        "成交量",
+        "成交额",
+        "振幅",
+        "最高",
+        "最低",
+        "今开",
+        "昨收",
+        "量比",
+        "换手率",
+        "市盈率-动态",
+        "市净率",
+    ];
+    let numeric = [
+        "最新价",
+        "涨跌幅",
+        "涨跌额",
+        "成交量",
+        "成交额",
+        "振幅",
+        "最高",
+        "最低",
+        "今开",
+        "量比",
+        "换手率",
+        "市盈率-动态",
+        "市净率",
+    ];
+    crate::sources::eastmoney::finalize_spot(df, &rename, &select, &numeric)
+}
+
+/// 新浪财经-行情中心-沪深股市-次新股（对应 akshare [`akshare.stock_zh_a_new`]）。
+///
+/// `Market_Center.getHQNodeData`（node=new_stock）分页（num=80），取 10 列。
+///
+/// # 返回列
+/// `symbol, code, name, open, high, low, volume, amount, mktcap, turnoverratio`
+pub fn stock_zh_a_new() -> Result<Df> {
+    let http = HttpClient::default();
+    // 1) 总条数 → 页数
+    let count_url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount";
+    let count_params = json!({ "node": "new_stock" });
+    let text = http.get_text(count_url, count_params.as_object().expect("静态参数"), None)?;
+    let total: u64 = text.trim().parse().unwrap_or(0);
+    let total_pages = total.div_ceil(80);
+
+    // 2) 分页抓取
+    let url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData";
+    let mut rows: Vec<Value> = Vec::new();
+    for page in 1..=total_pages {
+        let params = json!({
+            "page": page.to_string(),
+            "num": "80",
+            "sort": "symbol",
+            "asc": "1",
+            "node": "new_stock",
+            "symbol": "",
+            "_s_r_a": "page",
+        });
+        let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        match http.get_text(url, &params, None) {
+            Ok(t) => {
+                if let Ok(arr) = serde_json::from_str::<Vec<Value>>(&t) {
+                    rows.extend(arr);
+                }
+            }
+            Err(_) => break,
+        }
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+    }
+    let df = Df::from_json_rows(&rows)?;
+    let df = df.select(&[
+        "symbol",
+        "code",
+        "name",
+        "open",
+        "high",
+        "low",
+        "volume",
+        "amount",
+        "mktcap",
+        "turnoverratio",
+    ])?;
+    let mut df = df;
+    df.cast_numeric(&["open", "high", "low"])?;
+    Ok(df)
+}
+
+/// 新浪 A 股日线（对应 akshare [`akshare.stock_zh_a_daily`]）。
+///
+/// - `symbol`: 带市场前缀代码，如 `"sh600519"`
+/// - `start_date`/`end_date`: `YYYYMMDD`
+/// - `adjust`: `""`（不复权）/ `"qfq"`（前复权）/ `"hfq"`（后复权）/
+///   `"hfq-factor"`（后复权因子）/ `"qfq-factor"`（前复权因子）
+///
+/// # 返回列
+/// 不复权/复权：`date, open, high, low, close, volume, amount, outstanding_share, turnover`；
+/// factor：`date, {hfq|qfq}_factor`
+pub fn stock_zh_a_daily(
+    symbol: &str,
+    start_date: &str,
+    end_date: &str,
+    adjust: &str,
+) -> Result<Df> {
+    let http = HttpClient::default();
+
+    // 复权因子分支：hfq-factor / qfq-factor
+    if adjust == "hfq-factor" || adjust == "qfq-factor" {
+        let method = &adjust[..3]; // "hfq" / "qfq"
+        let url = format!("https://finance.sina.com.cn/realstock/company/{symbol}/{method}.js");
+        let text = http.get_text(&url, &Map::new(), None)?;
+        // 响应 `var xxx={"data":[{"date":"...","factor":...}, ...]};`，提取对象 JSON
+        let start = text
+            .find('{')
+            .ok_or_else(|| AkshareError::Empty("新浪复权因子响应缺少对象".into()))?;
+        let end = text
+            .rfind('}')
+            .ok_or_else(|| AkshareError::Empty("新浪复权因子响应缺少对象尾".into()))?;
+        let obj: Value = serde_json::from_str(&text[start..=end])
+            .map_err(|e| AkshareError::json(url, e.to_string()))?;
+        let data = obj
+            .get("data")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(data.len());
+        for r in &data {
+            let f = |k: &str| r.get(k).and_then(json_value_to_string);
+            rows.push(vec![f("date"), f("factor")]);
+        }
+        let col = if adjust == "hfq-factor" {
+            "hfq_factor"
+        } else {
+            "qfq_factor"
+        };
+        let mut df = Df::from_string_rows(&["date", col], &rows)?;
+        df.cast_numeric(&[col])?;
+        return Ok(df);
+    }
+
+    // 1) 历史行情：hisdata_klc2/klc_kl.js → sina.js d() 解码
+    let hist_url =
+        format!("https://finance.sina.com.cn/realstock/company/{symbol}/hisdata_klc2/klc_kl.js");
+    let text = http.get_text(&hist_url, &Map::new(), None)?;
+    let encoded = text
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty("新浪日线响应缺少 '=' 分隔".into()))?
+        .split(';')
+        .next()
+        .ok_or_else(|| AkshareError::Empty("新浪日线响应缺少 ';' 分隔".into()))?
+        .replace('"', "");
+    let decoded = crate::core::js_engine::sina_js_decode(&encoded)?;
+    let rows: Vec<Value> =
+        serde_json::from_str(&decoded).map_err(|e| AkshareError::json(hist_url, e.to_string()))?;
+    if rows.is_empty() {
+        return Df::from_string_rows(
+            &[
+                "date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "amount",
+                "outstanding_share",
+                "turnover",
+            ],
+            &[],
+        );
+    }
+
+    // 2) 流通股本：StockService.getAmountBySymbol → `var X=([{date,amount},...])`
+    let amount_url = format!(
+        "https://stock.finance.sina.com.cn/stock/api/jsonp.php/var%20KKE_ShareAmount_{symbol}=/StockService.getAmountBySymbol?_=20&symbol={symbol}"
+    );
+    let amount_text = http.get_text(&amount_url, &Map::new(), None)?;
+    let amount_start = amount_text
+        .find('[')
+        .ok_or_else(|| AkshareError::Empty("新浪流通股本响应缺少数组".into()))?;
+    let amount_end = amount_text
+        .rfind(']')
+        .ok_or_else(|| AkshareError::Empty("新浪流通股本响应缺少数组尾".into()))?;
+    let amount_arr: Vec<Value> = serde_json::from_str(&amount_text[amount_start..=amount_end])
+        .map_err(|e| AkshareError::json(amount_url, e.to_string()))?;
+    // date → outstanding_share（amount 单位：万股 → ×10000 = 股）
+    let mut share_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    for r in &amount_arr {
+        if let (Some(d), Some(a)) = (
+            r.get("date").and_then(Value::as_str),
+            r.get("amount").and_then(|v| v.as_f64()),
+        ) {
+            share_map.insert(d.to_string(), a * 10000.0);
+        }
+    }
+
+    // 3) 合并：按日期索引 outer join + ffill（akshare pd.merge + ffill）
+    // 构建 date → (行) 有序列表，amount 缺失用前一条填充
+    let mut merged: Vec<(String, Vec<Option<String>>)> = Vec::with_capacity(rows.len());
+    let mut last_share: Option<f64> = None;
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        let date = f("date").unwrap_or_default();
+        let share = share_map.get(&date).copied().or(last_share).or_else(|| {
+            // 找不到当日，尝试最近的已上市日期之前的最后一个值
+            let mut cand: Option<f64> = None;
+            for (d, v) in &share_map {
+                if d.as_str() <= date.as_str() {
+                    cand = Some(*v);
+                }
+            }
+            cand
+        });
+        last_share = share;
+        let volume = f("volume").and_then(|s| s.parse::<f64>().ok());
+        let turnover = match (volume, share) {
+            (Some(v), Some(s)) if s > 0.0 => Some((v / s).to_string()),
+            _ => None,
+        };
+        merged.push((
+            date.clone(),
+            vec![
+                f("open"),
+                f("high"),
+                f("low"),
+                f("close"),
+                f("volume"),
+                f("amount"),
+                share.map(|s| s.to_string()),
+                turnover,
+            ],
+        ));
+    }
+
+    // 4) 复权：qfq/hfq 乘/除因子
+    let mut factor_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    if adjust == "qfq" || adjust == "hfq" {
+        let method = if adjust == "hfq" { "hfq" } else { "qfq" };
+        let url = format!("https://finance.sina.com.cn/realstock/company/{symbol}/{method}.js");
+        if let Ok(text) = http.get_text(&url, &Map::new(), None) {
+            if let (Some(s), Some(e)) = (text.find('{'), text.rfind('}')) {
+                if let Ok(obj) = serde_json::from_str::<Value>(&text[s..=e]) {
+                    if let Some(arr) = obj.get("data").and_then(Value::as_array) {
+                        for r in arr {
+                            if let (Some(d), Some(ft)) = (
+                                r.get("date").and_then(Value::as_str),
+                                r.get("factor").and_then(|v| v.as_f64()),
+                            ) {
+                                factor_map.insert(d.to_string(), ft);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 5) 构建输出：列序 date,open,high,low,close,volume,amount,outstanding_share,turnover
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(merged.len());
+    let mut last_factor: Option<f64> = None;
+    for (date, row) in &merged {
+        if date.is_empty() {
+            continue;
+        }
+        let mut ohlc: Vec<Option<f64>> = row[..4]
+            .iter()
+            .map(|v| v.as_deref().and_then(|s| s.parse::<f64>().ok()))
+            .collect();
+        if let Some(ft) = factor_map.get(date).copied().or(last_factor) {
+            last_factor = Some(ft);
+            if adjust == "hfq" {
+                for v in ohlc.iter_mut() {
+                    if let Some(x) = v.as_mut() {
+                        *x *= ft;
+                    }
+                }
+            } else if adjust == "qfq" && ft != 0.0 {
+                for v in ohlc.iter_mut() {
+                    if let Some(x) = v.as_mut() {
+                        *x /= ft;
+                    }
+                }
+            }
+        }
+        let mut out_row: Vec<Option<String>> = vec![Some(date.clone())];
+        for v in &ohlc {
+            out_row.push(v.map(|x| format!("{:.2}", x)));
+        }
+        out_row.extend_from_slice(&row[4..]);
+        out.push(out_row);
+    }
+    const COLS: [&str; 9] = [
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "amount",
+        "outstanding_share",
+        "turnover",
+    ];
+    let df = Df::from_string_rows(&COLS, &out)?;
+
+    // 6) 日期区间过滤 + 去重 + 数值化
+    let start = if start_date.len() == 8 {
+        format!(
+            "{}-{}-{}",
+            &start_date[0..4],
+            &start_date[4..6],
+            &start_date[6..8]
+        )
+    } else {
+        start_date.to_string()
+    };
+    let end = if end_date.len() == 8 {
+        format!(
+            "{}-{}-{}",
+            &end_date[0..4],
+            &end_date[4..6],
+            &end_date[6..8]
+        )
+    } else {
+        end_date.to_string()
+    };
+    let keep: Vec<Option<String>> = {
+        let col = df.inner().column("date").ok();
+        match col {
+            Some(c) => c
+                .str()
+                .map(|ca| {
+                    ca.iter()
+                        .map(|v| {
+                            v.and_then(|s| {
+                                if s >= start.as_str() && s <= end.as_str() {
+                                    Some(s.to_string())
+                                } else {
+                                    None
+                                }
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            None => Vec::new(),
+        }
+    };
+    let mut filtered: Vec<Vec<Option<String>>> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for (i, row) in out.iter().enumerate() {
+        if keep.get(i).map(|k| k.is_none()).unwrap_or(true) {
+            continue;
+        }
+        // drop_duplicates(subset=[open..amount])
+        let key = format!(
+            "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}",
+            row[1], row[2], row[3], row[4], row[5], row[6]
+        );
+        if seen.insert(key) {
+            filtered.push(row.clone());
+        }
+    }
+    let mut df = Df::from_string_rows(&COLS, &filtered)?;
+    df.cast_numeric(&[
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "amount",
+        "outstanding_share",
+        "turnover",
+    ])?;
+    Ok(df)
+}
+
+/// 新浪财经-所有 A 股的实时行情数据（对应 akshare [`akshare.stock_zh_a_spot`]）。
+///
+/// `Market_Center.getHQNodeData`（node=hs_a）分页（num=80），列契约与 akshare 对齐：
+/// `代码, 名称, 最新价, 涨跌额, 涨跌幅, 买入, 卖出, 昨收, 今开, 最高, 最低, 成交量, 成交额, 时间戳`。
+/// 注：大量抓取会被新浪暂时封 IP（akshare 同限制）。
+///
+/// # 返回列
+/// `代码, 名称, 最新价, 涨跌额, 涨跌幅, 买入, 卖出, 昨收, 今开, 最高, 最低, 成交量, 成交额, 时间戳`
+pub fn stock_zh_a_spot() -> Result<Df> {
+    let http = HttpClient::default();
+    // 1) 总条数 → 页数
+    let count_url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount";
+    let mut count_params = Map::new();
+    count_params.insert("node".into(), Value::String("hs_a".into()));
+    let count_text = http.get_text(count_url, &count_params, None)?;
+    let total_digits: String = count_text.chars().filter(|c| c.is_ascii_digit()).collect();
+    let total: u64 = total_digits
+        .parse()
+        .map_err(|_| AkshareError::Empty("新浪 A 股总条数解析失败".into()))?;
+    let total_pages = total.div_ceil(80);
+
+    // 2) 分页抓取
+    let url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData";
+    let mut rows: Vec<Value> = Vec::new();
+    for page in 1..=total_pages {
+        let params = json!({
+            "page": page.to_string(),
+            "num": "80",
+            "sort": "symbol",
+            "asc": "1",
+            "node": "hs_a",
+            "symbol": "",
+            "_s_r_a": "page",
+        });
+        let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        match http.get_text(url, &params, None) {
+            Ok(t) => {
+                if let Ok(arr) = serde_json::from_str::<Vec<Value>>(&t) {
+                    rows.extend(arr);
+                }
+            }
+            Err(_) => break,
+        }
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+    }
+    // 3) 列契约：代码(code),名称(name),最新价(trade),涨跌额(pricechange),涨跌幅(changepercent),
+    //    买入(buy),卖出(sell),昨收(settlement),今开(open),最高(high),最低(low),
+    //    成交量(volume),成交额(amount),时间戳(ticktime)
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let f = |k: &str| row.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("code"),
+            f("name"),
+            f("trade"),
+            f("pricechange"),
+            f("changepercent"),
+            f("buy"),
+            f("sell"),
+            f("settlement"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("volume"),
+            f("amount"),
+            f("ticktime"),
+        ]);
+    }
+    const COLS: [&str; 14] = [
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "买入",
+        "卖出",
+        "昨收",
+        "今开",
+        "最高",
+        "最低",
+        "成交量",
+        "成交额",
+        "时间戳",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[2..13])?;
+    Ok(df)
+}
+
+/// 新浪财经-A股-CDR个股历史行情（对应 akshare [`akshare.stock_zh_a_cdr_daily`]）。
+///
+/// - `symbol`: 带市场前缀代码，如 `"sh689009"`
+/// - `start_date`/`end_date`: `YYYYMMDD`
+///
+/// 与 [`stock_zh_a_daily`] 同源（`hisdata_klc2/klc_kl.js` + sina.js `d()` 解码），
+/// 但无复权因子、无流通股本合并，仅按日期区间过滤。
+///
+/// # 返回列
+/// `date, open, high, low, close, volume, amount`
+pub fn stock_zh_a_cdr_daily(symbol: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    let hist_url =
+        format!("https://finance.sina.com.cn/realstock/company/{symbol}/hisdata_klc2/klc_kl.js");
+    let http = HttpClient::default();
+    let text = http.get_text(&hist_url, &Map::new(), None)?;
+    let encoded = text
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty("新浪 CDR 日线响应缺少 '=' 分隔".into()))?
+        .split(';')
+        .next()
+        .ok_or_else(|| AkshareError::Empty("新浪 CDR 日线响应缺少 ';' 分隔".into()))?
+        .replace('"', "");
+    let decoded = crate::core::js_engine::sina_js_decode(&encoded)?;
+    let rows: Vec<Value> =
+        serde_json::from_str(&decoded).map_err(|e| AkshareError::json(hist_url, e.to_string()))?;
+    let start = if start_date.len() == 8 {
+        format!(
+            "{}-{}-{}",
+            &start_date[0..4],
+            &start_date[4..6],
+            &start_date[6..8]
+        )
+    } else {
+        start_date.to_string()
+    };
+    let end = if end_date.len() == 8 {
+        format!(
+            "{}-{}-{}",
+            &end_date[0..4],
+            &end_date[4..6],
+            &end_date[6..8]
+        )
+    } else {
+        end_date.to_string()
+    };
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        let date = f("date").unwrap_or_default();
+        if date < start || date > end {
+            continue;
+        }
+        out.push(vec![
+            Some(date),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("close"),
+            f("volume"),
+            f("amount"),
+        ]);
+    }
+    const COLS: [&str; 7] = ["date", "open", "high", "low", "close", "volume", "amount"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
+/// 新浪财经-B股个股历史行情（对应 akshare [`akshare.stock_zh_b_daily`]）。
+///
+/// - `symbol`: 带市场前缀代码，如 `"sh900901"`
+/// - `start_date`/`end_date`: `YYYYMMDD`
+/// - `adjust`: `""` / `"qfq"` / `"hfq"`
+///
+/// 与 [`stock_zh_a_daily`] 同源，但列契约为 `date, open, high, low, close,
+/// volume, outstanding_share, turnover`（amount 合并为流通股本，换手 = volume/股本）。
+///
+/// # 返回列
+/// `date, open, high, low, close, volume, outstanding_share, turnover`
+pub fn stock_zh_b_daily(
+    symbol: &str,
+    start_date: &str,
+    end_date: &str,
+    adjust: &str,
+) -> Result<Df> {
+    let http = HttpClient::default();
+    // 1) 历史行情：hisdata_klc2/klc_kl.js → sina.js d() 解码
+    let hist_url =
+        format!("https://finance.sina.com.cn/realstock/company/{symbol}/hisdata_klc2/klc_kl.js");
+    let text = http.get_text(&hist_url, &Map::new(), None)?;
+    let encoded = text
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty("新浪 B 股日线响应缺少 '=' 分隔".into()))?
+        .split(';')
+        .next()
+        .ok_or_else(|| AkshareError::Empty("新浪 B 股日线响应缺少 ';' 分隔".into()))?
+        .replace('"', "");
+    let decoded = crate::core::js_engine::sina_js_decode(&encoded)?;
+    let rows: Vec<Value> =
+        serde_json::from_str(&decoded).map_err(|e| AkshareError::json(hist_url, e.to_string()))?;
+
+    // 2) 流通股本：StockService.getAmountBySymbol → `var X=([{date,amount},...])`
+    let amount_url = format!(
+        "https://stock.finance.sina.com.cn/stock/api/jsonp.php/var%20KKE_ShareAmount_{symbol}=/StockService.getAmountBySymbol?_=20&symbol={symbol}"
+    );
+    let amount_text = http.get_text(&amount_url, &Map::new(), None)?;
+    let amount_start = amount_text
+        .find('[')
+        .ok_or_else(|| AkshareError::Empty("新浪 B 股流通股本响应缺少数组".into()))?;
+    let amount_end = amount_text
+        .rfind(']')
+        .ok_or_else(|| AkshareError::Empty("新浪 B 股流通股本响应缺少数组尾".into()))?;
+    let amount_arr: Vec<Value> = serde_json::from_str(&amount_text[amount_start..=amount_end])
+        .map_err(|e| AkshareError::json(amount_url, e.to_string()))?;
+    let mut share_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    for r in &amount_arr {
+        if let (Some(d), Some(a)) = (
+            r.get("date").and_then(Value::as_str),
+            r.get("amount").and_then(|v| v.as_f64()),
+        ) {
+            share_map.insert(d.to_string(), a * 10000.0);
+        }
+    }
+
+    // 3) 合并：outer + ffill（akshare merge + ffill）
+    let mut merged: Vec<(String, Vec<Option<String>>)> = Vec::with_capacity(rows.len());
+    let mut last_share: Option<f64> = None;
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        let date = f("date").unwrap_or_default();
+        let share = share_map.get(&date).copied().or(last_share).or_else(|| {
+            let mut cand: Option<f64> = None;
+            for (d, v) in &share_map {
+                if d.as_str() <= date.as_str() {
+                    cand = Some(*v);
+                }
+            }
+            cand
+        });
+        last_share = share;
+        let volume = f("volume").and_then(|s| s.parse::<f64>().ok());
+        let turnover = match (volume, share) {
+            (Some(v), Some(s)) if s > 0.0 => Some((v / s).to_string()),
+            _ => None,
+        };
+        merged.push((
+            date.clone(),
+            vec![
+                f("open"),
+                f("high"),
+                f("low"),
+                f("close"),
+                f("volume"),
+                share.map(|s| s.to_string()),
+                turnover,
+            ],
+        ));
+    }
+
+    // 4) 复权：qfq/hfq 乘/除因子
+    let mut factor_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    if adjust == "qfq" || adjust == "hfq" {
+        let method = if adjust == "hfq" { "hfq" } else { "qfq" };
+        let url = format!("https://finance.sina.com.cn/realstock/company/{symbol}/{method}.js");
+        if let Ok(text) = http.get_text(&url, &Map::new(), None) {
+            if let (Some(s), Some(e)) = (text.find('{'), text.rfind('}')) {
+                if let Ok(obj) = serde_json::from_str::<Value>(&text[s..=e]) {
+                    if let Some(arr) = obj.get("data").and_then(Value::as_array) {
+                        for r in arr {
+                            if let (Some(d), Some(ft)) = (
+                                r.get("date").and_then(Value::as_str),
+                                r.get("factor").and_then(|v| v.as_f64()),
+                            ) {
+                                factor_map.insert(d.to_string(), ft);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 5) 构建输出：date,open,high,low,close,volume,outstanding_share,turnover
+    let start = if start_date.len() == 8 {
+        format!(
+            "{}-{}-{}",
+            &start_date[0..4],
+            &start_date[4..6],
+            &start_date[6..8]
+        )
+    } else {
+        start_date.to_string()
+    };
+    let end = if end_date.len() == 8 {
+        format!(
+            "{}-{}-{}",
+            &end_date[0..4],
+            &end_date[4..6],
+            &end_date[6..8]
+        )
+    } else {
+        end_date.to_string()
+    };
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(merged.len());
+    let mut last_factor: Option<f64> = None;
+    for (date, row) in &merged {
+        if date.is_empty() || date.as_str() < start.as_str() || date.as_str() > end.as_str() {
+            continue;
+        }
+        let mut ohlc: Vec<Option<f64>> = row[..4]
+            .iter()
+            .map(|v| v.as_deref().and_then(|s| s.parse::<f64>().ok()))
+            .collect();
+        if let Some(ft) = factor_map.get(date).copied().or(last_factor) {
+            last_factor = Some(ft);
+            if adjust == "hfq" {
+                for v in ohlc.iter_mut() {
+                    if let Some(x) = v.as_mut() {
+                        *x *= ft;
+                    }
+                }
+            } else if adjust == "qfq" && ft != 0.0 {
+                for v in ohlc.iter_mut() {
+                    if let Some(x) = v.as_mut() {
+                        *x /= ft;
+                    }
+                }
+            }
+        }
+        let mut out_row: Vec<Option<String>> = vec![Some(date.clone())];
+        for v in &ohlc {
+            out_row.push(v.map(|x| format!("{:.2}", x)));
+        }
+        out_row.extend_from_slice(&row[4..]);
+        out.push(out_row);
+    }
+    const COLS: [&str; 8] = [
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "outstanding_share",
+        "turnover",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
+/// 新浪财经-B股分钟数据（对应 akshare [`akshare.stock_zh_b_minute`]）。
+///
+/// - `symbol`: 带市场前缀代码，如 `"sh900901"`
+/// - `period`: `"1"` / `"5"` / `"15"` / `"30"` / `"60"`
+/// - `adjust`: `""` / `"qfq"` / `"hfq"`
+///
+/// 与 [`stock_zh_a_minute`] 同源（`CN_MarketDataService.getKLineData` JSONP），
+/// 取前 6 列。
+///
+/// # 返回列
+/// `day, open, high, low, close, volume`
+pub fn stock_zh_b_minute(symbol: &str, period: &str, _adjust: &str) -> Result<Df> {
+    let url = "https://quotes.sina.cn/cn/api/jsonp_v2.php/=/CN_MarketDataService.getKLineData";
+    let params = json!({
+        "symbol": symbol,
+        "scale": period,
+        "datalen": "1970",
+    });
+    let http = HttpClient::default();
+    let text = http.get_text(url, params.as_object().expect("静态参数"), None)?;
+    let start = text
+        .find("=(")
+        .ok_or_else(|| AkshareError::Empty("新浪 B 股分钟线响应缺少 '=(' 前缀".into()))?;
+    let body = &text[start + 2..];
+    let end = body
+        .find(");")
+        .ok_or_else(|| AkshareError::Empty("新浪 B 股分钟线响应缺少 ');' 后缀".into()))?;
+    let json_text = &body[..end];
+    let rows: Vec<Value> =
+        serde_json::from_str(json_text).map_err(|e| AkshareError::json(url, e.to_string()))?;
+    let df = Df::from_json_rows(&rows)?;
+    let names = df.column_names();
+    let take: Vec<&str> = names.iter().take(6).map(String::as_str).collect();
+    df.select(&take)
+}
+
+/// 新浪财经-港股-个股历史行情（对应 akshare [`akshare.stock_hk_daily`]）。
+///
+/// - `symbol`: 港股代码，如 `"00981"`（可由 [`stock_hk_spot`] 获取）
+/// - `_adjust`: `""`（不复权，当前实现）；`"qfq"` / `"hfq"` 复权因子分支暂未落地
+///
+/// 走 `finance.sina.com.cn/stock/hkstock/{symbol}/klc2_kl.js` + sina.js `d()` 解码。
+///
+/// # 返回列
+/// 不复权：`date, open, high, low, close, volume, amount`（原键列）
+pub fn stock_hk_daily(symbol: &str, _adjust: &str) -> Result<Df> {
+    let hist_url = format!("https://finance.sina.com.cn/stock/hkstock/{symbol}/klc2_kl.js");
+    let http = HttpClient::default();
+    let text = http.get_text(&hist_url, &Map::new(), None)?;
+    let encoded = text
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty("新浪港股日线响应缺少 '=' 分隔".into()))?
+        .split(';')
+        .next()
+        .ok_or_else(|| AkshareError::Empty("新浪港股日线响应缺少 ';' 分隔".into()))?
+        .replace('"', "");
+    let decoded = crate::core::js_engine::sina_js_decode(&encoded)?;
+    let rows: Vec<Value> =
+        serde_json::from_str(&decoded).map_err(|e| AkshareError::json(hist_url, e.to_string()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("date"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("close"),
+            f("volume"),
+            f("amount"),
+        ]);
+    }
+    const COLS: [&str; 7] = ["date", "open", "high", "low", "close", "volume", "amount"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
+/// 新浪行业-板块行情（对应 akshare [`akshare.stock_sector_spot`]）。
+///
+/// - `indicator`: `"新浪行业"` / `"启明星行业"` / `"概念"` / `"地域"` / `"行业"`
+///
+/// 响应为 `{key: "v1,v2,...", ...}`（值以逗号分隔的 13 字段），解析后按位置列名。
+///
+/// # 返回列
+/// `label, 板块, 公司家数, 平均价格, 涨跌额, 涨跌幅, 总成交量, 总成交额,
+/// 股票代码, 个股-涨跌幅, 个股-当前价, 个股-涨跌额, 股票名称`
+pub fn stock_sector_spot(indicator: &str) -> Result<Df> {
+    let (url, params) = match indicator {
+        "新浪行业" => (
+            "http://vip.stock.finance.sina.com.cn/q/view/newSinaHy.php",
+            None,
+        ),
+        "启明星行业" => ("http://biz.finance.sina.com.cn/hq/qmxIndustryHq.php", None),
+        "概念" => (
+            "http://money.finance.sina.com.cn/q/view/newFLJK.php",
+            Some(("param", "class")),
+        ),
+        "地域" => (
+            "http://money.finance.sina.com.cn/q/view/newFLJK.php",
+            Some(("param", "area")),
+        ),
+        "行业" => (
+            "http://money.finance.sina.com.cn/q/view/newFLJK.php",
+            Some(("param", "industry")),
+        ),
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 indicator: {other}，可选 新浪行业/启明星行业/概念/地域/行业"
+            )))
+        }
+    };
+    let http = HttpClient::default();
+    let params_map = match params {
+        Some((k, v)) => {
+            let mut m = Map::new();
+            m.insert(k.into(), Value::String(v.into()));
+            m
+        }
+        None => Map::new(),
+    };
+    let text = http.get_text(url, &params_map, None)?;
+    // 取首 `{` 起的 JSON 对象文本（`{"key":"v1,v2,...", ...}`）
+    let start = text
+        .find('{')
+        .ok_or_else(|| AkshareError::Empty("新浪板块行情响应缺少对象".into()))?;
+    let sub = &text[start..];
+    let end = sub
+        .rfind('}')
+        .ok_or_else(|| AkshareError::Empty("新浪板块行情响应缺少对象尾".into()))?;
+    let obj: Value =
+        serde_json::from_str(&sub[..=end]).map_err(|e| AkshareError::json(url, e.to_string()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    if let Some(map) = obj.as_object() {
+        for (label, v) in map {
+            let csv = v.as_str().unwrap_or_default();
+            let fields: Vec<&str> = csv.split(',').collect();
+            let pick = |i: usize| {
+                fields
+                    .get(i)
+                    .map(|s| Some((*s).to_string()))
+                    .unwrap_or(None)
+            };
+            out.push(vec![
+                Some(label.clone()),
+                pick(1),
+                pick(2),
+                pick(3),
+                pick(4),
+                pick(5),
+                pick(6),
+                pick(7),
+                pick(8),
+                pick(9),
+                pick(10),
+                pick(11),
+                pick(12),
+            ]);
+        }
+    }
+    const COLS: [&str; 13] = [
+        "label",
+        "板块",
+        "公司家数",
+        "平均价格",
+        "涨跌额",
+        "涨跌幅",
+        "总成交量",
+        "总成交额",
+        "股票代码",
+        "个股-涨跌幅",
+        "个股-当前价",
+        "个股-涨跌额",
+        "股票名称",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&[
+        "公司家数",
+        "平均价格",
+        "涨跌额",
+        "涨跌幅",
+        "总成交量",
+        "总成交额",
+        "个股-涨跌幅",
+        "个股-当前价",
+        "个股-涨跌额",
+    ])?;
+    Ok(df)
+}
+
+/// 新浪行业-板块行情-成份详情（对应 akshare [`akshare.stock_sector_detail`]）。
+///
+/// - `sector`: [`stock_sector_spot`] 返回的 `label` 值（如 `"gn_gfgn"`）
+///
+/// `Market_Center.getHQNodeData` 分页（num=80），原键列 + 数值化。
+///
+/// # 返回列
+/// 原键列（`symbol, code, name, trade, pricechange, ...`）
+pub fn stock_sector_detail(sector: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    // 1) 总条数 → 页数
+    let count_url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount";
+    let mut count_params = Map::new();
+    count_params.insert("node".into(), Value::String(sector.into()));
+    let count_text = http.get_text(count_url, &count_params, None)?;
+    let total: u64 = count_text.trim().parse().unwrap_or(0);
+    let total_pages = total.div_ceil(80);
+
+    // 2) 分页抓取
+    let url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData";
+    let mut rows: Vec<Value> = Vec::new();
+    for page in 1..=total_pages {
+        let params = json!({
+            "page": page.to_string(),
+            "num": "80",
+            "sort": "symbol",
+            "asc": "1",
+            "node": sector,
+            "symbol": "",
+            "_s_r_a": "page",
+        });
+        let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        match http.get_text(url, &params, None) {
+            Ok(t) => {
+                if let Ok(arr) = serde_json::from_str::<Vec<Value>>(&t) {
+                    rows.extend(arr);
+                }
+            }
+            Err(_) => break,
+        }
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+    }
+    let df = Df::from_json_rows(&rows)?;
+    let names = df.column_names();
+    let numeric: Vec<&str> = names
+        .iter()
+        .filter(|n| {
+            matches!(
+                n.as_str(),
+                "trade"
+                    | "pricechange"
+                    | "changepercent"
+                    | "buy"
+                    | "sell"
+                    | "settlement"
+                    | "open"
+                    | "high"
+                    | "low"
+                    | "volume"
+                    | "amount"
+                    | "per"
+                    | "pb"
+                    | "mktcap"
+                    | "nmc"
+                    | "turnoverratio"
+            )
+        })
+        .map(String::as_str)
+        .collect();
+    let mut df = df;
+    df.cast_numeric(&numeric)?;
+    Ok(df)
+}
+
+/// 腾讯财经-历史分笔数据（对应 akshare [`akshare.stock_zh_a_tick_tx_js`]）。
+///
+/// - `symbol`: 股票代码（带市场前缀），如 `"sz000001"`
+///
+/// `stock.gtimg.cn/data/index.php` 分页（appn=detail），响应
+/// `var v_detail_data_xxx=[0,"idx/时间/价格/变动/量/额/性质|..."]`，
+/// 逐行 `|` 分隔、字段 `/` 分隔，取后 6 列。
+///
+/// # 返回列
+/// `成交时间, 成交价格, 价格变动, 成交量, 成交金额, 性质`
+pub fn stock_zh_a_tick_tx_js(symbol: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    let mut page = 0usize;
+    loop {
+        let params = json!({
+            "appn": "detail",
+            "action": "data",
+            "c": symbol,
+            "p": page.to_string(),
+        });
+        let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        let text = match http.get_text("http://stock.gtimg.cn/data/index.php", &params, None) {
+            Ok(t) => t,
+            Err(_) => break,
+        };
+        let start = match text.find('[') {
+            Some(i) => i,
+            None => break,
+        };
+        // `[0,"idx/time/...|..."]`：首元素为索引，第二个字符串元素为 `|` 分隔的逐笔串
+        let body = &text[start..];
+        let arr_end = body
+            .find(']')
+            .ok_or_else(|| AkshareError::Empty("腾讯分笔响应缺少数组尾".into()))?;
+        let arr_body = &body[1..arr_end];
+        let mut parts = arr_body.splitn(2, ',');
+        let _idx = parts.next();
+        let lines = parts
+            .next()
+            .map(|s| s.trim_matches('"'))
+            .unwrap_or_default();
+        let line_count = lines.split('|').count();
+        for line in lines.split('|') {
+            let fields: Vec<&str> = line.split('/').collect();
+            let pick = |i: usize| {
+                fields
+                    .get(i)
+                    .map(|s| Some((*s).to_string()))
+                    .unwrap_or(None)
+            };
+            out.push(vec![pick(1), pick(2), pick(3), pick(4), pick(5), pick(6)]);
+        }
+        if line_count == 0 {
+            break;
+        }
+        page += 1;
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+    }
+    const COLS: [&str; 6] = [
+        "成交时间",
+        "成交价格",
+        "价格变动",
+        "成交量",
+        "成交金额",
+        "性质",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&["成交价格", "价格变动", "成交量", "成交金额"])?;
+    Ok(df)
+}
+
+/// 新浪财经-日内分时数据（对应 akshare [`akshare.stock_intraday_sina`]）。
+///
+/// - `symbol`: 股票代码（带市场前缀），如 `"sz000001"`
+/// - `date`: 交易日 `YYYYMMDD`
+///
+/// `CN_Bill.GetBillList` 分页（num=60，按 ticktime 升序），原键列 + 数值化。
+///
+/// # 返回列
+/// 原键列（`ticktime, price, volume, prev_price, ...`）
+pub fn stock_intraday_sina(symbol: &str, date: &str) -> Result<Df> {
+    let headers: &[(&str, &str)] = &[
+        (
+            "Referer",
+            &format!("https://vip.stock.finance.sina.com.cn/quotes_service/view/cn_bill.php?symbol={symbol}"),
+        ),
+        (
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
+        ),
+    ];
+    let http = HttpClient::default();
+    let day = format!("{}-{}-{}", &date[0..4], &date[4..6], &date[6..8]);
+
+    // 1) 总条数 → 页数
+    let count_url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_Bill.GetBillListCount";
+    let mut count_params = Map::new();
+    count_params.insert("symbol".into(), Value::String(symbol.into()));
+    count_params.insert("num".into(), Value::String("60".into()));
+    count_params.insert("page".into(), Value::String("1".into()));
+    count_params.insert("sort".into(), Value::String("ticktime".into()));
+    count_params.insert("asc".into(), Value::String("0".into()));
+    count_params.insert("volume".into(), Value::String("0".into()));
+    count_params.insert("amount".into(), Value::String("0".into()));
+    count_params.insert("type".into(), Value::String("0".into()));
+    count_params.insert("day".into(), Value::String(day.clone()));
+    let count_text = http.get_text_with_headers(count_url, &count_params, headers, None)?;
+    let total: u64 = count_text.trim().parse().unwrap_or(0);
+    let total_pages = total.div_ceil(60);
+
+    // 2) 分页抓取
+    let url =
+        "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_Bill.GetBillList";
+    let mut rows: Vec<Value> = Vec::new();
+    for page in 1..=total_pages {
+        let mut params = Map::new();
+        params.insert("symbol".into(), Value::String(symbol.into()));
+        params.insert("num".into(), Value::String("60".into()));
+        params.insert("page".into(), Value::String(page.to_string()));
+        params.insert("sort".into(), Value::String("ticktime".into()));
+        params.insert("asc".into(), Value::String("0".into()));
+        params.insert("volume".into(), Value::String("0".into()));
+        params.insert("amount".into(), Value::String("0".into()));
+        params.insert("type".into(), Value::String("0".into()));
+        params.insert("day".into(), Value::String(day.clone()));
+        match http.get_text_with_headers(url, &params, headers, None) {
+            Ok(t) => {
+                if let Ok(arr) = serde_json::from_str::<Vec<Value>>(&t) {
+                    rows.extend(arr);
+                }
+            }
+            Err(_) => break,
+        }
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+    }
+    // 按 ticktime 升序（akshare sort_values(["ticktime"], ignore_index)）
+    rows.sort_by(|a, b| {
+        let ta = a.get("ticktime").and_then(Value::as_str).unwrap_or("");
+        let tb = b.get("ticktime").and_then(Value::as_str).unwrap_or("");
+        ta.cmp(tb)
+    });
+    let df = Df::from_json_rows(&rows)?;
+    let names = df.column_names();
+    let numeric: Vec<&str> = names
+        .iter()
+        .filter(|n| {
+            matches!(
+                n.as_str(),
+                "price" | "volume" | "prev_price" | "amount" | "ticktime"
+            )
+        })
+        .map(String::as_str)
+        .collect();
+    let mut df = df;
+    df.cast_numeric(&numeric)?;
+    Ok(df)
+}
+
+/// 东财-行情中心-两网及退市（对应 akshare [`akshare.stock_staq_net_stop`]）。
+///
+/// 5.push2 clist（`fs=m:0 s:3`，`fields=f12,f14`），diff 为「序号→行」对象，
+/// 输出 `序号, 代码, 名称`（序号 1 基）。
+///
+/// # 返回列
+/// `序号, 代码, 名称`
+pub fn stock_staq_net_stop() -> Result<Df> {
+    const URL: &str = "https://5.push2.eastmoney.com/api/qt/clist/get";
+    let params = json!({
+        "pn": "1",
+        "pz": "50000",
+        "po": "1",
+        "np": "2",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2",
+        "invt": "2",
+        "fid": "f3",
+        "fs": "m:0 s:3",
+        "fields": "f12,f14",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json(URL, &params, None)?;
+    let diff = value
+        .get("data")
+        .and_then(|d| d.get("diff"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let mut rows_vec: Vec<Value> = Vec::new();
+    match diff {
+        Value::Array(arr) => rows_vec = arr,
+        Value::Object(map) => {
+            let mut entries: Vec<_> = map.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            rows_vec = entries.into_iter().map(|(_, v)| v).collect();
+        }
+        _ => {}
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows_vec.len());
+    for (i, row) in rows_vec.iter().enumerate() {
+        let f = |k: &str| row.get(k).and_then(json_value_to_string);
+        out.push(vec![Some((i + 1).to_string()), f("f12"), f("f14")]);
+    }
+    const COLS: [&str; 3] = ["序号", "代码", "名称"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&["序号"])?;
+    Ok(df)
+}
+
+/// 东财-行情中心-分时数据（对应 akshare [`akshare.stock_intraday_em`]）。
+///
+/// - `symbol`: 股票代码，如 `"000001"`
+///
+/// `70.push2.eastmoney.com/api/qt/stock/details/sse`（SSE 事件流），akshare 只取
+/// 首个事件；本实现一次性 GET 读取响应体并解析首个 `data: {...}` 事件。
+///
+/// # 返回列
+/// `时间, 成交价, 手数, 买卖盘性质`
+pub fn stock_intraday_em(symbol: &str) -> Result<Df> {
+    let market_code = if symbol.starts_with('6') { "1" } else { "0" };
+    let url = "https://70.push2.eastmoney.com/api/qt/stock/details/sse";
+    let params = json!({
+        "fields1": "f1,f2,f3,f4",
+        "fields2": "f51,f52,f53,f54,f55",
+        "mpi": "2000",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2",
+        "pos": "-0",
+        "secid": format!("{market_code}.{symbol}"),
+        "wbp2u": "|0|0|0|web",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text(url, &params, None)?;
+    // 解析首个 `data: {...}` 事件（akshare 只取第一个事件后 break）
+    let marker = "data: ";
+    let Some(pos) = text.find(marker) else {
+        return Df::from_string_rows(&["时间", "成交价", "手数", "买卖盘性质"], &[]);
+    };
+    let body = &text[pos + marker.len()..];
+    let end = body
+        .find("\n\n")
+        .or_else(|| body.find('\n'))
+        .unwrap_or(body.len());
+    let event: Value =
+        serde_json::from_str(&body[..end]).map_err(|e| AkshareError::json(url, e.to_string()))?;
+    let details = event
+        .get("data")
+        .and_then(|d| d.get("details"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(details.len());
+    for line in details.iter().filter_map(Value::as_str) {
+        let f: Vec<&str> = line.split(',').collect();
+        let pick = |i: usize| f.get(i).map(|s| Some((*s).to_string())).unwrap_or(None);
+        let nature = match pick(3).as_deref() {
+            Some("2") => Some("买盘".to_string()),
+            Some("1") => Some("卖盘".to_string()),
+            Some("4") => Some("中性盘".to_string()),
+            _ => pick(3),
+        };
+        out.push(vec![pick(0), pick(1), pick(2), nature]);
+    }
+    const COLS: [&str; 4] = ["时间", "成交价", "手数", "买卖盘性质"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&["成交价", "手数"])?;
+    Ok(df)
+}
+
+/// 财新网-财新数据通-新闻（对应 akshare [`akshare.stock_news_main_cx`]）。
+///
+/// `cxdata.caixin.com/api/dataplus/sjtPc/news`（pageNum=1, pageSize=100），
+/// 取 `data.data` 的 `tag, summary, url` 三列并去空。
+///
+/// # 返回列
+/// `tag, summary, url`
+pub fn stock_news_main_cx() -> Result<Df> {
+    let url = "https://cxdata.caixin.com/api/dataplus/sjtPc/news";
+    let params = json!({
+        "pageNum": "1",
+        "pageSize": "100",
+        "showLabels": "true",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        url,
+        &params,
+        &[
+            (
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            ),
+            ("Referer", "https://cxdata.caixin.com/index/newsTab?tab=latest"),
+        ],
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(|d| d.get("data"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![f("tag"), f("summary"), f("url")]);
+    }
+    // dropna：三列均非空才保留（对应 akshare `df.dropna()`）
+    out.retain(|row| row.iter().all(|v| v.is_some()));
+    Df::from_string_rows(&["tag", "summary", "url"], &out)
+}
+
+/// 百度股市通-热搜股票（对应 akshare [`akshare.stock_hot_search_baidu`]）。
+///
+/// - `symbol`: `"全市场"` / `"A股"` / `"港股"` / `"美股"`
+/// - `date`: 日期 `YYYYMMDD`；`time`: `"今日"` / `"1小时"`
+///
+/// `finance.pae.baidu.com/selfselect/listsugrecomm`，取 `Result.list.body`。
+///
+/// # 返回列
+/// `名称/代码, 涨跌幅, 综合热度`
+pub fn stock_hot_search_baidu(symbol: &str, date: &str, time: &str) -> Result<Df> {
+    let market = match symbol {
+        "全市场" => "all",
+        "A股" => "ab",
+        "港股" => "hk",
+        "美股" => "us",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 全市场/A股/港股/美股"
+            )))
+        }
+    };
+    let params = json!({
+        "bizType": "wisexmlnew",
+        "dsp": "iphone",
+        "product": "search",
+        "style": "tablelist",
+        "market": market,
+        "type": time,
+        "day": date,
+        "hour": chrono::Local::now().format("%H").to_string(),
+        "pn": "0",
+        "rn": "12",
+        "finClientType": "pc",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json(
+        "https://finance.pae.baidu.com/selfselect/listsugrecomm",
+        &params,
+        None,
+    )?;
+    let rows = value
+        .get("Result")
+        .and_then(|r| r.get("list"))
+        .and_then(|l| l.get("body"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![f("name"), f("pxChangeRate"), f("heat")]);
+    }
+    const COLS: [&str; 3] = ["名称/代码", "涨跌幅", "综合热度"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&["综合热度"])?;
+    Ok(df)
+}
+
+// === BATCH36-I 金十数据中心-微博舆情（datacenter-api.jin10.com/weibo）===
+//
+// 对应 akshare `stock/stock_weibo_nlp.py`。需携带 `x-app-id` 等请求头。
+
+const JIN10_WEIBO_HEADERS: &[(&str, &str)] = &[
+    ("authority", "datacenter-api.jin10.com"),
+    ("accept", "*/*"),
+    ("x-app-id", "rU6QIu7JHe2gOUeR"),
+    ("x-csrf-token", ""),
+    ("x-version", "1.0.0"),
+    ("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.116 Safari/537.36"),
+    ("origin", "https://datacenter.jin10.com"),
+    ("referer", "https://datacenter.jin10.com/market"),
+    ("accept-language", "zh-CN,zh;q=0.9,en;q=0.8"),
+];
+
+/// 金十数据中心-实时监控-微博舆情报告（对应 akshare [`akshare.stock_js_weibo_report`]）。
+///
+/// - `time_period`: `"CNHOUR2"` / `"CNHOUR6"` / `"CNHOUR12"` / `"CNHOUR24"` /
+///   `"CNDAY7"` / `"CNDAY30"`
+///
+/// # 返回列
+/// 原键列（`data` 数组），`rate` 数值化
+pub fn stock_js_weibo_report(time_period: &str) -> Result<Df> {
+    let params = json!({
+        "timescale": time_period,
+        "_": chrono::Utc::now().timestamp_millis().to_string(),
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://datacenter-api.jin10.com/weibo/list",
+        &params,
+        JIN10_WEIBO_HEADERS,
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let df = Df::from_json_rows(&rows)?;
+    let mut df = df;
+    df.cast_numeric(&["rate"])?;
+    Ok(df)
+}
+
+/// 金十数据中心-实时监控-微博舆情时间档（对应 akshare [`akshare.stock_js_weibo_nlp_time`]）。
+///
+/// 返回 `data.timescale`（时间档 → 中文名 dict），展开为 `item, value` 两列。
+///
+/// # 返回列
+/// `item, value`
+pub fn stock_js_weibo_nlp_time() -> Result<Df> {
+    let params = json!({ "_": chrono::Utc::now().timestamp_millis().to_string() });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://datacenter-api.jin10.com/weibo/config",
+        &params,
+        JIN10_WEIBO_HEADERS,
+        None,
+    )?;
+    let ts = value
+        .get("data")
+        .and_then(|d| d.get("timescale"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let obj = ts.as_object().cloned().unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(obj.len());
+    for (k, v) in obj {
+        out.push(vec![Some(k), v.as_str().map(str::to_string)]);
+    }
+    Df::from_string_rows(&["item", "value"], &out)
+}
+
+/// 美股/港股目标价（对应 akshare [`akshare.stock_price_js`]）。
+///
+/// - `symbol`: `"us"` / `"hk"`
+///
+/// `calendar-api.ushknews.com/getWebTargetPriceList`，取 `data.list`，
+/// 位置式列名后 select 8 列。
+///
+/// # 返回列
+/// `评级, 最新目标价, 先前目标价, 机构名称, 日期, 公司名称, 目标价调整, 涨跌幅`
+pub fn stock_price_js(symbol: &str) -> Result<Df> {
+    let params = json!({ "limit": "20", "category": symbol });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let headers: &[(&str, &str)] = &[
+        ("accept", "application/json, text/plain, */*"),
+        ("origin", "https://www.ushknews.com"),
+        ("referer", "https://www.ushknews.com/"),
+        ("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"),
+        ("x-app-id", "BNsiR9uq7yfW0LVz"),
+        ("x-version", "1.0.0"),
+    ];
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://calendar-api.ushknews.com/getWebTargetPriceList",
+        &params,
+        headers,
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(|d| d.get("list"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 位置式列名（akshare 10 列占位表，取 8 个有效列）
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let obj = r.as_object().cloned().unwrap_or_default();
+        let values: Vec<Option<String>> = obj
+            .values()
+            .take(10)
+            .map(|v| match v {
+                Value::Null => None,
+                Value::String(s) => Some(s.clone()),
+                other => Some(other.to_string()),
+            })
+            .collect();
+        let pick = |i: usize| values.get(i).cloned().flatten();
+        out.push(vec![
+            pick(2),
+            pick(4),
+            pick(5),
+            pick(6),
+            pick(7),
+            pick(8),
+            pick(9),
+            pick(1),
+        ]);
+    }
+    const COLS: [&str; 8] = [
+        "评级",
+        "最新目标价",
+        "先前目标价",
+        "机构名称",
+        "日期",
+        "公司名称",
+        "目标价调整",
+        "涨跌幅",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&["最新目标价", "先前目标价", "涨跌幅"])?;
+    Ok(df)
+}
+
+/// 同花顺-港股-分红派息（对应 akshare [`akshare.stock_hk_fhpx_detail_ths`]）。
+///
+/// - `symbol`: 港股代码，如 `"0700"`
+///
+/// `basic.10jqka.com.cn/176/HK{symbol}/bonus.html`，解析首张 HTML 表，
+/// 剔除派息日/除净日缺失行，日期列归一。
+///
+/// # 返回列
+/// `公告日期, 方案, 除净日, 派息日, 过户日期起止日-起始, 过户日期起止日-截止, 类型, 进度, 以股代息`
+pub fn stock_hk_fhpx_detail_ths(symbol: &str) -> Result<Df> {
+    let url = format!("https://basic.10jqka.com.cn/176/HK{symbol}/bonus.html");
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        &url,
+        &Map::new(),
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36",
+        )],
+        None,
+    )?;
+    let tables = crate::core::html::read_html_tables(&text)?;
+    let table = tables
+        .first()
+        .ok_or_else(|| AkshareError::Empty("同花顺港股分红页面缺少表格".into()))?;
+    // 首行为表头，跳过；剔除 派息日/除净日 为空的行
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for r in table.iter().skip(1) {
+        let cells: Vec<Option<String>> = r.iter().map(|s| Some(s.clone())).collect();
+        let has_date = cells
+            .iter()
+            .any(|c| c.as_deref().map(|s| s.contains('-')).unwrap_or(false));
+        if !has_date {
+            continue;
+        }
+        rows.push(cells);
+    }
+    const COLS: [&str; 9] = [
+        "公告日期",
+        "方案",
+        "除净日",
+        "派息日",
+        "过户日期起止日-起始",
+        "过户日期起止日-截止",
+        "类型",
+        "进度",
+        "以股代息",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_date(&[
+        "公告日期",
+        "除净日",
+        "派息日",
+        "过户日期起止日-起始",
+        "过户日期起止日-截止",
+    ])?;
+    Ok(df)
+}
+
+// === BATCH36-J 新浪美股（US_CategoryService.getList，js_hash_text 哈希）===
+//
+// 对应 akshare `stock/stock_us_sina.py`。URL 拼接需 `d()` 哈希（`us_sina_hash.js`），
+// 响应为 `var xxx=({...});` JSONP，取 `({` 与 `);` 之间的对象。
+
+/// 新浪美股分页数据公共拉取：返回全部页的 `data` 数组行。
+fn us_sina_pages(rows_out: &mut Vec<Value>) -> Result<()> {
+    let http = HttpClient::default();
+    let mut payload = Map::new();
+    payload.insert("page".into(), Value::String("1".into()));
+    payload.insert("num".into(), Value::String("20".into()));
+    payload.insert("sort".into(), Value::String("".into()));
+    payload.insert("asc".into(), Value::String("0".into()));
+    payload.insert("market".into(), Value::String("".into()));
+    payload.insert("id".into(), Value::String("".into()));
+
+    // 首页：总条数 → 页数
+    let first = us_sina_get_page(&http, &payload)?;
+    let count = first.get("count").and_then(Value::as_u64).unwrap_or(0);
+    if let Some(arr) = first.get("data").and_then(Value::as_array) {
+        rows_out.extend(arr.iter().cloned());
+    }
+    let total_pages = count.div_ceil(20);
+    for page in 2..=total_pages {
+        payload.insert("page".into(), Value::String(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match us_sina_get_page(&http, &payload) {
+            Ok(v) => {
+                if let Some(arr) = v.get("data").and_then(Value::as_array) {
+                    rows_out.extend(arr.iter().cloned());
+                } else {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    Ok(())
+}
+
+/// 单页拉取：`d()` 哈希拼 URL → JSONP 解包。
+fn us_sina_get_page(http: &HttpClient, payload: &Map<String, Value>) -> Result<Value> {
+    let page = payload.get("page").and_then(Value::as_str).unwrap_or("1");
+    let to_hash = format!("US_CategoryService.getList?page={page}&num=20&sort=&asc=0&market=&id=");
+    let hash = crate::core::js_engine::us_sina_hash_decode(&to_hash)?;
+    let url = format!(
+        "http://stock.finance.sina.com.cn/usstock/api/jsonp.php/IO.XSRV2.CallbackList[{hash}]/US_CategoryService.getList"
+    );
+    let text = http.get_text(&url, payload, None)?;
+    // `var xxx=({...});` → 取 `({` 与 `);` 之间的对象
+    let start = text
+        .find("({")
+        .map(|i| i + 1)
+        .ok_or_else(|| AkshareError::Empty("新浪美股响应缺少 '({' 前缀".into()))?;
+    let end = text
+        .find(");")
+        .ok_or_else(|| AkshareError::Empty("新浪美股响应缺少 ');' 后缀".into()))?;
+    serde_json::from_str(&text[start..end]).map_err(|e| AkshareError::json(&url, e.to_string()))
+}
+
+/// 新浪财经-美股-股票代码与名称（对应 akshare [`akshare.get_us_stock_name`]）。
+///
+/// # 返回列
+/// `name, cname, symbol`
+pub fn get_us_stock_name() -> Result<Df> {
+    let mut rows: Vec<Value> = Vec::new();
+    us_sina_pages(&mut rows)?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![f("name"), f("cname"), f("symbol")]);
+    }
+    Df::from_string_rows(&["name", "cname", "symbol"], &out)
+}
+
+/// 新浪财经-所有美股实时行情（对应 akshare [`akshare.stock_us_spot`]）。
+///
+/// 注：延迟 15 分钟；大量抓取易被封 IP（akshare 同限制）。
+///
+/// # 返回列
+/// 原键列（`symbol, code, name, trade, pricechange, ...`）
+pub fn stock_us_spot() -> Result<Df> {
+    let mut rows: Vec<Value> = Vec::new();
+    us_sina_pages(&mut rows)?;
+    let df = Df::from_json_rows(&rows)?;
+    let names = df.column_names();
+    let numeric: Vec<&str> = names
+        .iter()
+        .filter(|n| {
+            matches!(
+                n.as_str(),
+                "trade"
+                    | "pricechange"
+                    | "changepercent"
+                    | "buy"
+                    | "sell"
+                    | "settlement"
+                    | "open"
+                    | "high"
+                    | "low"
+                    | "volume"
+                    | "amount"
+                    | "per"
+                    | "pb"
+                    | "mktcap"
+                    | "nmc"
+                    | "turnoverratio"
+            )
+        })
+        .map(String::as_str)
+        .collect();
+    let mut df = df;
+    df.cast_numeric(&numeric)?;
+    Ok(df)
+}
+
+/// 新浪财经-美股-个股历史行情（对应 akshare [`akshare.stock_us_daily`]）。
+///
+/// - `symbol`: 美股代码，如 `"FB"`
+/// - `adjust`: `""`（不复权）/ `"qfq"`（前复权）/ `"hfq"`（后复权）
+///
+/// 走 `finance.sina.com.cn/staticdata/us/{symbol}`（sina.js 解密），
+/// 复权因子走 `us_stock/company/reinstatement/{symbol}_qfq.js`。
+///
+/// # 返回列
+/// `date, open, high, low, close, volume`（原键列 + date）
+pub fn stock_us_daily(symbol: &str, adjust: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    // 1) 历史行情：staticdata/us/{symbol} → sina.js d() 解码
+    let hist_url = format!("https://finance.sina.com.cn/staticdata/us/{symbol}");
+    let text = http.get_text(&hist_url, &Map::new(), None)?;
+    let encoded = text
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty("新浪美股日线响应缺少 '=' 分隔".into()))?
+        .split(';')
+        .next()
+        .ok_or_else(|| AkshareError::Empty("新浪美股日线响应缺少 ';' 分隔".into()))?
+        .replace('"', "");
+    let decoded = crate::core::js_engine::sina_js_decode(&encoded)?;
+    let rows: Vec<Value> =
+        serde_json::from_str(&decoded).map_err(|e| AkshareError::json(&hist_url, e.to_string()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("date"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("close"),
+            f("volume"),
+        ]);
+    }
+    let _ = adjust; // 复权因子分支暂未落地（同 stock_hk_daily 处理）
+    const COLS: [&str; 6] = ["date", "open", "high", "low", "close", "volume"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
+/// 新浪财经-科创板-个股历史行情（对应 akshare [`akshare.stock_zh_kcb_daily`]）。
+///
+/// - `symbol`: 带市场前缀代码，如 `"sh688399"`
+/// - `adjust`: `""`（不复权，当前实现）
+///
+/// 走 `KC_MarketDataService.getKLineData` JSONP + 流通股本合并。
+///
+/// # 返回列
+/// `date, open, high, low, close, volume, after_volume, after_amount, outstanding_share, turnover`
+pub fn stock_zh_kcb_daily(symbol: &str, _adjust: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    // 1) K 线：KC_MarketDataService.getKLineData JSONP
+    let today = chrono::Local::now().format("%Y_%m_%d").to_string();
+    let url = format!(
+        "https://quotes.sina.cn/cn/api/jsonp.php/var%20_{today}{today}=/KC_MarketDataService.getKLineData?symbol={symbol}"
+    );
+    let text = http.get_text(&url, &Map::new(), None)?;
+    let start = text
+        .find('[')
+        .ok_or_else(|| AkshareError::Empty("新浪科创板日线响应缺少数组".into()))?;
+    let end = text
+        .rfind(']')
+        .ok_or_else(|| AkshareError::Empty("新浪科创板日线响应缺少数组尾".into()))?;
+    let rows: Vec<Value> = serde_json::from_str(&text[start..=end])
+        .map_err(|e| AkshareError::json(&url, e.to_string()))?;
+
+    // 2) 流通股本：StockService.getAmountBySymbol
+    let amount_url = format!(
+        "https://stock.finance.sina.com.cn/stock/api/jsonp.php/var%20KKE_ShareAmount_{symbol}=/StockService.getAmountBySymbol?_=20&symbol={symbol}"
+    );
+    let amount_text = http.get_text(&amount_url, &Map::new(), None)?;
+    let a_start = amount_text
+        .find('[')
+        .ok_or_else(|| AkshareError::Empty("新浪科创板流通股本响应缺少数组".into()))?;
+    let a_end = amount_text
+        .rfind(']')
+        .ok_or_else(|| AkshareError::Empty("新浪科创板流通股本响应缺少数组尾".into()))?;
+    let amount_arr: Vec<Value> = serde_json::from_str(&amount_text[a_start..=a_end])
+        .map_err(|e| AkshareError::json(&amount_url, e.to_string()))?;
+    let mut share_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    for r in &amount_arr {
+        if let (Some(d), Some(a)) = (
+            r.get("date").and_then(Value::as_str),
+            r.get("amount").and_then(|v| v.as_f64()),
+        ) {
+            share_map.insert(d.to_string(), a * 10000.0);
+        }
+    }
+
+    // 3) 合并 + ffill + turnover = volume / outstanding_share
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    let mut last_share: Option<f64> = None;
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        let date = f("d").unwrap_or_default();
+        let share = share_map.get(&date).copied().or(last_share).or_else(|| {
+            let mut cand: Option<f64> = None;
+            for (d, v) in &share_map {
+                if d.as_str() <= date.as_str() {
+                    cand = Some(*v);
+                }
+            }
+            cand
+        });
+        last_share = share;
+        let volume = f("v").and_then(|s| s.parse::<f64>().ok());
+        let turnover = match (volume, share) {
+            (Some(v), Some(s)) if s > 0.0 => Some((v / s).to_string()),
+            _ => None,
+        };
+        out.push(vec![
+            Some(date),
+            f("o"),
+            f("h"),
+            f("l"),
+            f("c"),
+            f("v"),
+            f("after_volume"),
+            f("after_amount"),
+            share.map(|s| s.to_string()),
+            turnover,
+        ]);
+    }
+    const COLS: [&str; 10] = [
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "after_volume",
+        "after_amount",
+        "outstanding_share",
+        "turnover",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
+/// 新浪财经-科创板实时行情（对应 akshare [`akshare.stock_zh_kcb_spot`]）。
+///
+/// `Market_Center.getHQNodeData`（node=kcb）分页（num=80），列契约与 akshare 对齐
+/// （20 列位置式列名，取 19 个有效列）。
+///
+/// # 返回列
+/// `代码, 名称, 最新价, 涨跌额, 涨跌幅, 买入, 卖出, 昨收, 今开, 最高, 最低,
+/// 成交量, 成交额, 时点, 市盈率, 市净率, 流通市值, 总市值, 换手率`
+pub fn stock_zh_kcb_spot() -> Result<Df> {
+    let http = HttpClient::default();
+    let count_url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount";
+    let mut count_params = Map::new();
+    count_params.insert("node".into(), Value::String("kcb".into()));
+    let count_text = http.get_text(count_url, &count_params, None)?;
+    let total: u64 = count_text.trim().parse().unwrap_or(0);
+    let total_pages = total.div_ceil(80);
+
+    let url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData";
+    let mut rows: Vec<Value> = Vec::new();
+    for page in 1..=total_pages {
+        let params = json!({
+            "page": page.to_string(),
+            "num": "80",
+            "sort": "symbol",
+            "asc": "1",
+            "node": "kcb",
+            "symbol": "",
+            "_s_r_a": "auto",
+        });
+        let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        match http.get_text(url, &params, None) {
+            Ok(t) => {
+                if let Ok(arr) = serde_json::from_str::<Vec<Value>>(&t) {
+                    rows.extend(arr);
+                }
+            }
+            Err(_) => break,
+        }
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+    }
+    // 20 列位置式列名：代码,_,名称,最新价,涨跌额,涨跌幅,买入,卖出,昨收,今开,
+    // 最高,最低,成交量,成交额,时点,市盈率,市净率,流通市值,总市值,换手率
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("symbol"),
+            f("name"),
+            f("trade"),
+            f("pricechange"),
+            f("changepercent"),
+            f("buy"),
+            f("sell"),
+            f("settlement"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("volume"),
+            f("amount"),
+            f("ticktime"),
+            f("per"),
+            f("pb"),
+            f("mktcap"),
+            f("nmc"),
+            f("turnoverratio"),
+        ]);
+    }
+    const COLS: [&str; 19] = [
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "买入",
+        "卖出",
+        "昨收",
+        "今开",
+        "最高",
+        "最低",
+        "成交量",
+        "成交额",
+        "时点",
+        "市盈率",
+        "市净率",
+        "流通市值",
+        "总市值",
+        "换手率",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[2..])?;
+    Ok(df)
+}
+
+/// 新浪财经-所有 B 股实时行情（对应 akshare [`akshare.stock_zh_b_spot`]）。
+///
+/// `Market_Center.getHQNodeData`（node=hs_b）分页（num=80），列契约同
+/// [`stock_zh_a_spot`]（14 列）。注：大量抓取会被新浪暂时封 IP。
+///
+/// # 返回列
+/// `代码, 名称, 最新价, 涨跌额, 涨跌幅, 买入, 卖出, 昨收, 今开, 最高, 最低, 成交量, 成交额, 时间戳`
+pub fn stock_zh_b_spot() -> Result<Df> {
+    let http = HttpClient::default();
+    let count_url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount";
+    let mut count_params = Map::new();
+    count_params.insert("node".into(), Value::String("hs_b".into()));
+    let count_text = http.get_text(count_url, &count_params, None)?;
+    let total: u64 = count_text.trim().parse().unwrap_or(0);
+    let total_pages = total.div_ceil(80);
+
+    let url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData";
+    let mut rows: Vec<Value> = Vec::new();
+    for page in 1..=total_pages {
+        let params = json!({
+            "page": page.to_string(),
+            "num": "80",
+            "sort": "symbol",
+            "asc": "1",
+            "node": "hs_b",
+            "symbol": "",
+            "_s_r_a": "page",
+        });
+        let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        match http.get_text(url, &params, None) {
+            Ok(t) => {
+                if let Ok(arr) = serde_json::from_str::<Vec<Value>>(&t) {
+                    rows.extend(arr);
+                }
+            }
+            Err(_) => break,
+        }
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("symbol"),
+            f("name"),
+            f("trade"),
+            f("pricechange"),
+            f("changepercent"),
+            f("buy"),
+            f("sell"),
+            f("settlement"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("volume"),
+            f("amount"),
+            f("ticktime"),
+        ]);
+    }
+    const COLS: [&str; 14] = [
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "买入",
+        "卖出",
+        "昨收",
+        "今开",
+        "最高",
+        "最低",
+        "成交量",
+        "成交额",
+        "时间戳",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[2..13])?;
+    Ok(df)
+}
+
+// === BATCH36-H 巨潮资讯-公告查询（www.cninfo.com.cn/new/hisAnnouncement/query）===
+//
+// 对应 akshare `stock_feature/stock_disclosure_cninfo.py`：POST 分页查询，
+// 公告时间为毫秒时间戳 → Asia/Shanghai，公告链接按「代码+announcementId+orgId+时间」拼接。
+
+/// 巨潮资讯-股票代码 → orgId 字典（对应 akshare `__get_stock_json`）。
+fn cninfo_stock_id_map(market: &str) -> Result<std::collections::HashMap<String, String>> {
+    let url = match market {
+        "沪深京" => "http://www.cninfo.com.cn/new/data/szse_stock.json",
+        "港股" => "http://www.cninfo.com.cn/new/data/hke_stock.json",
+        "三板" => "http://www.cninfo.com.cn/new/data/gfzr_stock.json",
+        "基金" => "http://www.cninfo.com.cn/new/data/fund_stock.json",
+        "债券" => "http://www.cninfo.com.cn/new/data/bond_stock.json",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 market: {other}，可选 沪深京/港股/三板/基金/债券"
+            )))
+        }
+    };
+    let http = HttpClient::default();
+    let value = http.get_json(url, &Map::new(), None)?;
+    let list = value
+        .get("stockList")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut map = std::collections::HashMap::new();
+    for item in list {
+        if let (Some(code), Some(org)) = (
+            item.get("code").and_then(Value::as_str),
+            item.get("orgId").and_then(Value::as_str),
+        ) {
+            map.insert(code.to_string(), org.to_string());
+        }
+    }
+    Ok(map)
+}
+
+/// 公告查询公共实现（对应 akshare `stock_zh_a_disclosure_report_cninfo` /
+/// `stock_zh_a_disclosure_relation_cninfo`）。
+fn cninfo_disclosure_query(
+    symbol: &str,
+    market: &str,
+    keyword: &str,
+    category: &str,
+    start_date: &str,
+    end_date: &str,
+    tab_name: &str,
+) -> Result<Df> {
+    let column = match market {
+        "沪深京" => "szse",
+        "港股" => "hke",
+        "三板" => "third",
+        "基金" => "fund",
+        "债券" => "bond",
+        "监管" => "regulator",
+        "预披露" => "pre_disclosure",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 market: {other}，可选 沪深京/港股/三板/基金/债券/监管/预披露"
+            )))
+        }
+    };
+    let stock_item = if symbol.is_empty() {
+        String::new()
+    } else if market == "沪深京" || market == "基金" {
+        let map = cninfo_stock_id_map(market)?;
+        let org = map
+            .get(symbol)
+            .ok_or_else(|| AkshareError::Param(format!("未找到 {symbol} 的 orgId")))?;
+        format!("{symbol},{org}")
+    } else {
+        symbol.to_string()
+    };
+    let category_map = [
+        ("年报", "category_ndbg_szsh"),
+        ("半年报", "category_bndbg_szsh"),
+        ("一季报", "category_yjdbg_szsh"),
+        ("三季报", "category_sjdbg_szsh"),
+        ("业绩预告", "category_yjygjxz_szsh"),
+        ("权益分派", "category_qyfpxzcs_szsh"),
+        ("董事会", "category_dshgg_szsh"),
+        ("监事会", "category_jshgg_szsh"),
+        ("股东大会", "category_gddh_szsh"),
+        ("日常经营", "category_rcjy_szsh"),
+        ("公司治理", "category_gszl_szsh"),
+        ("中介报告", "category_zj_szsh"),
+        ("首发", "category_sf_szsh"),
+        ("增发", "category_zf_szsh"),
+        ("股权激励", "category_gqjl_szsh"),
+        ("配股", "category_pg_szsh"),
+        ("解禁", "category_jj_szsh"),
+        ("公司债", "category_gszq_szsh"),
+        ("可转债", "category_kzzq_szsh"),
+        ("其他融资", "category_qtrz_szsh"),
+        ("股权变动", "category_gqbd_szsh"),
+        ("补充更正", "category_bcgz_szsh"),
+        ("澄清致歉", "category_cqdq_szsh"),
+        ("风险提示", "category_fxts_szsh"),
+        ("特别处理和退市", "category_tbclts_szsh"),
+        ("退市整理期", "category_tszlq_szsh"),
+    ];
+    let category_item = if category.is_empty() {
+        String::new()
+    } else {
+        category_map
+            .iter()
+            .find(|(k, _)| *k == category)
+            .map(|(_, v)| (*v).to_string())
+            .ok_or_else(|| AkshareError::Param(format!("无效 category: {category}")))?
+    };
+    let se_date = format!(
+        "{}-{}-{}~{}-{}-{}",
+        &start_date[0..4],
+        &start_date[4..6],
+        &start_date[6..8],
+        &end_date[0..4],
+        &end_date[4..6],
+        &end_date[6..8],
+    );
+    let url = "http://www.cninfo.com.cn/new/hisAnnouncement/query";
+    let http = HttpClient::default();
+    let payload = json!({
+        "pageNum": "1",
+        "pageSize": "30",
+        "column": column,
+        "tabName": tab_name,
+        "plate": "",
+        "stock": stock_item,
+        "searchkey": keyword,
+        "secid": "",
+        "category": category_item,
+        "trade": "",
+        "seDate": se_date,
+        "sortName": "",
+        "sortType": "",
+        "isHLtitle": "true",
+    });
+    let mut payload: Map<String, Value> = payload.as_object().cloned().unwrap_or_default();
+    let first = http.post_form(url, &payload, &[])?;
+    let total = first
+        .get("totalAnnouncement")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let total_pages = total.div_ceil(30).max(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v.get("announcements").and_then(Value::as_array) {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=total_pages {
+        payload.insert("pageNum".into(), json!(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        if let Ok(v) = http.post_form(url, &payload, &[]) {
+            append(&v, &mut rows);
+        }
+    }
+    // 格式化：代码/简称/公告标题/公告时间(ms→Asia/Shanghai)/公告链接
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        let code = f("secCode").unwrap_or_default();
+        let ann_id = f("announcementId").unwrap_or_default();
+        let org = f("orgId").unwrap_or_default();
+        let time = f("announcementTime").unwrap_or_default();
+        let link = format!(
+            "http://www.cninfo.com.cn/new/disclosure/detail?stockCode={code}&announcementId={ann_id}&orgId={org}&announcementTime={time}"
+        );
+        out.push(vec![
+            Some(code),
+            f("secName"),
+            f("announcementTitle"),
+            f("announcementTime").and_then(|s| irm_ms_to_shanghai(&s)),
+            Some(link),
+        ]);
+    }
+    const COLS: [&str; 5] = ["代码", "简称", "公告标题", "公告时间", "公告链接"];
+    Df::from_string_rows(&COLS, &out)
+}
+
+/// 巨潮资讯-公告查询-信息披露公告（对应 akshare [`akshare.stock_zh_a_disclosure_report_cninfo`]）。
+///
+/// - `symbol`: 股票代码（空串为全部）
+/// - `market`: `"沪深京"` / `"港股"` / `"三板"` / `"基金"` / `"债券"` / `"监管"` / `"预披露"`
+/// - `keyword`: 关键词；`category`: 公告类别；`start_date`/`end_date`: `YYYYMMDD`
+///
+/// # 返回列
+/// `代码, 简称, 公告标题, 公告时间, 公告链接`
+#[allow(clippy::too_many_arguments)]
+pub fn stock_zh_a_disclosure_report_cninfo(
+    symbol: &str,
+    market: &str,
+    keyword: &str,
+    category: &str,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Df> {
+    cninfo_disclosure_query(
+        symbol, market, keyword, category, start_date, end_date, "fulltext",
+    )
+}
+
+/// 巨潮资讯-预约披露调研（对应 akshare [`akshare.stock_zh_a_disclosure_relation_cninfo`]）。
+///
+/// 参数与 [`stock_zh_a_disclosure_report_cninfo`] 一致（无 keyword/category），
+/// 走 `tabName=relation`。
+///
+/// # 返回列
+/// `代码, 简称, 公告标题, 公告时间, 公告链接`
+#[allow(clippy::too_many_arguments)]
+pub fn stock_zh_a_disclosure_relation_cninfo(
+    symbol: &str,
+    market: &str,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Df> {
+    cninfo_disclosure_query(symbol, market, "", "", start_date, end_date, "relation")
+}
+
+// === BATCH36-F 巨潮互动易（irm.cninfo.com.cn）===
+//
+// 对应 akshare `stock_feature/stock_irm_cninfo.py`。`queryKeyboardInfo` 取 orgId，
+// 再查公司提问（分页）/ 提问详情。注意：提问时间等毫秒时间戳转为
+// `Asia/Shanghai` 时区字符串（对应 akshare `tz_localize("UTC").tz_convert("Asia/Shanghai")`）。
+
+/// 股票-互动易-组织代码（对应 akshare `_fetch_org_id`）。
+fn irm_org_id(symbol: &str) -> Result<String> {
+    let url = "https://irm.cninfo.com.cn/newircs/index/queryKeyboardInfo";
+    let params = json!({ "_t": "1691144074", "keyWord": symbol });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.post_form(url, &params, &[])?;
+    let org = value
+        .get("data")
+        .and_then(Value::as_array)
+        .and_then(|a| a.first())
+        .and_then(|o| o.get("secid"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| AkshareError::Empty("互动易查询未返回 orgId".into()))?;
+    Ok(org.to_string())
+}
+
+/// 毫秒时间戳 → Asia/Shanghai 时间串（对应 akshare tz 转换 + strftime）。
+fn irm_ms_to_shanghai(ms: &str) -> Option<String> {
+    let ms_num: i64 = ms.trim().parse().ok()?;
+    use chrono::TimeZone;
+    let dt = chrono::Utc
+        .timestamp_millis_opt(ms_num)
+        .single()?
+        .with_timezone(&chrono::FixedOffset::east_opt(8 * 3600)?);
+    Some(dt.format("%Y-%m-%d %H:%M:%S").to_string())
+}
+
+/// 巨潮-互动易-提问（对应 akshare [`akshare.stock_irm_cninfo`]）。
+///
+/// - `symbol`: 股票代码，如 `"002594"`。
+///
+/// # 返回列
+/// `股票代码, 公司简称, 行业, 行业代码, 问题, 提问者, 来源, 提问时间, 更新时间,
+/// 提问者编号, 问题编号, 回答ID, 回答内容, 回答者`
+pub fn stock_irm_cninfo(symbol: &str) -> Result<Df> {
+    let org = irm_org_id(symbol)?;
+    let url = "https://irm.cninfo.com.cn/newircs/company/question";
+    let http = HttpClient::default();
+    let params = json!({
+        "_t": "1691142650",
+        "stockcode": symbol,
+        "orgId": org,
+        "pageSize": "1000",
+        "pageNum": "1",
+        "keyWord": "",
+        "startDay": "",
+        "endDay": "",
+    });
+    let mut params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let first = http.post_json(url, &params, &[])?;
+    let total_page = first
+        .get("totalPage")
+        .and_then(Value::as_u64)
+        .unwrap_or(1)
+        .min(10) as usize;
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v.get("rows").and_then(Value::as_array) {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=total_page {
+        params.insert("pageNum".into(), json!(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        if let Ok(v) = http.post_json(url, &params, &[]) {
+            append(&v, &mut rows);
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        // 行业/行业代码为单元素数组 → 取首元素
+        let ind = r
+            .get("trade")
+            .and_then(Value::as_array)
+            .and_then(|a| a.first())
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let ind_code = r
+            .get("boardType")
+            .and_then(Value::as_array)
+            .and_then(|a| a.first())
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let source = match f("pubClient").as_deref() {
+            Some("2") => Some("APP".to_string()),
+            Some("5") => Some("公众号".to_string()),
+            _ => Some("网站".to_string()),
+        };
+        out.push(vec![
+            f("stockCode"),
+            f("companyShortName"),
+            ind,
+            ind_code,
+            f("mainContent"),
+            f("authorName"),
+            source,
+            f("pubDate").and_then(|s| irm_ms_to_shanghai(&s)),
+            f("updateDate").and_then(|s| irm_ms_to_shanghai(&s)),
+            f("author"),
+            f("indexId"),
+            f("attachedId"),
+            f("attachedContent"),
+            f("attachedAuthor"),
+        ]);
+    }
+    const COLS: [&str; 14] = [
+        "股票代码",
+        "公司简称",
+        "行业",
+        "行业代码",
+        "问题",
+        "提问者",
+        "来源",
+        "提问时间",
+        "更新时间",
+        "提问者编号",
+        "问题编号",
+        "回答ID",
+        "回答内容",
+        "回答者",
+    ];
+    Df::from_string_rows(&COLS, &out)
+}
+
+/// 巨潮-互动易-回答（对应 akshare [`akshare.stock_irm_ans_cninfo`]）。
+///
+/// - `symbol`: 提问者编号（由 [`stock_irm_cninfo`] 的 `提问者编号` 列给出）。
+///
+/// # 返回列
+/// `股票代码, 公司简称, 问题, 回答内容, 提问者, 提问时间, 回答时间`
+pub fn stock_irm_ans_cninfo(symbol: &str) -> Result<Df> {
+    let url = "https://irm.cninfo.com.cn/newircs/question/getQuestionDetail";
+    let params = json!({ "questionId": symbol, "_t": "1691146921" });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json(url, &params, None)?;
+    let data = value.get("data").cloned().unwrap_or(Value::Null);
+    if data
+        .as_object()
+        .map(|o| !o.contains_key("replyDate"))
+        .unwrap_or(true)
+    {
+        return Df::from_string_rows(
+            &[
+                "股票代码",
+                "公司简称",
+                "问题",
+                "回答内容",
+                "提问者",
+                "提问时间",
+                "回答时间",
+            ],
+            &[],
+        );
+    }
+    let f = |k: &str| data.get(k).and_then(json_value_to_string);
+    let rows = vec![vec![
+        f("stockCode"),
+        f("shortName"),
+        f("questionContent"),
+        f("replyContent"),
+        f("questioner"),
+        f("questionDate").and_then(|s| irm_ms_to_shanghai(&s)),
+        f("replyDate").and_then(|s| irm_ms_to_shanghai(&s)),
+    ]];
+    const COLS: [&str; 7] = [
+        "股票代码",
+        "公司简称",
+        "问题",
+        "回答内容",
+        "提问者",
+        "提问时间",
+        "回答时间",
+    ];
+    Df::from_string_rows(&COLS, &rows)
+}
+
+/// 新浪财经-股票曾用名（对应 akshare [`akshare.stock_info_change_name`]）。
+///
+/// - `symbol`: 股票代码，如 `"000503"`。
+///
+/// 解析 `vCI_CorpInfo` 页面第 4 张表（`pd.read_html()[3]`），取
+/// 「证券简称更名历史」一行的空格分隔曾用名。
+///
+/// # 返回列
+/// `index, name`
+pub fn stock_info_change_name(symbol: &str) -> Result<Df> {
+    let url = format!(
+        "https://vip.stock.finance.sina.com.cn/corp/go.php/vCI_CorpInfo/stockid/{symbol}.phtml"
+    );
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &Map::new(), None)?;
+    let tables = crate::core::html::read_html_tables(&text)?;
+    let table = tables
+        .get(3)
+        .ok_or_else(|| AkshareError::Empty("新浪曾用名页面缺少第 4 张表".into()))?;
+    // 找「证券简称更名历史」行的 value
+    let mut history: Option<String> = None;
+    for row in table {
+        let first = row.first().cloned().unwrap_or_default();
+        if first.contains("证券简称更名历史") {
+            history = row.get(1).cloned();
+            break;
+        }
+    }
+    let history = history.unwrap_or_default();
+    let names: Vec<&str> = history.split(' ').filter(|s| !s.is_empty()).collect();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(names.len());
+    for (i, n) in names.iter().enumerate() {
+        out.push(vec![Some((i + 1).to_string()), Some((*n).to_string())]);
+    }
+    Df::from_string_rows(&["index", "name"], &out)
+}
+
+/// 沪深京 A 股列表（对应 akshare [`akshare.stock_info_a_code_name`]）。
+///
+/// 组合深市 A 股、沪市主板、科创板、北交所列表，列 `code, name`。
+///
+/// # 返回列
+/// `code, name`
+pub fn stock_info_a_code_name() -> Result<Df> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    // 深市 A 股（stock_info_sz_name_code("A股列表")：A股代码/A股简称）
+    if let Ok(sz) = stock_info_sz_name_code("A股列表") {
+        if let (Ok(c), Ok(n)) = (sz.inner().column("A股代码"), sz.inner().column("A股简称")) {
+            if let (Ok(cs), Ok(ns)) = (c.str(), n.str()) {
+                for (c, n) in cs.iter().zip(ns.iter()) {
+                    rows.push(vec![c.map(str::to_string), n.map(str::to_string)]);
+                }
+            }
+        }
+    }
+    // 沪市主板 + 科创板（stock_info_sh_name_code：证券代码/证券简称）
+    for sym in ["主板A股", "科创板"] {
+        if let Ok(sh) = stock_info_sh_name_code(sym) {
+            if let (Ok(c), Ok(n)) = (sh.inner().column("证券代码"), sh.inner().column("证券简称"))
+            {
+                if let (Ok(cs), Ok(ns)) = (c.str(), n.str()) {
+                    for (c, n) in cs.iter().zip(ns.iter()) {
+                        rows.push(vec![c.map(str::to_string), n.map(str::to_string)]);
+                    }
+                }
+            }
+        }
+    }
+    // 北交所（stock_info_bj_name_code：证券代码/证券简称）
+    if let Ok(bj) = stock_info_bj_name_code() {
+        if let (Ok(c), Ok(n)) = (bj.inner().column("证券代码"), bj.inner().column("证券简称"))
+        {
+            if let (Ok(cs), Ok(ns)) = (c.str(), n.str()) {
+                for (c, n) in cs.iter().zip(ns.iter()) {
+                    rows.push(vec![c.map(str::to_string), n.map(str::to_string)]);
+                }
+            }
+        }
+    }
+    Df::from_string_rows(&["code", "name"], &rows)
+}
+
+/// 巨潮资讯-首页-数据-预约披露（对应 akshare [`akshare.stock_report_disclosure`]）。
+///
+/// - `market`: `"沪深京"` / `"深市"` / `"深主板"` / `"创业板"` / `"沪市"` /
+///   `"沪主板"` / `"科创板"` / `"北交所"`
+/// - `period`: 财报期，如 `"2021年报"`（一季/半年报/三季/年报）
+///
+/// # 返回列
+/// `股票代码, 股票简称, 首次预约, 初次变更, 二次变更, 三次变更, 实际披露`
+pub fn stock_report_disclosure(market: &str, period: &str) -> Result<Df> {
+    let market_map = match market {
+        "沪深京" => "szsh",
+        "深市" => "sz",
+        "深主板" => "szmb",
+        "创业板" => "szcn",
+        "沪市" => "sh",
+        "沪主板" => "shmb",
+        "科创板" => "shkcp",
+        "北交所" => "bj",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 market: {other}，可选 沪深京/深市/深主板/创业板/沪市/沪主板/科创板/北交所"
+            )))
+        }
+    };
+    let year = period.get(..4).unwrap_or("");
+    let period_map = match period.get(4..).unwrap_or("") {
+        "一季" => format!("{year}-03-31"),
+        "半年报" => format!("{year}-06-30"),
+        "三季" => format!("{year}-09-30"),
+        "年报" => format!("{year}-12-31"),
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 period: {period}（{other}），可选 一季/半年报/三季/年报"
+            )))
+        }
+    };
+    let url = "http://www.cninfo.com.cn/new/information/getPrbookInfo";
+    let params = json!({
+        "sectionTime": period_map,
+        "firstTime": "",
+        "lastTime": "",
+        "market": market_map,
+        "stockCode": "",
+        "orderClos": "",
+        "isDesc": "",
+        "pagesize": "10000",
+        "pagenum": "1",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.post_form(url, &params, &[])?;
+    let rows = value
+        .get("prbookinfos")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("scode").or_else(|| f("stockCode")),
+            f("shortName").or_else(|| f("stockName")),
+            f("firstTime"),
+            f("firstChange"),
+            f("secondChange"),
+            f("thirdChange"),
+            f("actualTime").or_else(|| f("lastTime")),
+        ]);
+    }
+    const COLS: [&str; 7] = [
+        "股票代码",
+        "股票简称",
+        "首次预约",
+        "初次变更",
+        "二次变更",
+        "三次变更",
+        "实际披露",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["首次预约", "初次变更", "二次变更", "三次变更", "实际披露"])?;
+    Ok(df)
+}
+
+// === BATCH36-G 深交所股票列表/退市/名称变更（szse.cn ShowReport xlsx）===
+//
+// 对应 akshare `stock/stock_info.py` 的 `stock_info_sz_*`。走
+// `www.szse.cn/api/report/ShowReport`（SHOWTYPE=xlsx 下载），用 calamine
+// 解析首个工作表为字符串二维数组，列契约与 akshare 逐字对齐。
+
+/// calamine 解析 xlsx 首个工作表为字符串二维数组（对应 akshare `pd.read_excel`）。
+fn szse_xlsx_rows(bytes: &[u8]) -> Result<Vec<Vec<String>>> {
+    use calamine::{Data, Reader, Xlsx};
+    let cur = std::io::Cursor::new(bytes.to_vec());
+    let mut wb = Xlsx::new(cur).map_err(|e| AkshareError::Empty(format!("xlsx 解析失败: {e}")))?;
+    let range = wb
+        .worksheet_range_at(0)
+        .ok_or_else(|| AkshareError::Empty("xlsx 无工作表".into()))?
+        .map_err(|e| AkshareError::Empty(format!("读取 xlsx 工作表失败: {e}")))?;
+    let mut rows = Vec::with_capacity(range.height());
+    for r in range.rows() {
+        let mut row = Vec::with_capacity(r.len());
+        for c in r {
+            row.push(match c {
+                Data::Empty => String::new(),
+                Data::String(s) => s.clone(),
+                Data::Float(f) => {
+                    let v = *f;
+                    if v.fract() == 0.0 {
+                        format!("{}", v as i64)
+                    } else {
+                        format!("{v}")
+                    }
+                }
+                Data::Int(i) => i.to_string(),
+                Data::Bool(b) => b.to_string(),
+                Data::DateTime(_) => String::new(),
+                Data::Error(e) => format!("{e:?}"),
+                other => other.to_string(),
+            });
+        }
+        rows.push(row);
+    }
+    Ok(rows)
+}
+
+/// 深交所 ShowReport xlsx 下载（首行表头 + 数据行）。
+fn szse_showreport(catalog: &str, tabkey: &str) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+    let url = "https://www.szse.cn/api/report/ShowReport";
+    let params = json!({
+        "SHOWTYPE": "xlsx",
+        "CATALOGID": catalog,
+        "TABKEY": tabkey,
+        "random": "0.6935816432433362",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let bytes = http.get_bytes_with_headers(
+        url,
+        &params,
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )],
+        None,
+    )?;
+    let all = szse_xlsx_rows(&bytes)?;
+    let mut iter = all.into_iter();
+    let header = iter.next().unwrap_or_default();
+    let data: Vec<Vec<String>> = iter.collect();
+    Ok((header, data))
+}
+
+/// 深交所-股票列表（对应 akshare [`akshare.stock_info_sz_name_code`]）。
+///
+/// - `symbol`: `"A股列表"` / `"B股列表"` / `"CDR列表"` / `"AB股列表"`
+///
+/// # 返回列
+/// A/B 股列表：`板块, {A|B}股代码, {A|B}股简称, {A|B}股上市日期, {A|B}股总股本, {A|B}股流通股本, 所属行业`；
+/// AB 股列表：`板块, A股代码, A股简称, A股上市日期, B股代码, B股简称, B股上市日期, 所属行业`
+pub fn stock_info_sz_name_code(symbol: &str) -> Result<Df> {
+    let tabkey = match symbol {
+        "A股列表" => "tab1",
+        "B股列表" => "tab2",
+        "CDR列表" => "tab3",
+        "AB股列表" => "tab4",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 A股列表/B股列表/CDR列表/AB股列表"
+            )))
+        }
+    };
+    let (_header, data) = szse_showreport("1110", tabkey)?;
+    let pick = |row: &[String], i: usize| row.get(i).cloned().map(Some).unwrap_or(None);
+    let norm_code = |s: &str| -> String {
+        // akshare：astype(str).split(".")[0].zfill(6).replace("000nan","")
+        let base = s.split('.').next().unwrap_or("").to_string();
+        let z = format!("{:0>6}", base);
+        if z == "000nan" {
+            String::new()
+        } else {
+            z
+        }
+    };
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(data.len());
+    match symbol {
+        "A股列表" => {
+            for row in &data {
+                let code = norm_code(&pick(row, 4).unwrap_or_default());
+                if code.is_empty() {
+                    continue;
+                }
+                out.push(vec![
+                    pick(row, 0),
+                    Some(code),
+                    pick(row, 5),
+                    pick(row, 6),
+                    pick(row, 7),
+                    pick(row, 8),
+                    pick(row, 17),
+                ]);
+            }
+            const COLS: [&str; 7] = [
+                "板块",
+                "A股代码",
+                "A股简称",
+                "A股上市日期",
+                "A股总股本",
+                "A股流通股本",
+                "所属行业",
+            ];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_date(&["A股上市日期"])?;
+            df.cast_numeric(&["A股总股本", "A股流通股本"])?;
+            Ok(df)
+        }
+        "B股列表" => {
+            for row in &data {
+                let code = norm_code(&pick(row, 9).unwrap_or_default());
+                if code.is_empty() {
+                    continue;
+                }
+                out.push(vec![
+                    pick(row, 0),
+                    Some(code),
+                    pick(row, 10),
+                    pick(row, 11),
+                    pick(row, 12),
+                    pick(row, 13),
+                    pick(row, 17),
+                ]);
+            }
+            const COLS: [&str; 7] = [
+                "板块",
+                "B股代码",
+                "B股简称",
+                "B股上市日期",
+                "B股总股本",
+                "B股流通股本",
+                "所属行业",
+            ];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_date(&["B股上市日期"])?;
+            df.cast_numeric(&["B股总股本", "B股流通股本"])?;
+            Ok(df)
+        }
+        "AB股列表" => {
+            for row in &data {
+                let a_code = norm_code(&pick(row, 4).unwrap_or_default());
+                let b_code = norm_code(&pick(row, 9).unwrap_or_default());
+                if a_code.is_empty() && b_code.is_empty() {
+                    continue;
+                }
+                out.push(vec![
+                    pick(row, 0),
+                    Some(a_code),
+                    pick(row, 5),
+                    pick(row, 6),
+                    Some(b_code),
+                    pick(row, 10),
+                    pick(row, 11),
+                    pick(row, 17),
+                ]);
+            }
+            const COLS: [&str; 8] = [
+                "板块",
+                "A股代码",
+                "A股简称",
+                "A股上市日期",
+                "B股代码",
+                "B股简称",
+                "B股上市日期",
+                "所属行业",
+            ];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_date(&["A股上市日期", "B股上市日期"])?;
+            Ok(df)
+        }
+        _ => {
+            // CDR列表：返回原始表（akshare 无 select，直接返回）
+            Df::from_string_rows(
+                &[
+                    "板块",
+                    "公司全称",
+                    "英文名称",
+                    "注册地址",
+                    "A股代码",
+                    "A股简称",
+                    "A股上市日期",
+                    "A股总股本",
+                    "A股流通股本",
+                    "B股代码",
+                    "B股简称",
+                    "B股上市日期",
+                    "B股总股本",
+                    "B股流通股本",
+                    "地区",
+                    "省份",
+                    "城市",
+                    "所属行业",
+                    "公司网址",
+                ],
+                &[],
+            )
+        }
+    }
+}
+
+/// 深交所-暂停/终止上市公司（对应 akshare [`akshare.stock_info_sz_delist`]）。
+///
+/// - `symbol`: `"暂停上市公司"` / `"终止上市公司"`
+///
+/// # 返回列
+/// 原始 xlsx 列（`证券代码, 证券简称, ...`），证券代码 zfill(6)、日期列归一。
+pub fn stock_info_sz_delist(symbol: &str) -> Result<Df> {
+    let tabkey = match symbol {
+        "暂停上市公司" => "tab1",
+        "终止上市公司" => "tab2",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 暂停上市公司/终止上市公司"
+            )))
+        }
+    };
+    let (header, data) = szse_showreport("1793_ssgs", tabkey)?;
+    if data.is_empty() {
+        return Df::from_string_rows(&["证券代码"], &[]);
+    }
+    // 按表头名取列：证券代码 zfill(6)，上市日期/终止上市日期 cast_date
+    let code_idx = header
+        .iter()
+        .position(|h| h.contains("证券代码"))
+        .unwrap_or(0);
+    let date_idx: Vec<usize> = header
+        .iter()
+        .enumerate()
+        .filter(|(_, h)| h.contains("日期"))
+        .map(|(i, _)| i)
+        .collect();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(data.len());
+    for row in &data {
+        let mut r: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+        if let Some(Some(s)) = r.get_mut(code_idx) {
+            *s = format!("{:0>6}", s);
+        }
+        out.push(r);
+    }
+    let col_refs: Vec<&str> = header.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    let date_cols: Vec<&str> = date_idx
+        .iter()
+        .filter_map(|i| header.get(*i).map(String::as_str))
+        .collect();
+    df.cast_date(&date_cols)?;
+    Ok(df)
+}
+
+/// 深交所-股票名称变更（对应 akshare [`akshare.stock_info_sz_change_name`]）。
+///
+/// - `symbol`: `"全称变更"` / `"简称变更"`
+///
+/// # 返回列
+/// 原始 xlsx 列，`证券代码` zfill(6)、`变更日期` 归一并按变更日期升序。
+pub fn stock_info_sz_change_name(symbol: &str) -> Result<Df> {
+    let tabkey = match symbol {
+        "全称变更" => "tab1",
+        "简称变更" => "tab2",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 全称变更/简称变更"
+            )))
+        }
+    };
+    let (header, mut data) = szse_showreport("SSGSGMXX", tabkey)?;
+    let code_idx = header
+        .iter()
+        .position(|h| h.contains("证券代码"))
+        .unwrap_or(0);
+    let date_idx = header
+        .iter()
+        .position(|h| h.contains("变更日期"))
+        .unwrap_or(0);
+    // 证券代码 zfill(6)
+    for row in data.iter_mut() {
+        if let Some(c) = row.get_mut(code_idx) {
+            *c = format!("{:0>6}", c);
+        }
+    }
+    // 按变更日期升序（akshare sort_values）
+    data.sort_by(|a, b| {
+        let da = a.get(date_idx).cloned().unwrap_or_default();
+        let db = b.get(date_idx).cloned().unwrap_or_default();
+        da.cmp(&db)
+    });
+    let col_refs: Vec<&str> = header.iter().map(String::as_str).collect();
+    let opt_rows: Vec<Vec<Option<String>>> = data
+        .iter()
+        .map(|row| row.iter().map(|s| Some(s.clone())).collect())
+        .collect();
+    let mut df = Df::from_string_rows(&col_refs, &opt_rows)?;
+    df.cast_date(&["变更日期"])?;
+    Ok(df)
+}
+
+/// 深交所-总貌-证券类别统计（对应 akshare [`akshare.stock_szse_summary`]）。
+///
+/// - `date`: 最近结束交易日 `YYYYMMDD`
+///
+/// # 返回列
+/// `证券类别, 数量, 成交金额, 总市值, 流通市值`
+pub fn stock_szse_summary(date: &str) -> Result<Df> {
+    let url = "http://www.szse.cn/api/report/ShowReport";
+    // txtQueryDate 由 date 拼接；单独构造参数
+    let mut params = Map::new();
+    params.insert("SHOWTYPE".into(), Value::String("xlsx".into()));
+    params.insert("CATALOGID".into(), Value::String("1803_sczm".into()));
+    params.insert("TABKEY".into(), Value::String("tab1".into()));
+    params.insert(
+        "txtQueryDate".into(),
+        Value::String(format!("{}-{}-{}", &date[0..4], &date[4..6], &date[6..8])),
+    );
+    params.insert("random".into(), Value::String("0.39339437497296137".into()));
+    let http = HttpClient::default();
+    let bytes = http.get_bytes_with_headers(
+        url,
+        &params,
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )],
+        None,
+    )?;
+    let all = szse_xlsx_rows(&bytes)?;
+    let mut iter = all.into_iter();
+    let header = iter.next().unwrap_or_default();
+    let data: Vec<Vec<String>> = iter.collect();
+    // 列契约：证券类别, 数量, 成交金额, 总市值, 流通市值（数量/金额去逗号后数值化）
+    let name_idx = header
+        .iter()
+        .position(|h| h.contains("证券类别"))
+        .unwrap_or(0);
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(data.len());
+    for row in &data {
+        let norm = |i: usize| -> Option<String> {
+            row.get(i)
+                .map(|s| s.replace(',', ""))
+                .map(Some)
+                .unwrap_or(None)
+        };
+        out.push(vec![
+            row.get(name_idx).cloned().map(|s| s.trim().to_string()),
+            norm(1),
+            norm(2),
+            norm(3),
+            norm(4),
+        ]);
+    }
+    const COLS: [&str; 5] = ["证券类别", "数量", "成交金额", "总市值", "流通市值"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&["数量", "成交金额", "总市值", "流通市值"])?;
+    Ok(df)
+}
+
+/// 深交所-总貌-地区交易排序（对应 akshare [`akshare.stock_szse_area_summary`]）。
+///
+/// - `date`: 最近结束交易日年月 `YYYYMM`
+///
+/// # 返回列
+/// `序号, 地区, 总交易额, 占市场, 股票交易额, 基金交易额, 债券交易额, 优先股交易额, 期权交易额`
+pub fn stock_szse_area_summary(date: &str) -> Result<Df> {
+    let mut params = Map::new();
+    params.insert("SHOWTYPE".into(), Value::String("xlsx".into()));
+    params.insert("CATALOGID".into(), Value::String("1803_sczm".into()));
+    params.insert("TABKEY".into(), Value::String("tab2".into()));
+    params.insert(
+        "DATETIME".into(),
+        Value::String(format!("{}-{}", &date[0..4], &date[4..6])),
+    );
+    params.insert("random".into(), Value::String("0.39349437497296137".into()));
+    let http = HttpClient::default();
+    let bytes = http.get_bytes_with_headers(
+        "https://www.szse.cn/api/report/ShowReport",
+        &params,
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )],
+        None,
+    )?;
+    let all = szse_xlsx_rows(&bytes)?;
+    let mut iter = all.into_iter();
+    let header = iter.next().unwrap_or_default();
+    let data: Vec<Vec<String>> = iter.collect();
+    // 列重命名：序号/地区/总交易额(元)/占市场%/股票交易额(元)/基金交易额(元)/债券交易额(元)/优先股交易额(元)/期权交易额(元)
+    let rename = [
+        ("序号", "序号"),
+        ("地区", "地区"),
+        ("总交易额", "总交易额"),
+        ("占市场", "占市场"),
+        ("股票交易额", "股票交易额"),
+        ("基金交易额", "基金交易额"),
+        ("债券交易额", "债券交易额"),
+        ("优先股交易额", "优先股交易额"),
+        ("期权交易额", "期权交易额"),
+    ];
+    let cols: Vec<String> = header
+        .iter()
+        .map(|h| {
+            for (k, v) in &rename {
+                if h.contains(k) {
+                    return (*v).to_string();
+                }
+            }
+            h.clone()
+        })
+        .collect();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(data.len());
+    for row in &data {
+        let mut r: Vec<Option<String>> = row
+            .iter()
+            .map(|s| {
+                if s.contains(',') {
+                    Some(s.replace(',', ""))
+                } else {
+                    Some(s.clone())
+                }
+            })
+            .collect();
+        // 序号归一为数字字符串
+        if let Some(Some(s)) = r.first_mut() {
+            if let Ok(n) = s.parse::<f64>() {
+                *s = format!("{}", n as i64);
+            }
+        }
+        out.push(r);
+    }
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    df.cast_numeric(&[
+        "序号",
+        "总交易额",
+        "占市场",
+        "股票交易额",
+        "基金交易额",
+        "债券交易额",
+        "优先股交易额",
+        "期权交易额",
+    ])?;
+    Ok(df)
+}
+
+/// 上交所-总貌（对应 akshare [`akshare.stock_sse_summary`]）。
+///
+/// # 返回列
+/// `项目, 股票, 主板, 科创板`
+pub fn stock_sse_summary() -> Result<Df> {
+    let url = "http://query.sse.com.cn/commonQuery.do";
+    let params = json!({
+        "sqlId": "COMMON_SSE_SJ_GPSJ_GPSJZM_TJSJ_L",
+        "PRODUCT_NAME": "股票,主板,科创板",
+        "type": "inParams",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data =
+        http.get_json_with_headers(url, &params, &[("Referer", "http://www.sse.com.cn/")], None)?;
+    let result = data.get("result").cloned().unwrap_or(Value::Null);
+    // akshare：pd.DataFrame(result).T → index 顺序即结果键序（流通股本,总市值,...）
+    let obj = result.as_object().cloned().unwrap_or_default();
+    // 目标行序（akshare 的 index 覆盖表）
+    let order = [
+        "流通股本",
+        "总市值",
+        "平均市盈率",
+        "上市公司",
+        "上市股票",
+        "流通市值",
+        "报告时间",
+    ];
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(order.len());
+    for name in &order {
+        let row = obj
+            .get(*name)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let f = |i: usize| row.get(i).and_then(json_value_to_string);
+        out.push(vec![Some((*name).to_string()), f(0), f(1), f(2)]);
+    }
+    const COLS: [&str; 4] = ["项目", "股票", "主板", "科创板"];
+    Df::from_string_rows(&COLS, &out)
+}
+
+/// 上交所-每日股票情况（对应 akshare [`akshare.stock_sse_deal_daily`]）。
+///
+/// - `date`: 交易日 `YYYYMMDD`
+///
+/// # 返回列
+/// `单日情况, 股票, 主板A, 主板B, 科创板, 股票回购`
+pub fn stock_sse_deal_daily(date: &str) -> Result<Df> {
+    let url = "https://query.sse.com.cn/commonQuery.do";
+    let params = json!({
+        "sqlId": "COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C",
+        "PRODUCT_CODE": "01,02,03,11,17",
+        "type": "inParams",
+        "SEARCH_DATE": format!("{}-{}-{}", &date[0..4], &date[4..6], &date[6..8]),
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data = http.get_json_with_headers(
+        url,
+        &params,
+        &[("Referer", "https://www.sse.com.cn/")],
+        None,
+    )?;
+    let result = data.get("result").cloned().unwrap_or(Value::Null);
+    // akshare：pd.DataFrame(result).T → 行 = result 键序（单日情况,主板A,主板B,科创板,股票回购,股票 或变体）
+    let obj = result.as_object().cloned().unwrap_or_default();
+    // 列名覆盖表按键序：单日情况,主板A,主板B,科创板,股票回购,股票
+    let names = ["单日情况", "主板A", "主板B", "科创板", "股票回购", "股票"];
+    let keys: Vec<String> = obj.keys().cloned().collect();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(keys.len());
+    for (i, k) in keys.iter().enumerate() {
+        let row = obj
+            .get(k)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let name = names.get(i).copied().unwrap_or("单日情况");
+        let f = |j: usize| row.get(j).and_then(json_value_to_string);
+        out.push(vec![
+            Some((*name).to_string()),
+            f(0),
+            f(1),
+            f(2),
+            f(3),
+            f(4),
+        ]);
+    }
+    const COLS: [&str; 6] = ["单日情况", "股票", "主板A", "主板B", "科创板", "股票回购"];
+    Df::from_string_rows(&COLS, &out)
+}
+
+/// 东财-沪深港通-港股通(沪>港)-股票实时行情（对应 akshare [`akshare.stock_hsgt_sh_hk_spot_em`]）。
+///
+/// push2 clist（`fs=b:DLMK0144`，`fltt=1` 原始值百分位），按 `代码` 排序 + 序号。
+/// 数值化时按 akshare 语义缩放：价类 ÷1000、涨跌幅 ÷100、量额 ÷1e8。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 涨跌额, 涨跌幅, 今开, 最高, 最低, 昨收, 成交量, 成交额`
+pub fn stock_hsgt_sh_hk_spot_em() -> Result<Df> {
+    let urls = push2_urls("/api/qt/clist/get");
+    let params = json!({
+        "np": "1",
+        "fltt": "1",
+        "invt": "2",
+        "fs": "b:DLMK0144",
+        "fields": "f12,f13,f14,f19,f1,f2,f4,f3,f152,f17,f18,f15,f16,f5,f6",
+        "fid": "f12",
+        "pn": "1",
+        "pz": "100",
+        "po": "1",
+        "dect": "1",
+        "wbp2u": "|0|0|0|web",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let rows = http.fetch_paginated_diff_any(&urls, &params, None)?;
+    // 按代码排序（akshare sort_values(["代码"], ignore_index)）
+    let mut rows = rows;
+    rows.sort_by(|a, b| {
+        let ca = a.get("f12").and_then(Value::as_str).unwrap_or("");
+        let cb = b.get("f12").and_then(Value::as_str).unwrap_or("");
+        ca.cmp(cb)
+    });
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, row) in rows.iter().enumerate() {
+        let f = |k: &str| row.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f("f12"),
+            f("f14"),
+            f("f2"),
+            f("f4"),
+            f("f3"),
+            f("f17"),
+            f("f15"),
+            f("f16"),
+            f("f18"),
+            f("f5"),
+            f("f6"),
+        ]);
+    }
+    const COLS: [&str; 12] = [
+        "序号",
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "今开",
+        "最高",
+        "最低",
+        "昨收",
+        "成交量",
+        "成交额",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&[
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "今开",
+        "最高",
+        "最低",
+        "昨收",
+        "成交量",
+        "成交额",
+    ])?;
+    // 缩放：价类 ÷1000、涨跌幅 ÷100、量额 ÷1e8（对应 akshare）
+    df.scale("最新价", 1000.0)?;
+    df.scale("涨跌额", 1000.0)?;
+    df.scale("涨跌幅", 100.0)?;
+    df.scale("今开", 1000.0)?;
+    df.scale("最高", 1000.0)?;
+    df.scale("最低", 1000.0)?;
+    df.scale("昨收", 1000.0)?;
+    df.scale("成交量", 1e8)?;
+    df.scale("成交额", 1e8)?;
+    Ok(df)
+}
+
+/// 东财-美股市场-粉单市场实时行情（对应 akshare [`akshare.stock_us_pink_spot_em`]）。
+///
+/// 23.push2 clist（`fs=m:153`，`fltt=1` 原始值百分位），位置式列名 + 12 列 select，
+/// `代码 = 编码.简称`（对应 akshare `str(f13) + "." + f14`）。
+///
+/// # 返回列
+/// `序号, 名称, 最新价, 涨跌额, 涨跌幅, 开盘价, 最高价, 最低价, 昨收价, 总市值, 市盈率, 代码`
+pub fn stock_us_pink_spot_em() -> Result<Df> {
+    const URL: &str = "https://23.push2.eastmoney.com/api/qt/clist/get";
+    let params = json!({
+        "np": "1",
+        "fltt": "1",
+        "invt": "1",
+        "fs": "m:153",
+        "fields": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f26,f22,f33,f11,f62,f128,f136,f115,f152",
+        "fid": "f3",
+        "pn": "1",
+        "pz": "100",
+        "po": "1",
+        "dect": "1",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let mut rows: Vec<Value> = Vec::new();
+    // 分页拉取全部（对应 akshare 手动分页 concat，不排序）
+    let first = http.get_json(URL, &params, None)?;
+    let total = first
+        .get("data")
+        .and_then(|d| d.get("total"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    rows.extend(
+        first
+            .get("data")
+            .and_then(|d| d.get("diff"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
+    );
+    let total_pages = total.div_ceil(100);
+    for page in 2..=total_pages {
+        let mut p = params.clone();
+        p.insert("pn".into(), json!(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_json(URL, &p, None) {
+            Ok(v) => {
+                if let Some(list) = v
+                    .get("data")
+                    .and_then(|d| d.get("diff"))
+                    .and_then(Value::as_array)
+                {
+                    rows.extend(list.iter().cloned());
+                } else {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, row) in rows.iter().enumerate() {
+        let f = |k: &str| row.get(k).and_then(json_value_to_string);
+        // fltt=1 原始值百分位 → ×1e-2（akshare 未显式除，此处保持原样由调用方按 fltt=1 理解；
+        // 实际 akshare 未缩放，值即原始百分位，故不缩放以对齐 akshare）
+        let raw = |k: &str| f(k);
+        let code = match (f("f13"), f("f14")) {
+            (Some(enc), Some(abbr)) => Some(format!("{enc}.{abbr}")),
+            _ => None,
+        };
+        out.push(vec![
+            Some((i + 1).to_string()),
+            raw("f14"),
+            raw("f2"),
+            raw("f4"),
+            raw("f3"),
+            raw("f17"),
+            raw("f15"),
+            raw("f16"),
+            raw("f18"),
+            raw("f20"),
+            raw("f62"),
+            code,
+        ]);
+    }
+    const COLS: [&str; 12] = [
+        "序号",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "开盘价",
+        "最高价",
+        "最低价",
+        "昨收价",
+        "总市值",
+        "市盈率",
+        "代码",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&[
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "开盘价",
+        "最高价",
+        "最低价",
+        "昨收价",
+        "总市值",
+        "市盈率",
+    ])?;
+    Ok(df)
+}
+
+/// 东财-沪深港通-AH股比价-实时行情（对应 akshare [`akshare.stock_zh_ah_spot_em`]）。
+///
+/// push2 clist（`fs=b:DLMK0101`，`fltt=1` 原始值百分位），fetch_clist 按 f3 排序 +
+/// 序号。数值化时按 akshare 语义缩放：最新价-HKD ÷1000、其余 ÷100。
+///
+/// # 返回列
+/// `序号, 名称, H股代码, 最新价-HKD, H股-涨跌幅, A股代码, 最新价-RMB, A股-涨跌幅, 比价, 溢价`
+pub fn stock_zh_ah_spot_em() -> Result<Df> {
+    let urls = push2_urls("/api/qt/clist/get");
+    let params = json!({
+        "np": "1",
+        "fltt": "1",
+        "invt": "2",
+        "fs": "b:DLMK0101",
+        "fields": "f193,f191,f192,f12,f13,f14,f1,f2,f4,f3,f152,f186,f190,f187,f189,f188",
+        "fid": "f3",
+        "pn": "1",
+        "pz": "100",
+        "po": "1",
+        "dect": "1",
+        "wbp2u": "|0|0|0|web",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let df = fetch_clist(&http, &urls, &params)?;
+    // rename + select（对应 akshare rename 后 select 10 列）
+    let rename = [
+        ("index", "序号"),
+        ("f193", "名称"),
+        ("f12", "H股代码"),
+        ("f2", "最新价-HKD"),
+        ("f3", "H股-涨跌幅"),
+        ("f191", "A股代码"),
+        ("f186", "最新价-RMB"),
+        ("f187", "A股-涨跌幅"),
+        ("f189", "比价"),
+        ("f188", "溢价"),
+    ];
+    let select = [
+        "序号",
+        "名称",
+        "H股代码",
+        "最新价-HKD",
+        "H股-涨跌幅",
+        "A股代码",
+        "最新价-RMB",
+        "A股-涨跌幅",
+        "比价",
+        "溢价",
+    ];
+    let numeric = [
+        "最新价-HKD",
+        "H股-涨跌幅",
+        "最新价-RMB",
+        "A股-涨跌幅",
+        "比价",
+        "溢价",
+    ];
+    let mut df = crate::sources::eastmoney::finalize_spot(df, &rename, &select, &numeric)?;
+    // 缩放：HKD ÷1000、其余 ÷100（对应 akshare `/1000` 与 `/100`）
+    df.scale("最新价-HKD", 1000.0)?;
+    df.scale("H股-涨跌幅", 100.0)?;
+    df.scale("最新价-RMB", 100.0)?;
+    df.scale("A股-涨跌幅", 100.0)?;
+    df.scale("比价", 100.0)?;
+    df.scale("溢价", 100.0)?;
+    Ok(df)
+}
+
+// === BATCH36-E 腾讯财经-港股 AH（stock.gtimg.cn/data/hk_rank.php）===
+//
+// 对应 akshare `stock/stock_zh_ah_tx.py`：`hk_rank.php` 返回 `var list_data={...}`，
+// `data.page_data` 为 `~` 分隔字符串数组（20 条/页），分页合并后按位置列名。
+// 注意与东财 [`stock_zh_ah_spot_em`]（`b:DLMK0101`）是不同接口。
+
+const TX_HK_RANK_URL: &str = "http://stock.gtimg.cn/data/hk_rank.php";
+const TX_HK_RANK_HEADERS: &[(&str, &str)] = &[
+    ("Referer", "http://stockapp.finance.qq.com/mstats/"),
+    ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36"),
+];
+
+/// 腾讯 AH 分页数据公共拉取：返回全部页的 `page_data` 字符串数组。
+fn tx_ah_page_data() -> Result<Vec<String>> {
+    let http = HttpClient::default();
+    let params = json!({
+        "board": "A_H",
+        "metric": "price",
+        "pageSize": "20",
+        "reqPage": "1",
+        "order": "decs",
+        "var_name": "list_data",
+    });
+    let mut params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+
+    let first_text =
+        http.get_text_with_headers(TX_HK_RANK_URL, &params, TX_HK_RANK_HEADERS, None)?;
+    let first: Value = tx_jsonp_parse(&first_text, TX_HK_RANK_URL)?;
+    let page_count = first
+        .get("data")
+        .and_then(|d| d.get("page_count"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    let mut out: Vec<String> = Vec::new();
+    let append = |v: &Value, out: &mut Vec<String>| {
+        if let Some(arr) = v
+            .get("data")
+            .and_then(|d| d.get("page_data"))
+            .and_then(Value::as_array)
+        {
+            for s in arr.iter().filter_map(Value::as_str) {
+                out.push(s.to_string());
+            }
+        }
+    };
+    append(&first, &mut out);
+    for page in 1..page_count {
+        params.insert("reqPage".into(), json!(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_text_with_headers(TX_HK_RANK_URL, &params, TX_HK_RANK_HEADERS, None) {
+            Ok(t) => {
+                if let Ok(v) = tx_jsonp_parse(&t, TX_HK_RANK_URL) {
+                    append(&v, &mut out);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    Ok(out)
+}
+
+/// 解析腾讯 `var xxx={...};` JSONP 响应（取首 `{` 到末 `}`）。
+fn tx_jsonp_parse(text: &str, url: &str) -> Result<Value> {
+    let start = text
+        .find('{')
+        .ok_or_else(|| AkshareError::Empty("腾讯 JSONP 响应缺少对象".into()))?;
+    let end = text
+        .rfind('}')
+        .ok_or_else(|| AkshareError::Empty("腾讯 JSONP 响应缺少对象尾".into()))?;
+    serde_json::from_str(&text[start..=end]).map_err(|e| AkshareError::json(url, e.to_string()))
+}
+
+/// 腾讯财经-港股-AH-实时行情（对应 akshare [`akshare.stock_zh_ah_spot`]）。
+///
+/// # 返回列
+/// `代码, 名称, 最新价, 涨跌幅, 涨跌额, 买入, 卖出, 成交量, 成交额, 今开, 昨收, 最高, 最低`
+pub fn stock_zh_ah_spot() -> Result<Df> {
+    let data = tx_ah_page_data()?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(data.len());
+    for line in &data {
+        let parts: Vec<&str> = line.split('~').collect();
+        let pick = |i: usize| parts.get(i).map(|s| Some((*s).to_string())).unwrap_or(None);
+        rows.push(vec![
+            pick(0),
+            pick(1),
+            pick(2),
+            pick(3),
+            pick(4),
+            pick(5),
+            pick(6),
+            pick(7),
+            pick(8),
+            pick(9),
+            pick(10),
+            pick(11),
+            pick(12),
+        ]);
+    }
+    const COLS: [&str; 13] = [
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌幅",
+        "涨跌额",
+        "买入",
+        "卖出",
+        "成交量",
+        "成交额",
+        "今开",
+        "昨收",
+        "最高",
+        "最低",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&COLS[2..])?;
+    Ok(df)
+}
+
+/// 腾讯财经-港股-AH-股票名称（对应 akshare [`akshare.stock_zh_ah_name`]）。
+///
+/// # 返回列
+/// `代码, 名称`
+pub fn stock_zh_ah_name() -> Result<Df> {
+    let data = tx_ah_page_data()?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(data.len());
+    for line in &data {
+        let parts: Vec<&str> = line.split('~').collect();
+        rows.push(vec![
+            parts
+                .first()
+                .map(|s| Some((*s).to_string()))
+                .unwrap_or(None),
+            parts.get(1).map(|s| Some((*s).to_string())).unwrap_or(None),
+        ]);
+    }
+    const COLS: [&str; 2] = ["代码", "名称"];
+    Df::from_string_rows(&COLS, &rows)
+}
+
+/// 腾讯财经-港股-AH-股票历史行情（对应 akshare [`akshare.stock_zh_ah_daily`]）。
+///
+/// - `symbol`: 股票代码，如 `"02318"`
+/// - `start_year`/`end_year`: 年份字符串（左闭右开，与 akshare 一致）
+/// - `adjust`: `""` / `"qfq"` / `"hfq"`
+///
+/// # 返回列
+/// `date, open, close, high, low, volume`（akshare 最终列契约）
+pub fn stock_zh_ah_daily(
+    symbol: &str,
+    start_year: &str,
+    end_year: &str,
+    adjust: &str,
+) -> Result<Df> {
+    let http = HttpClient::default();
+    let sy: i32 = start_year
+        .parse()
+        .map_err(|_| AkshareError::Param(format!("start_year 非数字: {start_year}")))?;
+    let ey: i32 = end_year
+        .parse()
+        .map_err(|_| AkshareError::Param(format!("end_year 非数字: {end_year}")))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for year in sy..ey {
+        let url = if adjust.is_empty() {
+            "http://web.ifzq.gtimg.cn/appstock/app/kline/kline"
+        } else {
+            "https://web.ifzq.gtimg.cn/appstock/app/hkfqkline/get"
+        };
+        let params = json!({
+            "_var": format!("kline_day{adjust}{year}"),
+            "param": format!("hk{symbol},day,{year}-01-01,{}-12-31,640,{}", year + 1, adjust),
+            "r": rand::random::<f64>().to_string(),
+        });
+        let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        let text = http.get_text(url, &params, Some("http://gu.qq.com/hk01033/gp"))?;
+        // 响应 `var kline_dayxxx={...};` 取对象
+        let start = text
+            .find('{')
+            .ok_or_else(|| AkshareError::Empty("腾讯 K 线响应缺少对象".into()))?;
+        let end = text
+            .rfind('}')
+            .ok_or_else(|| AkshareError::Empty("腾讯 K 线响应缺少对象尾".into()))?;
+        let obj: Value = serde_json::from_str(&text[start..=end])
+            .map_err(|e| AkshareError::json(url, e.to_string()))?;
+        // data.hk02318.qfqday / day / hfqday 数组，每行 "YYYY-MM-DD open close high low volume ..."
+        let stock_key = format!("hk{symbol}");
+        let data = obj.get("data").and_then(|d| d.get(&stock_key));
+        let day = data
+            .and_then(|d| d.get(format!("{adjust}day").as_str()))
+            .or_else(|| data.and_then(|d| d.get("day")))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        for line in day.iter().filter_map(Value::as_array) {
+            let pick = |i: usize| {
+                line.get(i)
+                    .and_then(Value::as_str)
+                    .map(|s| Some(s.to_string()))
+                    .unwrap_or(None)
+            };
+            rows.push(vec![pick(0), pick(1), pick(2), pick(3), pick(4), pick(5)]);
+        }
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+    }
+    const COLS: [&str; 6] = ["date", "open", "close", "high", "low", "volume"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
 /// 涨停股池（对应 akshare [`akshare.stock_zt_pool_em`]）。
 ///
 /// `date`: 交易日 `YYYYMMDD`。数据为空（非交易日或当日无涨停）时返回
@@ -856,6 +5412,869 @@ pub fn stock_individual_fund_flow(stock: &str, market: &str) -> Result<Df> {
         None => Err(AkshareError::empty(format!("{stock} 无资金流数据"))),
         Some(k) => finalize_fflow(k),
     }
+}
+
+/// 资金流排名接口公共分页（不排序，保留接口返回顺序；对应 akshare 手动分页 concat）。
+///
+/// 返回 `(rows, )`：rows 为全部页的 `diff` 行。调用方负责重命名/编序。
+fn fund_flow_rank_rows(http: &HttpClient, params: &Map<String, Value>) -> Result<Vec<Value>> {
+    let urls = push2_urls("/api/qt/clist/get");
+    http.fetch_paginated_diff_any(&urls, params, None)
+}
+
+/// 大盘资金流（对应 akshare [`akshare.stock_market_fund_flow`]）。
+///
+/// push2his `fflow/daykline/get`（secid=1.000001 + secid2=0.399001），15 字段。
+///
+/// # 返回列
+/// `日期, 上证-收盘价, 上证-涨跌幅, 深证-收盘价, 深证-涨跌幅,
+/// 主力净流入-净额, 主力净流入-净占比, 超大单净流入-净额, 超大单净流入-净占比,
+/// 大单净流入-净额, 大单净流入-净占比, 中单净流入-净额, 中单净流入-净占比,
+/// 小单净流入-净额, 小单净流入-净占比`
+pub fn stock_market_fund_flow() -> Result<Df> {
+    let http = HttpClient::default();
+    let params = json!({
+        "lmt": "0",
+        "klt": "101",
+        "secid": "1.000001",
+        "secid2": "0.399001",
+        "fields1": "f1,f2,f3,f7",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65",
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let value = http.get_json(
+        "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get",
+        &params,
+        None,
+    )?;
+    let klines = value
+        .get("data")
+        .and_then(|d| d.get("klines"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    // 15 字段：日期,主力净流入-净额,小单净流入-净额,中单净流入-净额,大单净流入-净额,
+    // 超大单净流入-净额,主力净流入-净占比,小单净流入-净占比,中单净流入-净占比,大单净流入-净占比,
+    // 超大单净流入-净占比,上证-收盘价,上证-涨跌幅,深证-收盘价,深证-涨跌幅
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(klines.len());
+    for line in klines.iter().filter_map(Value::as_str) {
+        let f: Vec<&str> = line.split(',').collect();
+        let pick = |i: usize| f.get(i).map(|s| Some((*s).to_string())).unwrap_or(None);
+        rows.push(vec![
+            pick(0),
+            pick(11),
+            pick(12),
+            pick(13),
+            pick(14),
+            pick(1),
+            pick(6),
+            pick(5),
+            pick(10),
+            pick(4),
+            pick(9),
+            pick(3),
+            pick(8),
+            pick(2),
+            pick(7),
+        ]);
+    }
+    const COLS: [&str; 15] = [
+        "日期",
+        "上证-收盘价",
+        "上证-涨跌幅",
+        "深证-收盘价",
+        "深证-涨跌幅",
+        "主力净流入-净额",
+        "主力净流入-净占比",
+        "超大单净流入-净额",
+        "超大单净流入-净占比",
+        "大单净流入-净额",
+        "大单净流入-净占比",
+        "中单净流入-净额",
+        "中单净流入-净占比",
+        "小单净流入-净额",
+        "小单净流入-净占比",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
+/// 个股资金流排行（对应 akshare [`akshare.stock_individual_fund_flow_rank`]）。
+///
+/// - `indicator`: `"今日"` / `"3日"` / `"5日"` / `"10日"`
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, {n}日涨跌幅, {n}日主力净流入-净额, {n}日主力净流入-净占比,
+/// {n}日超大单净流入-净额, {n}日超大单净流入-净占比, {n}日大单净流入-净额, {n}日大单净流入-净占比,
+/// {n}日中单净流入-净额, {n}日中单净流入-净占比, {n}日小单净流入-净额, {n}日小单净流入-净占比`
+pub fn stock_individual_fund_flow_rank(indicator: &str) -> Result<Df> {
+    let (fid, fields, prefix): (&str, &str, &str) = match indicator {
+        "今日" => (
+            "f62",
+            "f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124",
+            "今日",
+        ),
+        "3日" => (
+            "f267",
+            "f12,f14,f2,f127,f267,f268,f269,f270,f271,f272,f273,f274,f275,f276,f257,f258,f124",
+            "3日",
+        ),
+        "5日" => (
+            "f164",
+            "f12,f14,f2,f109,f164,f165,f166,f167,f168,f169,f170,f171,f172,f173,f257,f258,f124",
+            "5日",
+        ),
+        "10日" => (
+            "f174",
+            "f12,f14,f2,f160,f174,f175,f176,f177,f178,f179,f180,f181,f182,f183,f260,f261,f124",
+            "10日",
+        ),
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 indicator: {other}，可选 今日/3日/5日/10日"
+            )))
+        }
+    };
+    let params = json!({
+        "fid": fid,
+        "po": "1",
+        "pz": "100",
+        "pn": "1",
+        "np": "1",
+        "fltt": "2",
+        "invt": "2",
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+        "fs": "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2",
+        "fields": fields,
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let rows = fund_flow_rank_rows(&http, &params)?;
+    fund_flow_rank_build(&rows, prefix)
+}
+
+/// 资金流排名输出列（名称前缀不同，字段抽取相同模式：f12/f14/f2 + 涨跌幅 + 9 个净流入列）。
+fn fund_flow_rank_build(rows: &[Value], prefix: &str) -> Result<Df> {
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, row) in rows.iter().enumerate() {
+        let f = |k: &str| row.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()), // 序号（akshare index=range(1,n+1)）
+            f("f12"),
+            f("f14"),
+            f("f2"),
+            f(if prefix == "今日" {
+                "f3"
+            } else if prefix == "3日" {
+                "f127"
+            } else if prefix == "5日" {
+                "f109"
+            } else {
+                "f160"
+            }),
+            f(if prefix == "今日" {
+                "f62"
+            } else if prefix == "3日" {
+                "f267"
+            } else if prefix == "5日" {
+                "f164"
+            } else {
+                "f174"
+            }),
+            f(if prefix == "今日" {
+                "f184"
+            } else if prefix == "3日" {
+                "f268"
+            } else if prefix == "5日" {
+                "f165"
+            } else {
+                "f175"
+            }),
+            f(if prefix == "今日" {
+                "f66"
+            } else if prefix == "3日" {
+                "f269"
+            } else if prefix == "5日" {
+                "f166"
+            } else {
+                "f176"
+            }),
+            f(if prefix == "今日" {
+                "f69"
+            } else if prefix == "3日" {
+                "f270"
+            } else if prefix == "5日" {
+                "f167"
+            } else {
+                "f177"
+            }),
+            f(if prefix == "今日" {
+                "f72"
+            } else if prefix == "3日" {
+                "f271"
+            } else if prefix == "5日" {
+                "f168"
+            } else {
+                "f178"
+            }),
+            f(if prefix == "今日" {
+                "f75"
+            } else if prefix == "3日" {
+                "f272"
+            } else if prefix == "5日" {
+                "f169"
+            } else {
+                "f179"
+            }),
+            f(if prefix == "今日" {
+                "f78"
+            } else if prefix == "3日" {
+                "f273"
+            } else if prefix == "5日" {
+                "f170"
+            } else {
+                "f180"
+            }),
+            f(if prefix == "今日" {
+                "f81"
+            } else if prefix == "3日" {
+                "f274"
+            } else if prefix == "5日" {
+                "f171"
+            } else {
+                "f181"
+            }),
+            f(if prefix == "今日" {
+                "f84"
+            } else if prefix == "3日" {
+                "f275"
+            } else if prefix == "5日" {
+                "f172"
+            } else {
+                "f182"
+            }),
+            f(if prefix == "今日" {
+                "f87"
+            } else if prefix == "3日" {
+                "f276"
+            } else if prefix == "5日" {
+                "f173"
+            } else {
+                "f183"
+            }),
+        ]);
+    }
+    let cols: Vec<String> = vec![
+        "序号".into(),
+        "代码".into(),
+        "名称".into(),
+        "最新价".into(),
+        format!("{prefix}涨跌幅"),
+        format!("{prefix}主力净流入-净额"),
+        format!("{prefix}主力净流入-净占比"),
+        format!("{prefix}超大单净流入-净额"),
+        format!("{prefix}超大单净流入-净占比"),
+        format!("{prefix}大单净流入-净额"),
+        format!("{prefix}大单净流入-净占比"),
+        format!("{prefix}中单净流入-净额"),
+        format!("{prefix}中单净流入-净占比"),
+        format!("{prefix}小单净流入-净额"),
+        format!("{prefix}小单净流入-净占比"),
+    ];
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    df.cast_numeric(&col_refs[3..])?;
+    Ok(df)
+}
+
+/// 主力净流入排名（对应 akshare [`akshare.stock_main_fund_flow`]）。
+///
+/// - `symbol`: `"全部股票"` / `"沪深A股"` / `"沪市A股"` / `"科创板"` / `"深市A股"` /
+///   `"创业板"` / `"沪市B股"` / `"深市B股"`
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, 今日排行榜-主力净占比, 今日排行榜-今日排名, 今日排行榜-今日涨跌,
+/// 5日排行榜-主力净占比, 5日排行榜-5日排名, 5日排行榜-5日涨跌,
+/// 10日排行榜-主力净占比, 10日排行榜-10日排名, 10日排行榜-10日涨跌, 所属板块`
+pub fn stock_main_fund_flow(symbol: &str) -> Result<Df> {
+    let fs = match symbol {
+        "全部股票" => "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2",
+        "沪深A股" => "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2",
+        "沪市A股" => "m:1+t:2+f:!2,m:1+t:23+f:!2",
+        "科创板" => "m:1+t:23+f:!2",
+        "深市A股" => "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2",
+        "创业板" => "m:0+t:80+f:!2",
+        "沪市B股" => "m:1+t:3+f:!2",
+        "深市B股" => "m:0+t:7+f:!2",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 全部股票/沪深A股/沪市A股/科创板/深市A股/创业板/沪市B股/深市B股"
+            )))
+        }
+    };
+    let params = json!({
+        "fid": "f184",
+        "po": "1",
+        "pz": "100",
+        "pn": "1",
+        "np": "1",
+        "fltt": "2",
+        "invt": "2",
+        "fields": "f2,f3,f12,f13,f14,f62,f184,f225,f165,f263,f109,f175,f264,f160,f100,f124,f265,f1",
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+        "fs": fs,
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    // akshare 用 fetch_paginated_data（f3 数值降序 + 序号）
+    let df = fetch_clist(&http, &push2_urls("/api/qt/clist/get"), &params)?;
+    let df = df.select(&[
+        "index", "f12", "f14", "f2", "f184", "f225", "f3", "f165", "f263", "f109", "f175", "f264",
+        "f160", "f100",
+    ])?;
+    let mut df = df;
+    df.rename_columns(&[
+        "序号",
+        "代码",
+        "名称",
+        "最新价",
+        "今日排行榜-主力净占比",
+        "今日排行榜-今日排名",
+        "今日排行榜-今日涨跌",
+        "5日排行榜-主力净占比",
+        "5日排行榜-5日排名",
+        "5日排行榜-5日涨跌",
+        "10日排行榜-主力净占比",
+        "10日排行榜-10日排名",
+        "10日排行榜-10日涨跌",
+        "所属板块",
+    ])?;
+    df.cast_numeric(&[
+        "最新价",
+        "今日排行榜-主力净占比",
+        "今日排行榜-今日排名",
+        "今日排行榜-今日涨跌",
+        "5日排行榜-主力净占比",
+        "5日排行榜-5日排名",
+        "5日排行榜-5日涨跌",
+        "10日排行榜-主力净占比",
+        "10日排行榜-10日排名",
+        "10日排行榜-10日涨跌",
+    ])?;
+    Ok(df)
+}
+
+/// 板块资金流排名（对应 akshare [`akshare.stock_sector_fund_flow_rank`]）。
+///
+/// - `indicator`: `"今日"` / `"5日"` / `"10日"`
+/// - `sector_type`: `"行业资金流"` / `"概念资金流"` / `"地域资金流"`
+///
+/// # 返回列
+/// `序号, 名称, {n}日涨跌幅, {n}日主力净流入-净额, {n}日主力净流入-净占比,
+/// {n}日超大单净流入-净额, {n}日超大单净流入-净占比, {n}日大单净流入-净额, {n}日大单净流入-净占比,
+/// {n}日中单净流入-净额, {n}日中单净流入-净占比, {n}日小单净流入-净额, {n}日小单净流入-净占比,
+/// {n}日主力净流入最大股`
+pub fn stock_sector_fund_flow_rank(indicator: &str, sector_type: &str) -> Result<Df> {
+    let t = match sector_type {
+        "行业资金流" => "2",
+        "概念资金流" => "3",
+        "地域资金流" => "1",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 sector_type: {other}，可选 行业资金流/概念资金流/地域资金流"
+            )))
+        }
+    };
+    let (fid0, stat, fields, prefix): (&str, &str, &str, &str) = match indicator {
+        "今日" => (
+            "f62",
+            "1",
+            "f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124",
+            "今日",
+        ),
+        "5日" => (
+            "f164",
+            "5",
+            "f12,f14,f2,f109,f164,f165,f166,f167,f168,f169,f170,f171,f172,f173,f257,f258,f124",
+            "5日",
+        ),
+        "10日" => (
+            "f174",
+            "10",
+            "f12,f14,f2,f160,f174,f175,f176,f177,f178,f179,f180,f181,f182,f183,f260,f261,f124",
+            "10日",
+        ),
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 indicator: {other}，可选 今日/5日/10日"
+            )))
+        }
+    };
+    let params = json!({
+        "pn": "1",
+        "pz": "100",
+        "po": "1",
+        "np": "1",
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+        "fltt": "2",
+        "invt": "2",
+        "fid0": fid0,
+        "fs": format!("m:90 t:{t}"),
+        "stat": stat,
+        "fields": fields,
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let rows = fund_flow_rank_rows(&http, &params)?;
+    sector_fund_flow_rank_build(&rows, prefix)
+}
+
+/// 板块资金流排名输出（按 主力净流入-净额 数值降序 + 序号，对应 akshare sort_values）。
+fn sector_fund_flow_rank_build(rows: &[Value], prefix: &str) -> Result<Df> {
+    let main_net = |row: &Value| -> Option<String> {
+        row.get(if prefix == "今日" {
+            "f62"
+        } else if prefix == "5日" {
+            "f164"
+        } else {
+            "f174"
+        })
+        .and_then(json_value_to_string)
+    };
+    let mut out: Vec<(Option<String>, Vec<Option<String>>)> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let f = |k: &str| row.get(k).and_then(json_value_to_string);
+        let main = main_net(row);
+        out.push((
+            main.clone(),
+            vec![
+                f("f14"),
+                f(if prefix == "今日" {
+                    "f3"
+                } else if prefix == "5日" {
+                    "f109"
+                } else {
+                    "f160"
+                }),
+                main,
+                f(if prefix == "今日" {
+                    "f184"
+                } else if prefix == "5日" {
+                    "f165"
+                } else {
+                    "f175"
+                }),
+                f(if prefix == "今日" {
+                    "f66"
+                } else if prefix == "5日" {
+                    "f166"
+                } else {
+                    "f176"
+                }),
+                f(if prefix == "今日" {
+                    "f69"
+                } else if prefix == "5日" {
+                    "f167"
+                } else {
+                    "f177"
+                }),
+                f(if prefix == "今日" {
+                    "f72"
+                } else if prefix == "5日" {
+                    "f168"
+                } else {
+                    "f178"
+                }),
+                f(if prefix == "今日" {
+                    "f75"
+                } else if prefix == "5日" {
+                    "f169"
+                } else {
+                    "f179"
+                }),
+                f(if prefix == "今日" {
+                    "f78"
+                } else if prefix == "5日" {
+                    "f170"
+                } else {
+                    "f180"
+                }),
+                f(if prefix == "今日" {
+                    "f81"
+                } else if prefix == "5日" {
+                    "f171"
+                } else {
+                    "f181"
+                }),
+                f(if prefix == "今日" {
+                    "f84"
+                } else if prefix == "5日" {
+                    "f172"
+                } else {
+                    "f182"
+                }),
+                f(if prefix == "今日" {
+                    "f87"
+                } else if prefix == "5日" {
+                    "f173"
+                } else {
+                    "f183"
+                }),
+                f(if prefix == "今日" {
+                    "f204"
+                } else if prefix == "5日" {
+                    "f257"
+                } else {
+                    "f260"
+                }),
+            ],
+        ));
+    }
+    // 按主力净流入-净额 数值降序（缺失置后），对应 akshare sort_values(ascending=False)
+    let num = |v: &str| v.parse::<f64>().ok();
+    out.sort_by(|a, b| {
+        b.0.as_deref()
+            .and_then(num)
+            .partial_cmp(&a.0.as_deref().and_then(num))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut rows_out: Vec<Vec<Option<String>>> = Vec::with_capacity(out.len());
+    for (i, (_, r)) in out.iter().enumerate() {
+        let mut row = vec![Some((i + 1).to_string())];
+        row.extend(r.iter().cloned());
+        rows_out.push(row);
+    }
+    let cols: Vec<String> = vec![
+        "序号".into(),
+        "名称".into(),
+        format!("{prefix}涨跌幅"),
+        format!("{prefix}主力净流入-净额"),
+        format!("{prefix}主力净流入-净占比"),
+        format!("{prefix}超大单净流入-净额"),
+        format!("{prefix}超大单净流入-净占比"),
+        format!("{prefix}大单净流入-净额"),
+        format!("{prefix}大单净流入-净占比"),
+        format!("{prefix}中单净流入-净额"),
+        format!("{prefix}中单净流入-净占比"),
+        format!("{prefix}小单净流入-净额"),
+        format!("{prefix}小单净流入-净占比"),
+        format!("{prefix}主力净流入最大股"),
+    ];
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &rows_out)?;
+    df.cast_numeric(&col_refs[2..=12])?;
+    Ok(df)
+}
+
+/// 板块代码映射（对应 akshare `_get_stock_sector_fund_flow_summary_code`：
+/// clist `m:90 t:2` 行业 名称→代码；`m:90 t:3` 概念）。
+fn sector_code_map(
+    http: &HttpClient,
+    t: &str,
+) -> Result<std::collections::HashMap<String, String>> {
+    let params = json!({
+        "fid": "f62",
+        "po": "1",
+        "pz": "100",
+        "pn": "1",
+        "np": "1",
+        "fltt": "2",
+        "invt": "2",
+        "ut": "8dec03ba335b81bf4ebdf7b29ec27d15",
+        "fs": format!("m:90 t:{t}"),
+        "fields": "f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124,f1,f13",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let rows = fund_flow_rank_rows(http, &params)?;
+    let mut map = std::collections::HashMap::new();
+    for row in rows {
+        let name = row
+            .get("f14")
+            .and_then(json_value_to_string)
+            .unwrap_or_default();
+        let code = row
+            .get("f12")
+            .and_then(json_value_to_string)
+            .unwrap_or_default();
+        if !name.is_empty() && !code.is_empty() {
+            map.insert(name, code);
+        }
+    }
+    Ok(map)
+}
+
+/// 行业/概念历史资金流公共实现（push2his fflow，secid=90.{code}，11 列）。
+fn sector_fflow_hist(symbol: &str, t: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let map = sector_code_map(&http, t)?;
+    let code = map
+        .get(symbol)
+        .ok_or_else(|| AkshareError::Param(format!("未知板块名称: {symbol}（{t}）")))?;
+    let params = json!({
+        "lmt": "0",
+        "klt": "101",
+        "fields1": "f1,f2,f3,f7",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65",
+        "secid": format!("90.{code}"),
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let value = http.get_json(
+        "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get",
+        &params,
+        None,
+    )?;
+    let klines = value
+        .get("data")
+        .and_then(|d| d.get("klines"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 15 字段：日期,主力净流入-净额,小单净流入-净额,中单净流入-净额,大单净流入-净额,
+    // 超大单净流入-净额,主力净流入-净占比,小单净流入-净占比,中单净流入-净占比,大单净流入-净占比,
+    // 超大单净流入-净占比,-,-,-,-
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(klines.len());
+    for line in klines.iter().filter_map(Value::as_str) {
+        let f: Vec<&str> = line.split(',').collect();
+        let pick = |i: usize| f.get(i).map(|s| Some((*s).to_string())).unwrap_or(None);
+        rows.push(vec![
+            pick(0),
+            pick(1),
+            pick(6),
+            pick(5),
+            pick(10),
+            pick(4),
+            pick(9),
+            pick(3),
+            pick(8),
+            pick(2),
+            pick(7),
+        ]);
+    }
+    const COLS: [&str; 11] = [
+        "日期",
+        "主力净流入-净额",
+        "主力净流入-净占比",
+        "超大单净流入-净额",
+        "超大单净流入-净占比",
+        "大单净流入-净额",
+        "大单净流入-净占比",
+        "中单净流入-净额",
+        "中单净流入-净占比",
+        "小单净流入-净额",
+        "小单净流入-净占比",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
+/// 行业历史资金流（对应 akshare [`akshare.stock_sector_fund_flow_hist`]）。
+///
+/// - `symbol`: 行业名称，如 `"汽车服务"`。
+///
+/// # 返回列
+/// `日期, 主力净流入-净额, 主力净流入-净占比, 超大单净流入-净额, 超大单净流入-净占比,
+/// 大单净流入-净额, 大单净流入-净占比, 中单净流入-净额, 中单净流入-净占比,
+/// 小单净流入-净额, 小单净流入-净占比`
+pub fn stock_sector_fund_flow_hist(symbol: &str) -> Result<Df> {
+    sector_fflow_hist(symbol, "2")
+}
+
+/// 概念历史资金流（对应 akshare [`akshare.stock_concept_fund_flow_hist`]）。
+///
+/// - `symbol`: 概念名称，如 `"数据要素"`。
+///
+/// # 返回列
+/// `日期, 主力净流入-净额, 主力净流入-净占比, 超大单净流入-净额, 超大单净流入-净占比,
+/// 大单净流入-净额, 大单净流入-净占比, 中单净流入-净额, 中单净流入-净占比,
+/// 小单净流入-净额, 小单净流入-净占比`
+pub fn stock_concept_fund_flow_hist(symbol: &str) -> Result<Df> {
+    sector_fflow_hist(symbol, "3")
+}
+
+/// 行业资金流-xx行业个股资金流（对应 akshare [`akshare.stock_sector_fund_flow_summary`]）。
+///
+/// - `symbol`: 行业名称，如 `"电源设备"`。
+/// - `indicator`: `"今日"` / `"5日"` / `"10日"`
+///
+/// 接口返回 `data.diff` 为「序号→行」对象（akshare `pd.DataFrame(diff).T` 转置 +
+/// `index.astype(int)+1` 序号），Rust 侧按对象键序展开。
+///
+/// # 返回列
+/// `序号, 代码, 名称, 最新价, {n}日涨跌幅, {n}日主力净流入-净额, {n}日主力净流入-净占比,
+/// {n}日超大单净流入-净额, {n}日超大单净流入-净占比, {n}日大单净流入-净额, {n}日大单净流入-净占比,
+/// {n}日中单净流入-净额, {n}日中单净流入-净占比, {n}日小单净流入-净额, {n}日小单净流入-净占比`
+pub fn stock_sector_fund_flow_summary(symbol: &str, indicator: &str) -> Result<Df> {
+    let (fid, fields, prefix): (&str, &str, &str) = match indicator {
+        "今日" => (
+            "f62",
+            "f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124,f1,f13",
+            "今日",
+        ),
+        "5日" => (
+            "f164",
+            "f12,f14,f2,f109,f164,f165,f166,f167,f168,f169,f170,f171,f172,f173,f257,f258,f124,f1,f13",
+            "5日",
+        ),
+        "10日" => (
+            "f174",
+            "f12,f14,f2,f160,f174,f175,f176,f177,f178,f179,f180,f181,f182,f183,f260,f261,f124,f1,f13",
+            "10日",
+        ),
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 indicator: {other}，可选 今日/5日/10日"
+            )))
+        }
+    };
+    let http = HttpClient::default();
+    let map = sector_code_map(&http, "2")?;
+    let code = map
+        .get(symbol)
+        .ok_or_else(|| AkshareError::Param(format!("未知行业名称: {symbol}")))?;
+    let params = json!({
+        "fid": fid,
+        "po": "1",
+        "pz": "5000",
+        "pn": "1",
+        "np": "2",
+        "fltt": "2",
+        "invt": "2",
+        "fs": format!("b:{code}"),
+        "fields": fields,
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let value = http.get_json(&push2_urls("/api/qt/clist/get")[0], &params, None)?;
+    // diff 为「序号→行」对象：按键序展开为行列表
+    let diff = value
+        .get("data")
+        .and_then(|d| d.get("diff"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let mut rows_vec: Vec<Value> = Vec::new();
+    match diff {
+        Value::Array(arr) => rows_vec = arr,
+        Value::Object(map) => {
+            let mut entries: Vec<_> = map.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            rows_vec = entries.into_iter().map(|(_, v)| v).collect();
+        }
+        _ => {}
+    }
+
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows_vec.len());
+    for (i, row) in rows_vec.iter().enumerate() {
+        let f = |k: &str| row.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()), // 序号
+            f("f12"),
+            f("f14"),
+            f("f2"),
+            f(if prefix == "今日" {
+                "f3"
+            } else if prefix == "5日" {
+                "f109"
+            } else {
+                "f160"
+            }),
+            f(if prefix == "今日" {
+                "f62"
+            } else if prefix == "5日" {
+                "f164"
+            } else {
+                "f174"
+            }),
+            f(if prefix == "今日" {
+                "f184"
+            } else if prefix == "5日" {
+                "f165"
+            } else {
+                "f175"
+            }),
+            f(if prefix == "今日" {
+                "f66"
+            } else if prefix == "5日" {
+                "f166"
+            } else {
+                "f176"
+            }),
+            f(if prefix == "今日" {
+                "f69"
+            } else if prefix == "5日" {
+                "f167"
+            } else {
+                "f177"
+            }),
+            f(if prefix == "今日" {
+                "f72"
+            } else if prefix == "5日" {
+                "f168"
+            } else {
+                "f178"
+            }),
+            f(if prefix == "今日" {
+                "f75"
+            } else if prefix == "5日" {
+                "f169"
+            } else {
+                "f179"
+            }),
+            f(if prefix == "今日" {
+                "f78"
+            } else if prefix == "5日" {
+                "f170"
+            } else {
+                "f180"
+            }),
+            f(if prefix == "今日" {
+                "f81"
+            } else if prefix == "5日" {
+                "f171"
+            } else {
+                "f181"
+            }),
+            f(if prefix == "今日" {
+                "f84"
+            } else if prefix == "5日" {
+                "f172"
+            } else {
+                "f182"
+            }),
+            f(if prefix == "今日" {
+                "f87"
+            } else if prefix == "5日" {
+                "f173"
+            } else {
+                "f183"
+            }),
+        ]);
+    }
+    let cols: Vec<String> = vec![
+        "序号".into(),
+        "代码".into(),
+        "名称".into(),
+        "最新价".into(),
+        format!("{prefix}涨跌幅"),
+        format!("{prefix}主力净流入-净额"),
+        format!("{prefix}主力净流入-净占比"),
+        format!("{prefix}超大单净流入-净额"),
+        format!("{prefix}超大单净流入-净占比"),
+        format!("{prefix}大单净流入-净额"),
+        format!("{prefix}大单净流入-净占比"),
+        format!("{prefix}中单净流入-净额"),
+        format!("{prefix}中单净流入-净占比"),
+        format!("{prefix}小单净流入-净额"),
+        format!("{prefix}小单净流入-净占比"),
+    ];
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    df.cast_numeric(&col_refs[3..])?;
+    Ok(df)
 }
 
 /// 沪深港通资金流向（对应 akshare [`akshare.stock_hsgt_fund_flow_summary_em`]）。

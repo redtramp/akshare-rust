@@ -29,8 +29,13 @@ use akshare_rust::bond::{
 };
 use akshare_rust::cninfo::{
     bond_corporate_issue_cninfo, bond_cov_issue_cninfo, bond_cov_stock_issue_cninfo,
-    bond_local_government_issue_cninfo, bond_treasure_issue_cninfo, stock_dividend_cninfo,
-    stock_ipo_summary_cninfo, stock_new_gh_cninfo, stock_new_ipo_cninfo, stock_profile_cninfo,
+    bond_local_government_issue_cninfo, bond_treasure_issue_cninfo, stock_allotment_cninfo,
+    stock_cg_equity_mortgage_cninfo, stock_cg_guarantee_cninfo, stock_cg_lawsuit_cninfo,
+    stock_dividend_cninfo, stock_hold_change_cninfo, stock_hold_control_cninfo,
+    stock_hold_management_detail_cninfo, stock_hold_num_cninfo, stock_industry_category_cninfo,
+    stock_industry_change_cninfo, stock_industry_pe_ratio_cninfo, stock_ipo_summary_cninfo,
+    stock_new_gh_cninfo, stock_new_ipo_cninfo, stock_profile_cninfo, stock_rank_forecast_cninfo,
+    stock_share_change_cninfo,
 };
 use akshare_rust::core::df::Df;
 use akshare_rust::currency::{currency_boc_safe, currency_boc_sina};
@@ -164,6 +169,7 @@ use akshare_rust::energy::{
     energy_carbon_gz, energy_carbon_hb, energy_oil_detail, energy_oil_hist,
 };
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
+use akshare_rust::forex::{forex_hist_em, forex_spot_em};
 use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
     fund_etf_category_ths, fund_etf_spot_em, fund_etf_spot_ths, fund_lof_spot_em,
@@ -187,7 +193,7 @@ use akshare_rust::futures::{
     futures_warehouse_receipt_czce, futures_warehouse_receipt_dce, futures_zh_daily_sina,
     futures_zh_minute_sina, futures_zh_realtime, futures_zh_spot,
 };
-use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_spot_quote, fx_swap_quote};
+use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_quote_baidu, fx_spot_quote, fx_swap_quote};
 use akshare_rust::index::{index_zh_a_hist, index_zh_a_hist_min_em};
 use akshare_rust::interest_rate::rate_interbank;
 use akshare_rust::legu::{
@@ -197,7 +203,7 @@ use akshare_rust::legu::{
 };
 use akshare_rust::news::{
     news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
-    news_trade_notify_suspend_baidu,
+    news_trade_notify_suspend_baidu, stock_news_em,
 };
 use akshare_rust::option::{
     option_cffex_hs300_daily_sina, option_cffex_hs300_spot_sina, option_cffex_sz50_daily_sina,
@@ -211,6 +217,7 @@ use akshare_rust::option::{
     option_sse_spot_price_sina, option_sse_underlying_spot_price_sina, option_value_analysis_em,
     option_vol_gfex, option_vol_shfe,
 };
+use akshare_rust::reits::{reits_hist_em, reits_hist_min_em, reits_realtime_em};
 use akshare_rust::sina::{stock_hk_spot, stock_zh_a_minute};
 use akshare_rust::spot::{
     spot_corn_price_soozhu, spot_golden_benchmark_sge, spot_goods, spot_hist_sge,
@@ -224,10 +231,15 @@ use akshare_rust::stock::{
     stock_bid_ask_em,
     stock_board_concept_cons_em,
     stock_board_concept_hist_em,
+    stock_board_concept_hist_min_em,
     stock_board_concept_name_em,
+    stock_board_concept_spot_em,
     stock_board_industry_cons_em,
     stock_board_industry_hist_em,
+    stock_board_industry_hist_min_em,
     stock_board_industry_name_em,
+    stock_board_industry_spot_em,
+    stock_concept_fund_flow_hist,
     // === BATCH15 东财数据中心：股市日历/高管持股/股票回购（RPT_ORGOP_ALL / RPT_EXECUTIVE_HOLD_DETAILS / RPTA_WEB_GETHGLIST_NEW） ===
     stock_gsrl_gsdt_em,
     stock_hk_company_profile_em,
@@ -242,12 +254,18 @@ use akshare_rust::stock::{
     stock_hold_management_person_em,
     stock_hsgt_fund_flow_summary_em,
     stock_individual_fund_flow,
+    stock_individual_fund_flow_rank,
     stock_individual_info_em,
+    stock_main_fund_flow,
+    stock_market_fund_flow,
     // === BATCH17 东财数据中心：基金持仓（dataapi host，位置式列映射→键 rename） ===
     stock_report_fund_hold,
     // === BATCH16 东财数据中心：基金持仓明细（RPT_MAINDATA_MAIN_POSITIONDETAILS） ===
     stock_report_fund_hold_detail,
     stock_repurchase_em,
+    stock_sector_fund_flow_hist,
+    stock_sector_fund_flow_rank,
+    stock_sector_fund_flow_summary,
     stock_sh_a_spot_em,
     stock_sz_a_spot_em,
     stock_zh_a_hist,
@@ -267,6 +285,23 @@ use akshare_rust::stock::{
     stock_zt_pool_strong_em,
     stock_zt_pool_sub_new_em,
     stock_zt_pool_zbgc_em,
+};
+use akshare_rust::stock::{
+    get_us_stock_name, stock_hk_daily, stock_hk_famous_spot_em, stock_hk_fhpx_detail_ths,
+    stock_hot_search_baidu, stock_hsgt_sh_hk_spot_em, stock_info_a_code_name,
+    stock_info_bj_name_code, stock_info_change_name, stock_info_sh_delist, stock_info_sh_name_code,
+    stock_info_sz_change_name, stock_info_sz_delist, stock_info_sz_name_code, stock_intraday_em,
+    stock_intraday_sina, stock_irm_ans_cninfo, stock_irm_cninfo, stock_js_weibo_nlp_time,
+    stock_js_weibo_report, stock_news_main_cx, stock_price_js, stock_report_disclosure,
+    stock_sector_detail, stock_sector_spot, stock_share_hold_change_bse,
+    stock_share_hold_change_sse, stock_share_hold_change_szse, stock_sse_deal_daily,
+    stock_sse_summary, stock_staq_net_stop, stock_szse_area_summary, stock_szse_summary,
+    stock_us_daily, stock_us_famous_spot_em, stock_us_pink_spot_em, stock_us_spot,
+    stock_zh_a_cdr_daily, stock_zh_a_daily, stock_zh_a_disclosure_relation_cninfo,
+    stock_zh_a_disclosure_report_cninfo, stock_zh_a_new, stock_zh_a_spot, stock_zh_a_spot_tx,
+    stock_zh_a_stop_em, stock_zh_a_tick_tx_js, stock_zh_ah_daily, stock_zh_ah_name,
+    stock_zh_ah_spot, stock_zh_ah_spot_em, stock_zh_b_daily, stock_zh_b_minute, stock_zh_b_spot,
+    stock_zh_kcb_daily, stock_zh_kcb_spot,
 };
 use akshare_rust::stock::{
     stock_balance_sheet_by_report_delisted_em, stock_balance_sheet_by_report_em,
@@ -292,13 +327,15 @@ use akshare_rust::stock_feature::{
     stock_gpzy_distribute_statistics_bank_em, stock_gpzy_distribute_statistics_company_em,
     stock_gpzy_individual_pledge_ratio_detail_em, stock_gpzy_industry_data_em,
     stock_gpzy_pledge_ratio_detail_em, stock_gpzy_pledge_ratio_em, stock_gpzy_profile_em,
-    stock_hk_ggt_components_em, stock_hk_main_board_spot_em, stock_hot_keyword_em,
-    stock_hot_rank_detail_em, stock_hot_rank_detail_realtime_em, stock_hot_rank_em,
-    stock_hot_rank_latest_em, stock_hot_rank_relate_em, stock_hot_up_em, stock_hsgt_board_rank_em,
-    stock_hsgt_hist_em, stock_hsgt_hold_stock_em, stock_hsgt_individual_detail_em,
-    stock_hsgt_individual_em, stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em,
-    stock_ipo_hk_ths, stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em,
-    stock_lhb_detail_em, stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
+    stock_hk_ggt_components_em, stock_hk_hot_rank_detail_em, stock_hk_hot_rank_detail_realtime_em,
+    stock_hk_hot_rank_em, stock_hk_hot_rank_latest_em, stock_hk_main_board_spot_em,
+    stock_hot_keyword_em, stock_hot_rank_detail_em, stock_hot_rank_detail_realtime_em,
+    stock_hot_rank_em, stock_hot_rank_latest_em, stock_hot_rank_relate_em, stock_hot_up_em,
+    stock_hsgt_board_rank_em, stock_hsgt_hist_em, stock_hsgt_hold_stock_em,
+    stock_hsgt_individual_detail_em, stock_hsgt_individual_em,
+    stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_ipo_hk_ths,
+    stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
+    stock_lhb_hyyyb_em, stock_lhb_jgmmtj_em, stock_lhb_jgstatistic_em,
     stock_lhb_stock_detail_date_em, stock_lhb_stock_detail_em, stock_lhb_stock_statistic_em,
     stock_lhb_traderstatistic_em, stock_lhb_yyb_detail_em, stock_lhb_yybph_em, stock_lrb_em,
     stock_margin_account_info, stock_new_a_spot_em, stock_pg_em, stock_qbzf_em, stock_qsjy_em,
@@ -367,6 +404,7 @@ use akshare_rust::stock_fundamental::{
     stock_zh_a_gbjg_em,
     stock_zygc_em,
 };
+use akshare_rust::tool::tool_trade_date_hist_sina;
 use akshare_rust::xueqiu::{stock_hot_follow_xq, stock_hot_tweet_xq};
 use serde_json::json;
 
@@ -458,6 +496,22 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_board_concept_hist_em" => {
             let [s, p, d0, d1, a] = take5(func, args)?;
             Ok(stock_board_concept_hist_em(s, p, d0, d1, a)?)
+        }
+        "stock_board_concept_spot_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_board_concept_spot_em(s)?)
+        }
+        "stock_board_industry_spot_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_board_industry_spot_em(s)?)
+        }
+        "stock_board_concept_hist_min_em" => {
+            let [s, p] = take2(func, args)?;
+            Ok(stock_board_concept_hist_min_em(s, p)?)
+        }
+        "stock_board_industry_hist_min_em" => {
+            let [s, p] = take2(func, args)?;
+            Ok(stock_board_industry_hist_min_em(s, p)?)
         }
         "stock_zt_pool_em" => {
             let [d] = take1(func, args)?;
@@ -556,6 +610,31 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s, m] = take2(func, args)?;
             Ok(stock_individual_fund_flow(s, m)?)
         }
+        "stock_individual_fund_flow_rank" => {
+            let [i] = take1(func, args)?;
+            Ok(stock_individual_fund_flow_rank(i)?)
+        }
+        "stock_market_fund_flow" => Ok(stock_market_fund_flow()?),
+        "stock_main_fund_flow" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_main_fund_flow(s)?)
+        }
+        "stock_sector_fund_flow_rank" => {
+            let [i, t] = take2(func, args)?;
+            Ok(stock_sector_fund_flow_rank(i, t)?)
+        }
+        "stock_sector_fund_flow_hist" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_sector_fund_flow_hist(s)?)
+        }
+        "stock_sector_fund_flow_summary" => {
+            let [s, i] = take2(func, args)?;
+            Ok(stock_sector_fund_flow_summary(s, i)?)
+        }
+        "stock_concept_fund_flow_hist" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_concept_fund_flow_hist(s)?)
+        }
         "stock_lhb_detail_em" => {
             let [d0, d1] = take2(func, args)?;
             Ok(stock_lhb_detail_em(d0, d1)?)
@@ -578,6 +657,26 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(stock_profile_cninfo(s)?)
         }
+        "stock_industry_category_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_industry_category_cninfo(s)?)
+        }
+        "stock_industry_change_cninfo" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_industry_change_cninfo(s, d0, d1)?)
+        }
+        "stock_industry_pe_ratio_cninfo" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_industry_pe_ratio_cninfo(d)?)
+        }
+        "stock_rank_forecast_cninfo" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_rank_forecast_cninfo(d)?)
+        }
+        "stock_share_change_cninfo" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_share_change_cninfo(s, d0, d1)?)
+        }
         "stock_ipo_summary_cninfo" => {
             let [s] = take1(func, args)?;
             Ok(stock_ipo_summary_cninfo(s)?)
@@ -588,6 +687,39 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         "stock_new_ipo_cninfo" => Ok(stock_new_ipo_cninfo()?),
         "stock_new_gh_cninfo" => Ok(stock_new_gh_cninfo()?),
+        // === BATCH36-B cninfo 专题统计（股东股本/公司治理/配股） ===
+        "stock_hold_num_cninfo" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_hold_num_cninfo(d)?)
+        }
+        "stock_cg_equity_mortgage_cninfo" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_cg_equity_mortgage_cninfo(d)?)
+        }
+        "stock_cg_guarantee_cninfo" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_cg_guarantee_cninfo(s, d0, d1)?)
+        }
+        "stock_cg_lawsuit_cninfo" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_cg_lawsuit_cninfo(s, d0, d1)?)
+        }
+        "stock_hold_control_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hold_control_cninfo(s)?)
+        }
+        "stock_hold_change_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hold_change_cninfo(s)?)
+        }
+        "stock_hold_management_detail_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hold_management_detail_cninfo(s)?)
+        }
+        "stock_allotment_cninfo" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_allotment_cninfo(s, d0, d1)?)
+        }
         "bond_treasure_issue_cninfo" => {
             let [s, e] = take2(func, args)?;
             Ok(bond_treasure_issue_cninfo(s, e)?)
@@ -621,6 +753,166 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_margin_sse" => {
             let [d0, d1] = take2(func, args)?;
             Ok(stock_margin_sse(d0, d1)?)
+        }
+        "stock_info_sh_name_code" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_info_sh_name_code(s)?)
+        }
+        "stock_info_sh_delist" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_info_sh_delist(s)?)
+        }
+        "stock_info_bj_name_code" => Ok(stock_info_bj_name_code()?),
+        "stock_hk_famous_spot_em" => Ok(stock_hk_famous_spot_em()?),
+        "stock_us_famous_spot_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_us_famous_spot_em(s)?)
+        }
+        "stock_zh_a_spot_tx" => Ok(stock_zh_a_spot_tx()?),
+        "stock_zh_a_stop_em" => Ok(stock_zh_a_stop_em()?),
+        "stock_zh_a_new" => Ok(stock_zh_a_new()?),
+        "stock_zh_a_daily" => {
+            let [s, d0, d1, a] = take4(func, args)?;
+            Ok(stock_zh_a_daily(s, d0, d1, a)?)
+        }
+        "stock_us_pink_spot_em" => Ok(stock_us_pink_spot_em()?),
+        "stock_zh_ah_spot_em" => Ok(stock_zh_ah_spot_em()?),
+        "stock_zh_ah_spot" => Ok(stock_zh_ah_spot()?),
+        "stock_zh_ah_name" => Ok(stock_zh_ah_name()?),
+        "stock_zh_ah_daily" => {
+            let [s, y0, y1, a] = take4(func, args)?;
+            Ok(stock_zh_ah_daily(s, y0, y1, a)?)
+        }
+        "stock_hsgt_sh_hk_spot_em" => Ok(stock_hsgt_sh_hk_spot_em()?),
+        "stock_zh_a_spot" => Ok(stock_zh_a_spot()?),
+        "stock_irm_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_irm_cninfo(s)?)
+        }
+        "stock_irm_ans_cninfo" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_irm_ans_cninfo(s)?)
+        }
+        "stock_info_sz_name_code" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_info_sz_name_code(s)?)
+        }
+        "stock_info_sz_delist" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_info_sz_delist(s)?)
+        }
+        "stock_info_sz_change_name" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_info_sz_change_name(s)?)
+        }
+        "stock_info_change_name" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_info_change_name(s)?)
+        }
+        "stock_info_a_code_name" => Ok(stock_info_a_code_name()?),
+        "stock_report_disclosure" => {
+            let [m, p] = take2(func, args)?;
+            Ok(stock_report_disclosure(m, p)?)
+        }
+        "stock_zh_a_cdr_daily" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_zh_a_cdr_daily(s, d0, d1)?)
+        }
+        "stock_szse_summary" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_szse_summary(d)?)
+        }
+        "stock_szse_area_summary" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_szse_area_summary(d)?)
+        }
+        "stock_sse_summary" => Ok(stock_sse_summary()?),
+        "stock_sse_deal_daily" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_sse_deal_daily(d)?)
+        }
+        "stock_zh_b_daily" => {
+            let [s, d0, d1, a] = take4(func, args)?;
+            Ok(stock_zh_b_daily(s, d0, d1, a)?)
+        }
+        "stock_zh_b_minute" => {
+            let [s, p, a] = take3(func, args)?;
+            Ok(stock_zh_b_minute(s, p, a)?)
+        }
+        "stock_hk_daily" => {
+            let [s, a] = take2(func, args)?;
+            Ok(stock_hk_daily(s, a)?)
+        }
+        "stock_sector_spot" => {
+            let [i] = take1(func, args)?;
+            Ok(stock_sector_spot(i)?)
+        }
+        "stock_sector_detail" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_sector_detail(s)?)
+        }
+        "stock_zh_a_tick_tx_js" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_a_tick_tx_js(s)?)
+        }
+        "stock_intraday_sina" => {
+            let [s, d] = take2(func, args)?;
+            Ok(stock_intraday_sina(s, d)?)
+        }
+        "stock_staq_net_stop" => Ok(stock_staq_net_stop()?),
+        "stock_intraday_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_intraday_em(s)?)
+        }
+        "stock_news_main_cx" => Ok(stock_news_main_cx()?),
+        "stock_zh_a_disclosure_report_cninfo" => {
+            let [s, m, k, c, d0, d1] = take6(func, args)?;
+            Ok(stock_zh_a_disclosure_report_cninfo(s, m, k, c, d0, d1)?)
+        }
+        "stock_zh_a_disclosure_relation_cninfo" => {
+            let [s, m, d0, d1] = take4(func, args)?;
+            Ok(stock_zh_a_disclosure_relation_cninfo(s, m, d0, d1)?)
+        }
+        "stock_hot_search_baidu" => {
+            let [s, d, t] = take3(func, args)?;
+            Ok(stock_hot_search_baidu(s, d, t)?)
+        }
+        "stock_js_weibo_report" => {
+            let [t] = take1(func, args)?;
+            Ok(stock_js_weibo_report(t)?)
+        }
+        "stock_js_weibo_nlp_time" => Ok(stock_js_weibo_nlp_time()?),
+        "stock_price_js" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_price_js(s)?)
+        }
+        "stock_hk_fhpx_detail_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_fhpx_detail_ths(s)?)
+        }
+        "get_us_stock_name" => Ok(get_us_stock_name()?),
+        "stock_us_spot" => Ok(stock_us_spot()?),
+        "stock_us_daily" => {
+            let [s, a] = take2(func, args)?;
+            Ok(stock_us_daily(s, a)?)
+        }
+        "stock_zh_kcb_daily" => {
+            let [s, a] = take2(func, args)?;
+            Ok(stock_zh_kcb_daily(s, a)?)
+        }
+        "stock_zh_kcb_spot" => Ok(stock_zh_kcb_spot()?),
+        "stock_zh_b_spot" => Ok(stock_zh_b_spot()?),
+        "stock_share_hold_change_sse" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_share_hold_change_sse(s)?)
+        }
+        "stock_share_hold_change_szse" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_share_hold_change_szse(s)?)
+        }
+        "stock_share_hold_change_bse" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_share_hold_change_bse(s)?)
         }
         "stock_margin_detail_sse" => {
             let [d] = take1(func, args)?;
@@ -803,6 +1095,19 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(stock_lhb_yyb_detail_em(s)?)
         }
         "stock_hot_rank_em" => Ok(stock_hot_rank_em()?),
+        "stock_hk_hot_rank_em" => Ok(stock_hk_hot_rank_em()?),
+        "stock_hk_hot_rank_detail_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_hot_rank_detail_em(s)?)
+        }
+        "stock_hk_hot_rank_detail_realtime_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_hot_rank_detail_realtime_em(s)?)
+        }
+        "stock_hk_hot_rank_latest_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_hot_rank_latest_em(s)?)
+        }
         "stock_hot_up_em" => Ok(stock_hot_up_em()?),
         "stock_hot_rank_detail_em" => {
             let [s] = take1(func, args)?;
@@ -1673,6 +1978,30 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "fx_swap_quote" => Ok(fx_swap_quote()?),
         "fx_pair_quote" => Ok(fx_pair_quote()?),
         "fx_c_swap_cm" => Ok(fx_c_swap_cm()?),
+        "fx_quote_baidu" => {
+            let [s, t] = take2(func, args)?;
+            Ok(fx_quote_baidu(s, t)?)
+        }
+        // === 批次36 forex / reits / tool ===
+        "forex_spot_em" => Ok(forex_spot_em()?),
+        "forex_hist_em" => {
+            let [s] = take1(func, args)?;
+            Ok(forex_hist_em(s)?)
+        }
+        "reits_realtime_em" => Ok(reits_realtime_em()?),
+        "reits_hist_em" => {
+            let [s] = take1(func, args)?;
+            Ok(reits_hist_em(s)?)
+        }
+        "reits_hist_min_em" => {
+            let [s] = take1(func, args)?;
+            Ok(reits_hist_min_em(s)?)
+        }
+        "tool_trade_date_hist_sina" => Ok(tool_trade_date_hist_sina()?),
+        "stock_news_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_news_em(s)?)
+        }
         "bond_spot_deal" => Ok(bond_spot_deal()?),
         "bond_spot_quote" => Ok(bond_spot_quote()?),
         "bond_china_close_return_map" => Ok(bond_china_close_return_map()?),

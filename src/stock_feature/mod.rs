@@ -6488,6 +6488,137 @@ pub fn stock_hot_rank_relate_em(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH36-A 港股个股人气榜（stock_hk_hot_rank_*，emappdata）===
+//
+// 对应 akshare `stock/stock_hk_hot_rank_em.py`。复用 [`emappdata_stockrank`] /
+// [`push2_ulist`] 基础设施：人气榜接口（`marketType=000003`）返回 `sc` 形如
+// `HK|00700`，转为 push2 `secid`（`116.00700`）后补全行情字段。
+// 列名与 akshare 逐字对齐（loose parity：实时排名/行情值随时间变化）。
+
+/// 港股人气榜行构建（I/O 无关，便于离线单测）。
+fn hk_hot_rank_build(rank_arr: &[Value], ulist: &[Value]) -> Result<Df> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(rank_arr.len());
+    for (i, row) in rank_arr.iter().enumerate() {
+        let u = ulist.get(i);
+        let f2 = u.and_then(|x| hot_jstr(x.get("f2")));
+        let f3 = u.and_then(|x| hot_jstr(x.get("f3")));
+        let f14 = u.and_then(|x| hot_jstr(x.get("f14")));
+        let sc = hot_jstr(row.get("sc")).unwrap_or_default();
+        // akshare：temp_df["代码"] = sc.str.split("|").str[1]
+        let code = sc.split('|').nth(1).unwrap_or_default().to_string();
+        rows.push(vec![hot_jstr(row.get("rk")), Some(code), f14, f2, f3]);
+    }
+    const COLS: [&str; 5] = ["当前排名", "代码", "股票名称", "最新价", "涨跌幅"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["当前排名", "最新价", "涨跌幅"])?;
+    Ok(df)
+}
+
+/// 东财-个股人气榜-港股市场（对应 akshare [`akshare.stock_hk_hot_rank_em`]）。
+///
+/// 先拉取港股人气排名（`getAllCurrHkUsList`），再以 `116.{代码}` secid 经
+/// push2 ulist 补全名称/最新价/涨跌幅。
+///
+/// # 返回列
+/// `当前排名, 代码, 股票名称, 最新价, 涨跌幅`
+pub fn stock_hk_hot_rank_em() -> Result<Df> {
+    let payload = json!({ "marketType": "000003", "pageNo": 1, "pageSize": 100 })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let data = emappdata_stockrank("getAllCurrHkUsList", &payload)?;
+    let rank_arr = data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getAllCurrHkUsList 数据非数组".into()))?;
+    // akshare：mark = "116." + sc[3:]（sc 形如 "HK|00700"）
+    let secids: String = rank_arr
+        .iter()
+        .filter_map(|r| r.get("sc").and_then(Value::as_str))
+        .map(|sc| format!("116.{}", &sc[3..]))
+        .collect::<Vec<_>>()
+        .join(",");
+    let ulist = push2_ulist(&secids)?;
+    hk_hot_rank_build(rank_arr, &ulist)
+}
+
+/// 东财-个股人气榜-港股历史趋势（对应 akshare [`akshare.stock_hk_hot_rank_detail_em`]）。
+///
+/// `symbol`：港股代码，如 `"00700"`。
+///
+/// # 返回列
+/// `时间, 排名, 证券代码`
+pub fn stock_hk_hot_rank_detail_em(symbol: &str) -> Result<Df> {
+    let payload = json!({ "marketType": "000003", "srcSecurityCode": format!("HK|{symbol}") })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let data = emappdata_stockrank("getHisHkUsList", &payload)?;
+    let arr = data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getHisHkUsList 数据非数组".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(arr.len());
+    for r in arr {
+        rows.push(vec![
+            hot_jstr(r.get("calcTime")),
+            hot_jstr(r.get("rank")),
+            Some(symbol.to_string()),
+        ]);
+    }
+    const COLS: [&str; 3] = ["时间", "排名", "证券代码"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["排名"])?;
+    Ok(df)
+}
+
+/// 东财-个股人气榜-港股实时变动（对应 akshare [`akshare.stock_hk_hot_rank_detail_realtime_em`]）。
+///
+/// `symbol`：港股代码，如 `"00700"`。
+///
+/// # 返回列
+/// `时间, 排名`
+pub fn stock_hk_hot_rank_detail_realtime_em(symbol: &str) -> Result<Df> {
+    let payload = json!({ "marketType": "000003", "srcSecurityCode": format!("HK|{symbol}") })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let data = emappdata_stockrank("getCurrentHkUsList", &payload)?;
+    let arr = data
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("getCurrentHkUsList 数据非数组".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(arr.len());
+    for r in arr {
+        rows.push(vec![hot_jstr(r.get("calcTime")), hot_jstr(r.get("rank"))]);
+    }
+    const COLS: [&str; 2] = ["时间", "排名"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["排名"])?;
+    Ok(df)
+}
+
+/// 东财-个股人气榜-港股最新排名（对应 akshare [`akshare.stock_hk_hot_rank_latest_em`]）。
+///
+/// `symbol`：港股代码，如 `"00700"`。响应 `data` 为对象，逐键值展开为
+/// `item` / `value` 两列（均为字符串）。
+///
+/// # 返回列
+/// `item, value`
+pub fn stock_hk_hot_rank_latest_em(symbol: &str) -> Result<Df> {
+    let payload = json!({ "marketType": "000003", "srcSecurityCode": format!("HK|{symbol}") })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let data = emappdata_stockrank("getCurrentHkUsLatest", &payload)?;
+    let obj = data
+        .as_object()
+        .ok_or_else(|| AkshareError::Empty("getCurrentHkUsLatest 数据非对象".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(obj.len());
+    for (k, v) in obj {
+        rows.push(vec![Some(k.clone()), hot_jstr(Some(v))]);
+    }
+    const COLS: [&str; 2] = ["item", "value"];
+    Df::from_string_rows(&COLS, &rows)
+}
+
 // === BATCH24 新浪财经-ESG 评级中心（stock_esg_*_sina）===
 //
 // 数据源 `global.finance.sina.com.cn/api/openapi.php/EsgService.*`，纯 JSON，
