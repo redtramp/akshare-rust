@@ -1007,6 +1007,243 @@ pub fn index_sugar_msweet() -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH46-A 中国公路物流运价/运量指数（index.0256.cn POST form）===
+//
+// 对应 akshare `index/index_cflp.py` 的 `index_price_cflp` / `index_volume_cflp`。
+// 响应 `chart1/2/3` 的 `xLebal`/`yLebal` 纵向拼接为 4 列。
+
+/// 中国公路物流运价指数（对应 akshare [`akshare.index_price_cflp`]）。
+///
+/// - `symbol`: `"周指数"` / `"月指数"` / `"季度指数"` / `"年度指数"`
+///
+/// # 返回列
+/// `日期, 定基指数, 环比指数, 同比指数`
+pub fn index_price_cflp(symbol: &str) -> Result<Df> {
+    let exponent_type = match symbol {
+        "周指数" => "2",
+        "月指数" => "3",
+        "季度指数" => "4",
+        "年度指数" => "5",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 周指数/月指数/季度指数/年度指数"
+            )))
+        }
+    };
+    let form: Map<String, Value> = json!({
+        "marketId": "1",
+        "attribute1": "5",
+        "exponentTypeId": exponent_type,
+        "cateId": "2",
+        "attribute2": "华北",
+        "city": "",
+        "startLine": "",
+        "endLine": "",
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.post_form(
+        "http://index.0256.cn/expcenter_trend.action",
+        &form,
+        &[
+            ("Origin", "http://index.0256.cn"),
+            ("Referer", "http://index.0256.cn/expx.htm"),
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"),
+        ],
+    )?;
+    cflp_chart_df(&value)
+}
+
+/// 中国公路物流运量指数（对应 akshare [`akshare.index_volume_cflp`]）。
+///
+/// - `symbol`: `"月指数"` / `"季度指数"` / `"年度指数"`
+///
+/// # 返回列
+/// `日期, 定基指数, 环比指数, 同比指数`
+pub fn index_volume_cflp(symbol: &str) -> Result<Df> {
+    let exp_type = match symbol {
+        "月指数" => "3",
+        "季度指数" => "4",
+        "年度指数" => "5",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 月指数/季度指数/年度指数"
+            )))
+        }
+    };
+    let form: Map<String, Value> = json!({
+        "type": "1",
+        "marketId": "1",
+        "expTypeId": exp_type,
+        "startDate1": "",
+        "endDate1": "",
+        "city": "",
+        "startDate3": "",
+        "endDate3": "",
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.post_form(
+        "http://index.0256.cn/volume_query.action",
+        &form,
+        &[
+            ("Origin", "http://index.0256.cn"),
+            ("Referer", "http://index.0256.cn/expx.htm"),
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"),
+        ],
+    )?;
+    cflp_chart_df(&value)
+}
+
+/// cflp 响应公共解析：chart1.xLebal/yLebal + chart2.yLebal + chart3.yLebal。
+fn cflp_chart_df(value: &Value) -> Result<Df> {
+    let x = value
+        .get("chart1")
+        .and_then(|c| c.get("xLebal"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let y1 = value
+        .get("chart1")
+        .and_then(|c| c.get("yLebal"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let y2 = value
+        .get("chart2")
+        .and_then(|c| c.get("yLebal"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let y3 = value
+        .get("chart3")
+        .and_then(|c| c.get("yLebal"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(x.len());
+    let n = x.len().max(y1.len()).max(y2.len()).max(y3.len());
+    for i in 0..n {
+        out.push(vec![
+            x.get(i).and_then(json_value_to_string),
+            y1.get(i).and_then(json_value_to_string),
+            y2.get(i).and_then(json_value_to_string),
+            y3.get(i).and_then(json_value_to_string),
+        ]);
+    }
+    const COLS: [&str; 4] = ["日期", "定基指数", "环比指数", "同比指数"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
+// === BATCH46-B 沐甜科技-进口糖估算/外盘指数（msweet datacenter json）===
+//
+// 对应 akshare `index/index_sugar.py` 的 `index_inner_quote_sugar_msweet` /
+// `index_outer_quote_sugar_msweet`。响应 `{category: [...], data: [...]}`，
+// `category` 为日期列、`data` 每项为数值数组。
+
+/// 沐甜科技-配额内进口糖估算指数（对应 akshare [`akshare.index_inner_quote_sugar_msweet`]）。
+///
+/// # 返回列
+/// `日期, 利润空间, 泰国糖, 泰国MA5, 巴西MA5, 利润MA5, 巴西MA10, 巴西糖,
+/// 柳州现货价, 广州现货价, 泰国MA10, 利润MA30, 利润MA10`
+pub fn index_inner_quote_sugar_msweet() -> Result<Df> {
+    let http = HttpClient::default();
+    let value = http.get_json(
+        "https://www.msweet.com.cn/datacenterapply/datacenter/json/JinKongTang.json",
+        &Map::new(),
+        None,
+    )?;
+    sugar_quote_df(
+        &value,
+        13,
+        &[
+            "日期",
+            "利润空间",
+            "泰国糖",
+            "泰国MA5",
+            "巴西MA5",
+            "利润MA5",
+            "巴西MA10",
+            "巴西糖",
+            "柳州现货价",
+            "广州现货价",
+            "泰国MA10",
+            "利润MA30",
+            "利润MA10",
+        ],
+    )
+}
+
+/// 沐甜科技-外盘指数（对应 akshare [`akshare.index_outer_quote_sugar_msweet`]）。
+pub fn index_outer_quote_sugar_msweet() -> Result<Df> {
+    let http = HttpClient::default();
+    let value = http.get_json(
+        "https://www.msweet.com.cn/datacenterapply/datacenter/json/WaiPan.json",
+        &Map::new(),
+        None,
+    )?;
+    sugar_quote_df(
+        &value,
+        7,
+        &[
+            "日期",
+            "ICE原糖",
+            "伦敦白砂糖",
+            "美元汇率",
+            "泰国现货",
+            "巴西现货",
+            "巴西配额内价",
+        ],
+    )
+}
+
+/// 沐甜 datacenter json 公共解析：category（日期）+ data（数值数组）拼接。
+fn sugar_quote_df(value: &Value, ncols: usize, cols: &[&str]) -> Result<Df> {
+    let cat = value
+        .get("category")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let data = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(cat.len());
+    let n = cat.len().max(data.len());
+    for i in 0..n {
+        let dcell = cat.get(i).cloned().unwrap_or(Value::Null);
+        let date = match dcell {
+            Value::Array(a) => a.first().and_then(json_value_to_string),
+            other => json_value_to_string(&other),
+        };
+        let row = data
+            .get(i)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let mut r: Vec<Option<String>> = vec![date];
+        for j in 0..ncols.saturating_sub(1) {
+            r.push(row.get(j).and_then(json_value_to_string));
+        }
+        out.push(r);
+    }
+    let col_refs: Vec<&str> = cols.to_vec();
+    let mut df = Df::from_string_rows(&col_refs, &out)?;
+    df.cast_date(&["日期"])?;
+    if col_refs.len() > 1 {
+        df.cast_numeric(&col_refs[1..])?;
+    }
+    Ok(df)
+}
+
 // === BATCH39-C 申万宏源研究-指数（index_hist_sw 等）===
 //
 // 对应 akshare `index/index_research_sw.py`。`swsresearch.com/institute-sw/api/`
