@@ -676,6 +676,240 @@ pub fn index_stock_cons_weight_csindex(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH38-B 国证指数 cni 系列（index_all_cni / index_hist_cni / index_detail_*）===
+//
+// 对应 akshare `index/index_cni.py`。indexList JSON、getIndexDailyDataWithDataFormat
+// JSON、sample-detail xls 下载（复用 `csindex_xls_rows`）。
+
+/// 国证指数-最近交易日所有指数（对应 akshare [`akshare.index_all_cni`]）。
+///
+/// `cnindex.com.cn/index/indexList` JSON，25 列位置式 → select 10 列；
+/// 成交量/成交额/总市值/自由流通市值 除以 10^5/10^8。
+///
+/// # 返回列
+/// `指数代码, 指数简称, 样本数, 收盘点位, 涨跌幅, PE滚动, 成交量, 成交额, 总市值, 自由流通市值`
+pub fn index_all_cni() -> Result<Df> {
+    let params = json!({
+        "channelCode": "-1",
+        "rows": "2000",
+        "pageNum": "1",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json("https://www.cnindex.com.cn/index/indexList", &params, None)?;
+    let rows = value
+        .get("data")
+        .and_then(|d| d.get("rows"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 25 列位置式：_,_,指数代码,_,_,_,_,_,指数简称,_,_,_,样本数,收盘点位,涨跌幅,_,PE滚动,_,成交量,成交额,总市值,自由流通市值,_,_,_
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let obj = r.as_object().cloned().unwrap_or_default();
+        let values: Vec<Option<String>> = obj
+            .values()
+            .take(25)
+            .map(|v| match v {
+                Value::Null => None,
+                Value::String(s) => Some(s.clone()),
+                other => Some(other.to_string()),
+            })
+            .collect();
+        let pick = |i: usize| values.get(i).cloned().flatten();
+        out.push(vec![
+            pick(2),
+            pick(8),
+            pick(12),
+            pick(13),
+            pick(14),
+            pick(16),
+            pick(18),
+            pick(19),
+            pick(20),
+            pick(21),
+        ]);
+    }
+    const COLS: [&str; 10] = [
+        "指数代码",
+        "指数简称",
+        "样本数",
+        "收盘点位",
+        "涨跌幅",
+        "PE滚动",
+        "成交量",
+        "成交额",
+        "总市值",
+        "自由流通市值",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.scale("成交量", 1.0 / 100000.0)?;
+    df.scale("成交额", 1.0 / 100000000.0)?;
+    df.scale("总市值", 1.0 / 100000000.0)?;
+    df.scale("自由流通市值", 1.0 / 100000000.0)?;
+    Ok(df)
+}
+
+/// 国证指数-指数历史行情（对应 akshare [`akshare.index_hist_cni`]）。
+///
+/// - `symbol`: 指数代码；`start_date`/`end_date`: `YYYYMMDD`
+///
+/// `hq.cnindex.com.cn getIndexDailyDataWithDataFormat` JSON，11 列位置式 → select 8 列；
+/// 涨跌幅去 `%` 后 ÷100，按日期升序。
+///
+/// # 返回列
+/// `日期, 开盘价, 最高价, 最低价, 收盘价, 涨跌幅, 成交量, 成交额`
+pub fn index_hist_cni(symbol: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    let sd = cnindex_fmt_date(start_date);
+    let ed = cnindex_fmt_date(end_date);
+    let params = json!({
+        "indexCode": symbol,
+        "startDate": sd,
+        "endDate": ed,
+        "frequency": "day",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json(
+        "http://hq.cnindex.com.cn/market/market/getIndexDailyDataWithDataFormat",
+        &params,
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(|d| d.get("data"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 11 列位置式：日期,_,最高价,开盘价,最低价,收盘价,_,涨跌幅,成交额,成交量,_
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let obj = r.as_object().cloned().unwrap_or_default();
+        let values: Vec<Option<String>> = obj
+            .values()
+            .take(11)
+            .map(|v| match v {
+                Value::Null => None,
+                Value::String(s) => Some(s.clone()),
+                other => Some(other.to_string()),
+            })
+            .collect();
+        let pick = |i: usize| values.get(i).cloned().flatten();
+        // 涨跌幅去 % → ÷100
+        let pct = pick(7).map(|s| s.replace('%', ""));
+        out.push(vec![
+            pick(0),
+            pick(3),
+            pick(2),
+            pick(4),
+            pick(5),
+            pct,
+            pick(9),
+            pick(8),
+        ]);
+    }
+    const COLS: [&str; 8] = [
+        "日期",
+        "开盘价",
+        "最高价",
+        "最低价",
+        "收盘价",
+        "涨跌幅",
+        "成交量",
+        "成交额",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[1..])?;
+    df.scale("涨跌幅", 1.0 / 100.0)?;
+    df = df.sort_by("日期", true, false)?;
+    Ok(df)
+}
+
+/// `YYYYMMDD` → `YYYY-MM-DD`。
+fn cnindex_fmt_date(d: &str) -> String {
+    if d.len() == 8 && d.bytes().all(|b| b.is_ascii_digit()) {
+        format!("{}-{}-{}", &d[..4], &d[4..6], &d[6..])
+    } else {
+        d.to_string()
+    }
+}
+
+/// 国证指数-样本详情（指定日期样本成份，对应 akshare [`akshare.index_detail_cni`]）。
+///
+/// - `symbol`: 指数代码，如 `"399001"`
+///
+/// `sample-detail/download-history` xls 下载，6 列；样本代码 zfill(6)。
+///
+/// # 返回列
+/// `日期, 样本代码, 样本简称, 所属行业, 总市值, 权重`
+pub fn index_detail_cni(symbol: &str) -> Result<Df> {
+    cnindex_sample_detail(symbol, "download-history")
+}
+
+/// 国证指数-样本详情-历史样本（对应 akshare [`akshare.index_detail_hist_cni`]）。
+///
+/// - `symbol`: 指数代码
+///
+/// # 返回列
+/// `日期, 样本代码, 样本简称, 所属行业, 总市值, 权重`
+pub fn index_detail_hist_cni(symbol: &str) -> Result<Df> {
+    cnindex_sample_detail(symbol, "download-history")
+}
+
+/// 国证指数-样本详情-历史调样（对应 akshare [`akshare.index_detail_hist_adjust_cni`]）。
+///
+/// - `symbol`: 指数代码
+///
+/// `sample-detail/download-adjustment` xls 下载，原键列（样本代码 zfill(6)）。
+///
+/// # 返回列
+/// 原键列
+pub fn index_detail_hist_adjust_cni(symbol: &str) -> Result<Df> {
+    let url =
+        format!("https://www.cnindex.com.cn/sample-detail/download-adjustment?indexcode={symbol}");
+    let http = HttpClient::default();
+    let bytes = http.get_bytes_with_headers(&url, &Map::new(), &[], None)?;
+    let all = match csindex_xls_rows(&bytes) {
+        Ok(v) => v,
+        Err(_) => return Df::from_string_rows(&["样本代码"], &[]),
+    };
+    let mut iter = all.into_iter();
+    let header = iter.next().unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for row in iter {
+        let mut r: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+        if let Some(Some(s)) = r.first_mut() {
+            *s = format!("{:0>6}", s);
+        }
+        out.push(r);
+    }
+    let col_refs: Vec<&str> = header.iter().map(String::as_str).collect();
+    Df::from_string_rows(&col_refs, &out)
+}
+
+/// 国证指数样本 xls 下载公共实现（6 列契约）。
+fn cnindex_sample_detail(symbol: &str, endpoint: &str) -> Result<Df> {
+    let url = format!("https://www.cnindex.com.cn/sample-detail/{endpoint}?indexcode={symbol}");
+    let http = HttpClient::default();
+    let bytes = http.get_bytes_with_headers(&url, &Map::new(), &[], None)?;
+    let all = csindex_xls_rows(&bytes)?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for row in all.iter().skip(1) {
+        let mut r: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+        // 样本代码 zfill(6)
+        if let Some(Some(s)) = r.get_mut(1) {
+            *s = format!("{:0>6}", s);
+        }
+        rows.push(r);
+    }
+    const COLS: [&str; 6] = ["日期", "样本代码", "样本简称", "所属行业", "总市值", "权重"];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&["总市值", "权重"])?;
+    Ok(df)
+}
+
 // === BATCH37-E 新浪全球指数（index_global_sina_symbol_map + gi.finance.sina.com.cn）===
 //
 // 对应 akshare `index/index_global_sina.py`。

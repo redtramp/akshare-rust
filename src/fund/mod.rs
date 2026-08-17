@@ -546,6 +546,461 @@ pub fn fund_etf_hist_min_em(
     }
 }
 
+// === BATCH38-A 东财基金排行（rankhandler.aspx，op=ph + dt 分类型）===
+//
+// 对应 akshare `fund/fund_rank_em.py`。响应 `var rankData = {datas:[...],...}`，
+// `datas` 每行为逗号分隔字符串（24 字段），位置式列名后 select 18 列。
+
+/// 东财-开放基金排行（对应 akshare [`akshare.fund_open_fund_rank_em`]）。
+///
+/// - `symbol`: `"全部"` / `"股票型"` / `"混合型"` / `"债券型"` / `"指数型"` /
+///   `"QDII"` / `"LOF"` / `"FOF"`
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 日期, 单位净值, 累计净值, 日增长率, 近1周, 近1月,
+/// 近3月, 近6月, 近1年, 近2年, 近3年, 今年来, 成立来, 自定义, 手续费`
+pub fn fund_open_fund_rank_em(symbol: &str) -> Result<Df> {
+    let (ft, sc) = match symbol {
+        "全部" => ("all", "1nzf"),
+        "股票型" => ("gp", "1nzf"),
+        "混合型" => ("hh", "1nzf"),
+        "债券型" => ("zq", "1nzf"),
+        "指数型" => ("zs", "1nzf"),
+        "QDII" => ("qdii", "1nzf"),
+        "LOF" => ("lof", "1nzf"),
+        "FOF" => ("fof", "1nzf"),
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 全部/股票型/混合型/债券型/指数型/QDII/LOF/FOF"
+            )))
+        }
+    };
+    let now = chrono::Local::now();
+    let ed = now.format("%Y-%m-%d").to_string();
+    let sd = (now - chrono::Duration::days(366))
+        .format("%Y-%m-%d")
+        .to_string();
+    let params = json!({
+        "op": "ph",
+        "dt": "kf",
+        "ft": ft,
+        "rs": "",
+        "gs": "0",
+        "sc": sc,
+        "st": "desc",
+        "sd": sd,
+        "ed": ed,
+        "qdii": "",
+        "tabSubtype": ",,,,,",
+        "pi": "1",
+        "pn": "30000",
+        "dx": "1",
+        "v": "0.1591891419018292",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        "https://fund.eastmoney.com/data/rankhandler.aspx",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/fundguzhi.html"),
+        ],
+        None,
+    )?;
+    // `var rankData = {...};` → 取首 `{` 至末尾
+    let start = text
+        .find('{')
+        .ok_or_else(|| AkshareError::Empty("基金排行响应缺少对象".into()))?;
+    let value: Value = serde_json::from_str(&text[start..])
+        .map_err(|e| AkshareError::json("fund_open_fund_rank_em", e.to_string()))?;
+    let datas = value
+        .get("datas")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 每行逗号分隔 24 字段 → 位置式列名 select 18 列
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(datas.len());
+    for (i, d) in datas.iter().enumerate() {
+        let line = d.as_str().unwrap_or("");
+        let f: Vec<&str> = line.split(',').collect();
+        let pick = |idx: usize| {
+            f.get(idx)
+                .map(|s| {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t.to_string())
+                    }
+                })
+                .unwrap_or(None)
+        };
+        out.push(vec![
+            Some((i + 1).to_string()), // 序号
+            pick(1),                   // 基金代码
+            pick(2),                   // 基金简称
+            pick(4),                   // 日期
+            pick(5),                   // 单位净值
+            pick(6),                   // 累计净值
+            pick(7),                   // 日增长率
+            pick(8),                   // 近1周
+            pick(9),                   // 近1月
+            pick(10),                  // 近3月
+            pick(11),                  // 近6月
+            pick(12),                  // 近1年
+            pick(13),                  // 近2年
+            pick(14),                  // 近3年
+            pick(15),                  // 今年来
+            pick(16),                  // 成立来
+            pick(19),                  // 自定义
+            pick(21),                  // 手续费
+        ]);
+    }
+    const COLS: [&str; 18] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "日期",
+        "单位净值",
+        "累计净值",
+        "日增长率",
+        "近1周",
+        "近1月",
+        "近3月",
+        "近6月",
+        "近1年",
+        "近2年",
+        "近3年",
+        "今年来",
+        "成立来",
+        "自定义",
+        "手续费",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&[
+        "单位净值",
+        "累计净值",
+        "日增长率",
+        "近1周",
+        "近1月",
+        "近3月",
+        "近6月",
+        "近1年",
+        "近2年",
+        "近3年",
+        "今年来",
+        "成立来",
+        "自定义",
+    ])?;
+    Ok(df)
+}
+
+/// 东财-场内交易基金排行（对应 akshare [`akshare.fund_exchange_rank_em`]）。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 类型, 日期, 单位净值, 累计净值, 近1周, 近1月,
+/// 近3月, 近6月, 近1年, 近2年, 近3年, 今年来, 成立来, 成立日期`
+pub fn fund_exchange_rank_em() -> Result<Df> {
+    let params = json!({
+        "op": "ph",
+        "dt": "fb",
+        "ft": "ct",
+        "rs": "",
+        "gs": "0",
+        "sc": "1nzf",
+        "st": "desc",
+        "pi": "1",
+        "pn": "30000",
+        "v": "0.1591891419018292",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        "https://fund.eastmoney.com/data/rankhandler.aspx",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/fundguzhi.html"),
+        ],
+        None,
+    )?;
+    let start = text
+        .find('{')
+        .ok_or_else(|| AkshareError::Empty("基金排行响应缺少对象".into()))?;
+    let value: Value = serde_json::from_str(&text[start..])
+        .map_err(|e| AkshareError::json("fund_exchange_rank_em", e.to_string()))?;
+    let datas = value
+        .get("datas")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 24 字段位置式：序号,基金代码,基金简称,_,日期,单位净值,累计净值,近1周,近1月,
+    // 近3月,近6月,近1年,近2年,近3年,今年来,成立来,成立日期,_,_,_,_,_,类型,_
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(datas.len());
+    for (i, d) in datas.iter().enumerate() {
+        let line = d.as_str().unwrap_or("");
+        let f: Vec<&str> = line.split(',').collect();
+        let pick = |idx: usize| {
+            f.get(idx)
+                .map(|s| {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t.to_string())
+                    }
+                })
+                .unwrap_or(None)
+        };
+        out.push(vec![
+            Some((i + 1).to_string()),
+            pick(1),
+            pick(2),
+            pick(22),
+            pick(4),
+            pick(5),
+            pick(6),
+            pick(7),
+            pick(8),
+            pick(9),
+            pick(10),
+            pick(11),
+            pick(12),
+            pick(13),
+            pick(14),
+            pick(15),
+            pick(16),
+        ]);
+    }
+    const COLS: [&str; 17] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "类型",
+        "日期",
+        "单位净值",
+        "累计净值",
+        "近1周",
+        "近1月",
+        "近3月",
+        "近6月",
+        "近1年",
+        "近2年",
+        "近3年",
+        "今年来",
+        "成立来",
+        "成立日期",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期", "成立日期"])?;
+    df.cast_numeric(&[
+        "单位净值",
+        "累计净值",
+        "近1周",
+        "近1月",
+        "近3月",
+        "近6月",
+        "近1年",
+        "近2年",
+        "近3年",
+        "今年来",
+        "成立来",
+    ])?;
+    Ok(df)
+}
+
+/// 东财-货币型基金排行（对应 akshare [`akshare.fund_money_rank_em`]）。
+///
+/// `api.fund.eastmoney.com/FundRank/GetHbRankList` JSON（`Data` 数组，
+/// 28 字段位置式），select 18 列。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 日期, 万份收益, 年化收益率7日, 年化收益率14日,
+/// 年化收益率28日, 近1月, 近3月, 近6月, 近1年, 近2年, 近3年, 近5年, 今年来, 成立来, 手续费`
+pub fn fund_money_rank_em() -> Result<Df> {
+    let params = json!({
+        "intCompany": "0",
+        "MinsgType": "",
+        "IsSale": "1",
+        "strSortCol": "SYL_1N",
+        "orderType": "desc",
+        "pageIndex": "1",
+        "pageSize": "10000",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://api.fund.eastmoney.com/FundRank/GetHbRankList",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/fundguzhi.html"),
+        ],
+        None,
+    )?;
+    let rows = value
+        .get("Data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 28 字段位置式：序号,近1年,近2年,近3年,近5年,_,_,基金代码,基金简称,日期,万份收益,
+    // 年化7日,_,年化14日,年化28日,近1月,近3月,近6月,今年来,成立来,_,手续费,_,_,_,_,_,_
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let obj = r.as_object().cloned().unwrap_or_default();
+        let values: Vec<Option<String>> = obj
+            .values()
+            .take(28)
+            .map(|v| match v {
+                Value::Null => None,
+                Value::String(s) => Some(s.clone()),
+                other => Some(other.to_string()),
+            })
+            .collect();
+        let pick = |idx: usize| values.get(idx).cloned().flatten();
+        out.push(vec![
+            Some((i + 1).to_string()),
+            pick(7),
+            pick(8),
+            pick(9),
+            pick(10),
+            pick(11),
+            pick(13),
+            pick(14),
+            pick(15),
+            pick(16),
+            pick(17),
+            pick(1),
+            pick(2),
+            pick(3),
+            pick(4),
+            pick(18),
+            pick(19),
+            pick(21),
+        ]);
+    }
+    const COLS: [&str; 18] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "日期",
+        "万份收益",
+        "年化收益率7日",
+        "年化收益率14日",
+        "年化收益率28日",
+        "近1月",
+        "近3月",
+        "近6月",
+        "近1年",
+        "近2年",
+        "近3年",
+        "近5年",
+        "今年来",
+        "成立来",
+        "手续费",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[4..])?;
+    Ok(df)
+}
+
+/// 东财-理财基金排行（对应 akshare [`akshare.fund_lcx_rank_em`]）。
+///
+/// `api.fund.eastmoney.com/FundRank/GetLcRankList` JSON（`Data` 数组，
+/// 23 字段位置式），select 16 列。注：akshare 注释该接口可能暂无数据。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 日期, 万份收益, 年化收益率-7日, 年化收益率-14日,
+/// 年化收益率-28日, 近1周, 近1月, 近3月, 近6月, 今年来, 成立来, 可购买, 手续费`
+pub fn fund_lcx_rank_em() -> Result<Df> {
+    let params = json!({
+        "intCompany": "0",
+        "MinsgType": "undefined",
+        "IsSale": "1",
+        "strSortCol": "SYL_Z",
+        "orderType": "desc",
+        "pageIndex": "1",
+        "pageSize": "50",
+        "FBQ": "",
+        "callback": "jQuery18303264654966943197_1603867158043",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://api.fund.eastmoney.com/FundRank/GetLcRankList",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/fundguzhi.html"),
+        ],
+        None,
+    )?;
+    let rows = value
+        .get("Data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 23 字段位置式：序号,近1周,基金代码,基金简称,日期,万份收益,年化7日,_,年化14日,
+    // 年化28日,近1月,近3月,近6月,今年来,成立来,可购买,手续费,_,_,_,_,_,_
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let obj = r.as_object().cloned().unwrap_or_default();
+        let values: Vec<Option<String>> = obj
+            .values()
+            .take(23)
+            .map(|v| match v {
+                Value::Null => None,
+                Value::String(s) => Some(s.clone()),
+                other => Some(other.to_string()),
+            })
+            .collect();
+        let pick = |idx: usize| values.get(idx).cloned().flatten();
+        out.push(vec![
+            Some((i + 1).to_string()),
+            pick(2),
+            pick(3),
+            pick(4),
+            pick(5),
+            pick(6),
+            pick(8),
+            pick(9),
+            pick(1),
+            pick(10),
+            pick(11),
+            pick(12),
+            pick(13),
+            pick(14),
+            pick(15),
+            pick(16),
+        ]);
+    }
+    const COLS: [&str; 16] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "日期",
+        "万份收益",
+        "年化收益率-7日",
+        "年化收益率-14日",
+        "年化收益率-28日",
+        "近1周",
+        "近1月",
+        "近3月",
+        "近6月",
+        "今年来",
+        "成立来",
+        "可购买",
+        "手续费",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[4..])?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod ths_tests {
     use super::*;
