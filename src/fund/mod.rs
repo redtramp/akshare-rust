@@ -1399,6 +1399,70 @@ fn fund_hypz_base(dt: &str, is_hold: bool) -> Result<Df> {
     }
 }
 
+// === BATCH44-A 天天基金网-投资组合（api.fund.eastmoney.com/f10/HYPZ/）===
+//
+// 对应 akshare `fund/fund_portfolio_em.py` 的 `fund_portfolio_industry_allocation_em`。
+// 响应 `Data.QuarterInfos[].HYPZInfo[]`，展开为 5 列。
+
+/// 天天基金网-投资组合-行业配置（对应 akshare [`akshare.fund_portfolio_industry_allocation_em`]）。
+///
+/// - `symbol`: 基金代码，如 `"000001"`；`date`: 查询年份，如 `"2023"`
+///
+/// # 返回列
+/// `序号, 行业类别, 占净值比例, 市值, 截止时间`
+pub fn fund_portfolio_industry_allocation_em(symbol: &str, date: &str) -> Result<Df> {
+    let params = json!({
+        "fundCode": symbol,
+        "year": date,
+        "callback": "jQuery183006997159478989867_1648016188499",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        "https://api.fund.eastmoney.com/f10/HYPZ/",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.82 Safari/537.36"),
+            ("Referer", "https://fundf10.eastmoney.com/"),
+        ],
+        None,
+    )?;
+    let body = text
+        .trim()
+        .strip_prefix("jQuery183006997159478989867_1648016188499(")
+        .map(|s| s.strip_suffix(')').unwrap_or(s))
+        .unwrap_or(text.trim());
+    let value: Value = serde_json::from_str(body)
+        .map_err(|e| AkshareError::json("fund_portfolio_industry_allocation_em", e.to_string()))?;
+    let mut rows: Vec<Value> = Vec::new();
+    if let Some(quarters) = value
+        .get("Data")
+        .and_then(|d| d.get("QuarterInfos"))
+        .and_then(Value::as_array)
+    {
+        for q in quarters {
+            if let Some(infos) = q.get("HYPZInfo").and_then(Value::as_array) {
+                rows.extend(infos.iter().cloned());
+            }
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f("HYMC"),
+            f("ZJZBL"),
+            f("SZ"),
+            f("FSRQ"),
+        ]);
+    }
+    const COLS: [&str; 5] = ["序号", "行业类别", "占净值比例", "市值", "截止时间"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&["占净值比例", "市值"])?;
+    Ok(df)
+}
+
 // === BATCH39-B 天天基金网分红送配（funddataIndex_Interface.aspx，dt=8/9）===
 //
 // 对应 akshare `fund/fund_fhsp_em.py` 的 `fund_fh_em`（dt=8 分红）与

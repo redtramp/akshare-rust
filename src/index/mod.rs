@@ -1131,6 +1131,69 @@ pub fn index_min_sw(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+/// 申万宏源-基金指数历史行情（对应 akshare [`akshare.index_hist_fund_sw`]）。
+///
+/// - `symbol`: 基金指数代码，如 `"807200"`；`period`: `"day"` / `"week"` / `"month"`
+///
+/// `insWechatSw/fundIndex/getFundKChartData` POST JSON，键映射后 select 6 列。
+///
+/// # 返回列
+/// `日期, 收盘指数, 开盘指数, 最高指数, 最低指数, 涨跌幅`
+pub fn index_hist_fund_sw(symbol: &str, period: &str) -> Result<Df> {
+    let period_map = match period {
+        "day" => "DAY",
+        "week" => "WEEK",
+        "month" => "MONTH",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 period: {other}，可选 day/week/month"
+            )))
+        }
+    };
+    let body = json!({
+        "swIndexCode": symbol,
+        "type": period_map,
+    });
+    let http = HttpClient::default();
+    let value = http.post_json_body(
+        "https://www.swsresearch.com/insWechatSw/fundIndex/getFundKChartData",
+        &body,
+        &[(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        )],
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("bargaindate"),
+            f("closeindex"),
+            f("openindex"),
+            f("maxindex"),
+            f("minindex"),
+            f("markup"),
+        ]);
+    }
+    const COLS: [&str; 6] = [
+        "日期",
+        "收盘指数",
+        "开盘指数",
+        "最高指数",
+        "最低指数",
+        "涨跌幅",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[1..])?;
+    Ok(df)
+}
+
 /// 申万宏源-指数系列实时行情（对应 akshare [`akshare.index_realtime_sw`]）。
 ///
 /// - `symbol`: `"市场表征"` / `"一级行业"` / `"二级行业"` / `"风格指数"` /
