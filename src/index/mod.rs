@@ -1322,6 +1322,195 @@ pub fn index_analysis_week_month_sw(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH41-A 财新数据-指数报告（cxIndexTrendInfo，type 分指标）===
+//
+// 对应 akshare `index/index_cx.py` 的 19 个 `index_*_cx` 函数。同源
+// `yun.ccxe.com.cn/api/index/pro/cxIndexTrendInfo`，仅 `type` 参数不同；
+// 响应 `data` 每项 `{changeRate, data, time}`（time 为毫秒时间戳），
+// 输出 `日期, {指数名}, 变化值/变化幅度` 三列。
+
+/// 财新指数趋势公共实现。
+fn cx_index_trend(typ: &str, value_col: &str, index_col: &str) -> Result<Df> {
+    let params = json!({ "type": typ });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json(
+        "https://yun.ccxe.com.cn/api/index/pro/cxIndexTrendInfo",
+        &params,
+        None,
+    )?;
+    let rows = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        // time 毫秒 → Asia/Shanghai 日期
+        let date = f("time").and_then(|s| s.parse::<i64>().ok()).map(|ms| {
+            use chrono::TimeZone;
+            chrono::Utc
+                .timestamp_millis_opt(ms)
+                .single()
+                .map(|dt| {
+                    dt.with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap())
+                        .format("%Y-%m-%d")
+                        .to_string()
+                })
+                .unwrap_or_default()
+        });
+        out.push(vec![date, f("data"), f("changeRate")]);
+    }
+    let cols = ["日期", index_col, value_col];
+    let mut df = Df::from_string_rows(&cols, &out)?;
+    df.cast_numeric(&[cols[1], cols[2]])?;
+    Ok(df)
+}
+
+macro_rules! cx_index_fn {
+    ($name:ident, $type:literal, $value_col:literal, $index_col:literal, $desc:literal) => {
+        #[doc = $desc]
+        pub fn $name() -> Result<Df> {
+            cx_index_trend($type, $value_col, $index_col)
+        }
+    };
+}
+
+cx_index_fn!(
+    index_pmi_com_cx,
+    "com",
+    "变化值",
+    "综合PMI",
+    "财新-综合PMI（对应 akshare `index_pmi_com_cx`）。"
+);
+cx_index_fn!(
+    index_pmi_man_cx,
+    "man",
+    "变化值",
+    "制造业PMI",
+    "财新-制造业PMI（对应 akshare `index_pmi_man_cx`）。"
+);
+cx_index_fn!(
+    index_pmi_ser_cx,
+    "ser",
+    "变化值",
+    "服务业PMI",
+    "财新-服务业PMI（对应 akshare `index_pmi_ser_cx`）。"
+);
+cx_index_fn!(
+    index_dei_cx,
+    "dei",
+    "变化值",
+    "数字经济指数",
+    "财新-数字经济指数（对应 akshare `index_dei_cx`）。"
+);
+cx_index_fn!(
+    index_ii_cx,
+    "ii",
+    "变化值",
+    "产业指数",
+    "财新-产业指数（对应 akshare `index_ii_cx`）。"
+);
+cx_index_fn!(
+    index_si_cx,
+    "si",
+    "变化值",
+    "溢出指数",
+    "财新-溢出指数（对应 akshare `index_si_cx`）。"
+);
+cx_index_fn!(
+    index_fi_cx,
+    "fi",
+    "变化值",
+    "融合指数",
+    "财新-融合指数（对应 akshare `index_fi_cx`）。"
+);
+cx_index_fn!(
+    index_bi_cx,
+    "bi",
+    "变化值",
+    "基础指数",
+    "财新-基础指数（对应 akshare `index_bi_cx`）。"
+);
+cx_index_fn!(
+    index_nei_cx,
+    "nei",
+    "变化值",
+    "中国新经济指数",
+    "财新-中国新经济指数（对应 akshare `index_nei_cx`）。"
+);
+cx_index_fn!(
+    index_li_cx,
+    "li",
+    "变化值",
+    "劳动力投入指数",
+    "财新-劳动力投入指数（对应 akshare `index_li_cx`）。"
+);
+cx_index_fn!(
+    index_ci_cx,
+    "ci",
+    "变化值",
+    "资本投入指数",
+    "财新-资本投入指数（对应 akshare `index_ci_cx`）。"
+);
+cx_index_fn!(
+    index_ti_cx,
+    "ti",
+    "变化值",
+    "科技投入指数",
+    "财新-科技投入指数（对应 akshare `index_ti_cx`）。"
+);
+cx_index_fn!(
+    index_neaw_cx,
+    "neaw",
+    "变化值",
+    "新经济行业入职平均工资水平",
+    "财新-新经济行业入职平均工资（对应 akshare `index_neaw_cx`）。"
+);
+cx_index_fn!(
+    index_awpr_cx,
+    "awpr",
+    "变化值",
+    "新经济入职工资溢价水平",
+    "财新-新经济入职工资溢价（对应 akshare `index_awpr_cx`）。"
+);
+cx_index_fn!(
+    index_cci_cx,
+    "cci",
+    "变化值",
+    "大宗商品指数",
+    "财新-大宗商品指数（对应 akshare `index_cci_cx`）。"
+);
+cx_index_fn!(
+    index_qli_cx,
+    "qli",
+    "变化幅度",
+    "高质量因子指数",
+    "财新-高质量因子指数（对应 akshare `index_qli_cx`）。"
+);
+cx_index_fn!(
+    index_ai_cx,
+    "ai",
+    "变化幅度",
+    "AI策略指数",
+    "财新-AI策略指数（对应 akshare `index_ai_cx`）。"
+);
+cx_index_fn!(
+    index_bei_cx,
+    "ind",
+    "变化幅度",
+    "基石经济指数",
+    "财新-基石经济指数（对应 akshare `index_bei_cx`）。"
+);
+cx_index_fn!(
+    index_neei_cx,
+    "ind",
+    "变化幅度",
+    "新动能指数",
+    "财新-新动能指数（对应 akshare `index_neei_cx`）。"
+);
+
 // === BATCH37-E 新浪全球指数（index_global_sina_symbol_map + gi.finance.sina.com.cn）===
 //
 // 对应 akshare `index/index_global_sina.py`。

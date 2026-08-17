@@ -214,12 +214,15 @@ use akshare_rust::futures::{
 };
 use akshare_rust::fx::{fx_c_swap_cm, fx_pair_quote, fx_quote_baidu, fx_spot_quote, fx_swap_quote};
 use akshare_rust::index::{
-    index_all_cni, index_analysis_daily_sw, index_analysis_monthly_sw,
-    index_analysis_week_month_sw, index_analysis_weekly_sw, index_component_sw, index_detail_cni,
-    index_detail_hist_adjust_cni, index_detail_hist_cni, index_global_hist_em,
+    index_ai_cx, index_all_cni, index_analysis_daily_sw, index_analysis_monthly_sw,
+    index_analysis_week_month_sw, index_analysis_weekly_sw, index_awpr_cx, index_bei_cx,
+    index_bi_cx, index_cci_cx, index_ci_cx, index_component_sw, index_dei_cx, index_detail_cni,
+    index_detail_hist_adjust_cni, index_detail_hist_cni, index_fi_cx, index_global_hist_em,
     index_global_hist_sina, index_global_name_table, index_global_spot_em, index_hist_cni,
-    index_hist_sw, index_min_sw, index_realtime_sw, index_stock_cons_csindex,
-    index_stock_cons_sina, index_stock_cons_weight_csindex, index_stock_info, index_zh_a_hist,
+    index_hist_sw, index_ii_cx, index_li_cx, index_min_sw, index_neaw_cx, index_neei_cx,
+    index_nei_cx, index_pmi_com_cx, index_pmi_man_cx, index_pmi_ser_cx, index_qli_cx,
+    index_realtime_sw, index_si_cx, index_stock_cons_csindex, index_stock_cons_sina,
+    index_stock_cons_weight_csindex, index_stock_info, index_ti_cx, index_zh_a_hist,
     index_zh_a_hist_min_em,
 };
 use akshare_rust::interest_rate::rate_interbank;
@@ -750,6 +753,26 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(index_analysis_week_month_sw(s)?)
         }
+        // === BATCH41-A 财新指数报告 19 个（无参） ===
+        "index_pmi_com_cx" => Ok(index_pmi_com_cx()?),
+        "index_pmi_man_cx" => Ok(index_pmi_man_cx()?),
+        "index_pmi_ser_cx" => Ok(index_pmi_ser_cx()?),
+        "index_dei_cx" => Ok(index_dei_cx()?),
+        "index_ii_cx" => Ok(index_ii_cx()?),
+        "index_si_cx" => Ok(index_si_cx()?),
+        "index_fi_cx" => Ok(index_fi_cx()?),
+        "index_bi_cx" => Ok(index_bi_cx()?),
+        "index_nei_cx" => Ok(index_nei_cx()?),
+        "index_li_cx" => Ok(index_li_cx()?),
+        "index_ci_cx" => Ok(index_ci_cx()?),
+        "index_ti_cx" => Ok(index_ti_cx()?),
+        "index_neaw_cx" => Ok(index_neaw_cx()?),
+        "index_awpr_cx" => Ok(index_awpr_cx()?),
+        "index_cci_cx" => Ok(index_cci_cx()?),
+        "index_qli_cx" => Ok(index_qli_cx()?),
+        "index_ai_cx" => Ok(index_ai_cx()?),
+        "index_bei_cx" => Ok(index_bei_cx()?),
+        "index_neei_cx" => Ok(index_neei_cx()?),
         "fund_etf_spot_em" => Ok(fund_etf_spot_em()?),
         "fund_etf_hist_min_em" => {
             let [s, d0, d1, p, a] = take5(func, args)?;
