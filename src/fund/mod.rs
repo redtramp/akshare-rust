@@ -3258,6 +3258,187 @@ pub fn fund_lof_hist_min_em(
         min_kline_to_df(&lines, start_date, end_date, &src, &out, &out[1..])
     }
 }
+
+// === BATCH61-A 天天基金网-开放式基金净值信息（pingzhongdata JS）===
+//
+// 对应 akshare `fund/fund_em.py` 的 `fund_open_fund_info_em`。
+// `fund.eastmoney.com/pingzhongdata/{symbol}.js` 内嵌 JS 变量
+// （`Data_netWorthTrend` 等），用 [`crate::core::js_engine::js_literal_to_json`]
+// 解析；`累计收益率走势` 走 `pinzhong/LJSYLZS` API。
+
+/// 天天基金网-开放式基金净值信息（对应 akshare [`akshare.fund_open_fund_info_em`]）。
+///
+/// - `symbol`: 基金代码；`indicator`: `"单位净值走势"` / `"累计净值走势"` /
+///   `"每万份收益"` / `"7日年化收益率"` / `"累计收益率走势"` / `"同类排名走势"` /
+///   `"同类排名百分比"`；`period`: 保留参数（本实现按服务端全量返回）
+///
+/// # 返回列（单位净值走势）
+/// `净值日期, 单位净值, 日增长率`
+pub fn fund_open_fund_info_em(symbol: &str, indicator: &str, period: &str) -> Result<Df> {
+    let _ = period;
+    match indicator {
+        "单位净值走势" => {
+            let rows = fund_pingzhong_var(symbol, "Data_netWorthTrend")?;
+            // 每项 {x: ms, y: 单位净值, equityReturn: 日增长率}
+            let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+            for r in &rows {
+                let f = |k: &str| r.get(k).and_then(json_value_to_string);
+                let date = f("x").and_then(|s| s.parse::<i64>().ok()).map(ms_to_date);
+                out.push(vec![date, f("y"), f("equityReturn")]);
+            }
+            const COLS: [&str; 3] = ["净值日期", "单位净值", "日增长率"];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_numeric(&["单位净值", "日增长率"])?;
+            Ok(df)
+        }
+        "累计净值走势" => {
+            let rows = fund_pingzhong_var(symbol, "Data_ACWorthTrend")?;
+            let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+            for r in &rows {
+                let f = |k: &str| r.get(k).and_then(json_value_to_string);
+                let date = f("x").and_then(|s| s.parse::<i64>().ok()).map(ms_to_date);
+                out.push(vec![date, f("y")]);
+            }
+            const COLS: [&str; 2] = ["净值日期", "累计净值"];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_numeric(&["累计净值"])?;
+            Ok(df)
+        }
+        "每万份收益" => {
+            let rows = fund_pingzhong_var(symbol, "Data_millionCopiesIncome")?;
+            let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+            for r in &rows {
+                let f = |k: &str| r.get(k).and_then(json_value_to_string);
+                let date = f("x").and_then(|s| s.parse::<i64>().ok()).map(ms_to_date);
+                out.push(vec![date, f("y")]);
+            }
+            const COLS: [&str; 2] = ["净值日期", "每万份收益"];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_numeric(&["每万份收益"])?;
+            Ok(df)
+        }
+        "7日年化收益率" => {
+            let rows = fund_pingzhong_var(symbol, "Data_sevenDaysYearIncome")?;
+            let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+            for r in &rows {
+                let f = |k: &str| r.get(k).and_then(json_value_to_string);
+                let date = f("x").and_then(|s| s.parse::<i64>().ok()).map(ms_to_date);
+                out.push(vec![date, f("y")]);
+            }
+            const COLS: [&str; 2] = ["净值日期", "7日年化收益率"];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_numeric(&["7日年化收益率"])?;
+            Ok(df)
+        }
+        "累计收益率走势" => {
+            // pinzhong/LJSYLZS API：Data[0].data = [{date, rate}]
+            let params = json!({
+                "code": symbol,
+                "period": "成立来",
+            });
+            let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+            let http = HttpClient::default();
+            let value = http.get_json(
+                "https://api.fund.eastmoney.com/pinzhong/LJSYLZS",
+                &params,
+                None,
+            )?;
+            let rows = value
+                .get("Data")
+                .and_then(Value::as_array)
+                .and_then(|a| a.first())
+                .and_then(|d| d.get("data"))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+            for r in &rows {
+                let f = |k: &str| r.get(k).and_then(json_value_to_string);
+                let date = f("date").and_then(|s| s.parse::<i64>().ok()).map(ms_to_date);
+                out.push(vec![date, f("rate")]);
+            }
+            const COLS: [&str; 2] = ["日期", "累计收益率"];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_numeric(&["累计收益率"])?;
+            Ok(df)
+        }
+        "同类排名走势" => {
+            let rows = fund_pingzhong_var(symbol, "Data_rateInSimilarType")?;
+            // 每项 {x: ms, sc: 同类型排名, sz: 总排名}（对应 akshare 近三月排名）
+            let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+            for r in &rows {
+                let f = |k: &str| r.get(k).and_then(json_value_to_string);
+                let date = f("x").and_then(|s| s.parse::<i64>().ok()).map(ms_to_date);
+                out.push(vec![date, f("sc"), f("sz")]);
+            }
+            const COLS: [&str; 3] = [
+                "报告日期",
+                "同类型排名-每日近三月排名",
+                "总排名-每日近三月排名",
+            ];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_numeric(&COLS[1..])?;
+            Ok(df)
+        }
+        "同类排名百分比" => {
+            let rows = fund_pingzhong_var(symbol, "Data_rateInSimilarPersent")?;
+            // 每项 {x: ms, y: 百分比}
+            let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+            for r in &rows {
+                let f = |k: &str| r.get(k).and_then(json_value_to_string);
+                let date = f("x").and_then(|s| s.parse::<i64>().ok()).map(ms_to_date);
+                out.push(vec![date, f("y")]);
+            }
+            const COLS: [&str; 2] = [
+                "报告日期",
+                "同类型排名-每日近3月收益排名百分比",
+            ];
+            let mut df = Df::from_string_rows(&COLS, &out)?;
+            df.cast_numeric(&COLS[1..])?;
+            Ok(df)
+        }
+        other => Err(AkshareError::Param(format!(
+            "未支持的 indicator: {other}（支持 单位净值走势/累计净值走势/每万份收益/7日年化收益率/累计收益率走势/同类排名走势/同类排名百分比）"
+        ))),
+    }
+}
+
+/// 拉取 `pingzhongdata/{symbol}.js` 并提取指定 JS 变量为 JSON 数组。
+fn fund_pingzhong_var(symbol: &str, var_name: &str) -> Result<Vec<Value>> {
+    let http = HttpClient::default();
+    let text = http.get_text(
+        &format!("https://fund.eastmoney.com/pingzhongdata/{symbol}.js"),
+        &Map::new(),
+        None,
+    )?;
+    // 提取 `var {var_name} = ` 后的 JS 字面量（到分号前）
+    let marker = format!("var {var_name} = ");
+    let start = text
+        .find(&marker)
+        .ok_or_else(|| AkshareError::Empty(format!("pingzhongdata 缺少 {var_name} 变量")))?
+        + marker.len();
+    let end = text[start..]
+        .find(';')
+        .map(|i| start + i)
+        .unwrap_or(text.len());
+    let json = crate::core::js_engine::js_literal_to_json(&text[start..end])?;
+    serde_json::from_str(&json)
+        .map_err(|e| AkshareError::json(format!("{var_name} 解析失败"), e.to_string()))
+}
+
+/// 毫秒时间戳 → Asia/Shanghai 日期（YYYY-MM-DD）。
+fn ms_to_date(ms: i64) -> String {
+    use chrono::TimeZone;
+    chrono::Utc
+        .timestamp_millis_opt(ms)
+        .single()
+        .map(|dt| {
+            dt.with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap())
+                .format("%Y-%m-%d")
+                .to_string()
+        })
+        .unwrap_or_default()
+}
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
 // `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。
