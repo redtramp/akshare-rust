@@ -3439,6 +3439,103 @@ fn ms_to_date(ms: i64) -> String {
         })
         .unwrap_or_default()
 }
+
+// === BATCH62-A 东方财富-净值估算（FundGuZhi/GetFundGZList）===
+//
+// 对应 akshare `fund/fund_em.py` 的 `fund_value_estimation_em`。
+// `api.fund.eastmoney.com/FundGuZhi/GetFundGZList`，响应
+// `Data.list` 数组 + `Data.gzrq`（value_day）/`Data.gxrq`（cal_day），
+// 列契约含动态日期前缀。
+
+/// 东方财富-净值估算（对应 akshare [`akshare.fund_value_estimation_em`]）。
+///
+/// - `symbol`: `"全部"` / `"股票型"` / `"混合型"` / `"债券型"` / `"指数型"` /
+///   `"QDII"` / `"ETF联接"` / `"LOF"` / `"场内交易基金"`
+///
+/// # 返回列（动态日期）
+/// `序号, 基金代码, 基金名称, {cal_day}-估算数据-估算值, {cal_day}-估算数据-估算增长率,
+/// {cal_day}-公布数据-单位净值, {cal_day}-公布数据-日增长率, 估算偏差, {value_day}-单位净值`
+pub fn fund_value_estimation_em(symbol: &str) -> Result<Df> {
+    let typ = match symbol {
+        "全部" => "1",
+        "股票型" => "2",
+        "混合型" => "3",
+        "债券型" => "4",
+        "指数型" => "5",
+        "QDII" => "6",
+        "ETF联接" => "7",
+        "LOF" => "8",
+        "场内交易基金" => "9",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 全部/股票型/混合型/债券型/指数型/QDII/ETF联接/LOF/场内交易基金"
+            )))
+        }
+    };
+    let params = json!({
+        "type": typ,
+        "sort": "3",
+        "orderType": "desc",
+        "canbuy": "0",
+        "pageIndex": "1",
+        "pageSize": "20000",
+        "_": chrono::Utc::now().timestamp_millis().to_string(),
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://api.fund.eastmoney.com/FundGuZhi/GetFundGZList",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/"),
+        ],
+        None,
+    )?;
+    let data = value.get("Data").cloned().unwrap_or(Value::Null);
+    let rows = data
+        .get("list")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let value_day = data
+        .get("gzrq")
+        .and_then(json_value_to_string)
+        .unwrap_or_default();
+    let cal_day = data
+        .get("gxrq")
+        .and_then(json_value_to_string)
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f("fundcode"),
+            f("fundname"),
+            f("gsz"),
+            f("gszzl"),
+            f("dwjz"),
+            f("jzzzl"),
+            f("gzpc"),
+            f("gzrq"),
+        ]);
+    }
+    let cols = [
+        "序号",
+        "基金代码",
+        "基金名称",
+        &format!("{cal_day}-估算数据-估算值"),
+        &format!("{cal_day}-估算数据-估算增长率"),
+        &format!("{cal_day}-公布数据-单位净值"),
+        &format!("{cal_day}-公布数据-日增长率"),
+        "估算偏差",
+        &format!("{value_day}-单位净值"),
+    ];
+    let mut df = Df::from_string_rows(&cols, &out)?;
+    df.cast_numeric(&cols[3..])?;
+    Ok(df)
+}
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
 // `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。
