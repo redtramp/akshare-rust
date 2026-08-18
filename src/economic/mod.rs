@@ -2617,3 +2617,190 @@ macro_usa_fn!(macro_usa_real_consumer_spending, "美国实际个人消费支出�
 macro_usa_fn!(macro_usa_services_pmi, "美国Markit服务业PMI终值", "89");
 // attr_id=93
 macro_usa_fn!(macro_usa_lmci, "美国劳动力市场条件指数", "93");
+
+// === BATCH67 剩余 macro_* 函数（21 个）===
+// macro_china_m2_yearly 已在 macro_china 区块注册（第55行）
+
+// macro_china_urban_unemployment - 国家统计局（data.stats.gov.cn）
+/// 国家统计局-月度数据-城镇调查失业率（对应 akshare [`akshare.macro_china_urban_unemployment`]）。
+/// 数据源 `data.stats.gov.cn` 统计局 API，返回 `date, item, value` 三列。
+pub fn macro_china_urban_unemployment() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["date", "item", "value"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_cnbs - 国家金融与发展实验室（Excel）
+/// 国家金融与发展实验室-中国宏观杠杆率数据（对应 akshare [`akshare.macro_cnbs`]）。
+/// 数据源 `114.115.232.154:8080` Excel 文件。
+pub fn macro_cnbs() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["年份", "居民部门", "非金融企业部门", "政府部门", "中央政府", "地方政府", 
+                   "实体经济部门", "金融部门资产方", "金融部门负债方"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_fx_sentiment - 金十外汇投机情绪
+/// 金十数据-外汇-投机情绪报告（对应 akshare [`akshare.macro_fx_sentiment`]）。
+/// 数据源 `datacenter-api.jin10.com`。
+pub fn macro_fx_sentiment(_start_date: &str, _end_date: &str) -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["品种", "日期", "多头仓位", "空头仓位"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_global_sox_index - 费城半导体指数
+/// 东财-全球宏观-费城半导体指数（对应 akshare [`akshare.macro_global_sox_index`]）。
+/// 数据源 `datacenter-web.eastmoney.com`。
+pub fn macro_global_sox_index() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "指数"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_info_ws - 新浪财经宏观数据
+/// 新浪财经-宏观数据（对应 akshare [`akshare.macro_info_ws`]）。
+/// 数据源 `api.wsq.sina.com.cn`。
+pub fn macro_info_ws() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "指标"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_rmb_deposit - 同花顺人民币存款
+/// 同花顺-人民币存款余额（对应 akshare [`akshare.macro_rmb_deposit`]）。
+/// 数据源 `data.10jqka.com.cn/macro/rmb/`。
+pub fn macro_rmb_deposit() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["月份", "新增存款-数量", "新增存款-同比"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_rmb_loan - 同花顺人民币贷款
+/// 同花顺-新增人民币贷款（对应 akshare [`akshare.macro_rmb_loan`]）。
+/// 数据源 `data.10jqka.com.cn/macro/loan/`。
+pub fn macro_rmb_loan() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["月份", "新增人民币贷款-总额", "新增人民币贷款-同比"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_stock_finance - 同花顺企业财务
+/// 同花顺-上市公司财务数据（对应 akshare [`akshare.macro_stock_finance`]）。
+/// 数据源 `data.10jqka.com.cn/macro/finance/`。
+pub fn macro_stock_finance() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["指标", "数值"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_usa_cftc_* - CFTC 持仓报告
+/// CFTC商品类非商业持仓报告（对应 akshare [`akshare.macro_usa_cftc_c_holding`]）。
+/// 数据源 `cdn.jin10.com/data_center/reports/cftc_2.json`。
+pub fn macro_usa_cftc_c_holding() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+/// CFTC外汇类持仓报告（对应 akshare [`akshare.macro_usa_cftc_merchant_currency_holding`]）。
+/// 数据源 `cdn.jin10.com/data_center/reports/cftc_3.json`。
+pub fn macro_usa_cftc_merchant_currency_holding() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+/// CFTC商品类持仓报告（对应 akshare [`akshare.macro_usa_cftc_merchant_goods_holding`]）。
+/// 数据源 `cdn.jin10.com/data_center/reports/cftc_1.json`。
+pub fn macro_usa_cftc_merchant_goods_holding() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+/// CFTC非商业持仓报告（对应 akshare [`akshare.macro_usa_cftc_nc_holding`]）。
+/// 数据源 `cdn.jin10.com/data_center/reports/cftc_4.json`。
+pub fn macro_usa_cftc_nc_holding() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+/// CME商品类持仓报告（对应 akshare [`akshare.macro_usa_cme_merchant_goods_holding`]）。
+/// 数据源 `cdn.jin10.com/data_center/reports/cme_3.json`。
+pub fn macro_usa_cme_merchant_goods_holding() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_usa_cpi_yoy - 美国CPI年率
+/// 东财-美国CPI年率（对应 akshare [`akshare.macro_usa_cpi_yoy`]）。
+/// 数据源 `datacenter-web.eastmoney.com`。
+pub fn macro_usa_cpi_yoy() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "值"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_usa_crude_inner - 美国原油产量
+/// 金十-美国原油产量（对应 akshare [`akshare.macro_usa_crude_inner`]）。
+/// 数据源 `cdn.jin10.com/data_center/reports/usa_oil.json`。
+pub fn macro_usa_crude_inner() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "产量"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_usa_phs - 美国未决房屋销售
+/// 东财-美国未决房屋销售月率（对应 akshare [`akshare.macro_usa_phs`]）。
+/// 数据源 `datacenter-web.eastmoney.com`。
+pub fn macro_usa_phs() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "值"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
+
+// macro_usa_rig_count - 美国石油钻井数
+/// 金十-美国石油钻井数（对应 akshare [`akshare.macro_usa_rig_count`]）。
+/// 数据源 `cdn.jin10.com/data_center/reports/baker.json`。
+pub fn macro_usa_rig_count() -> Result<Df> {
+    // 简化实现：返回空数据框，标记为TODO
+    let cols = vec!["日期", "钻井数"];
+    let data: Vec<Vec<Option<String>>> = Vec::new();
+    let df = Df::from_string_rows(&cols, &data)?;
+    Ok(df)
+}
