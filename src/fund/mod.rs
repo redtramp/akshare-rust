@@ -2033,6 +2033,114 @@ fn extract_fundinfo_script(html: &str) -> Option<&str> {
     Some(&after[..content_end])
 }
 
+// === BATCH51-A 同花顺-新发基金（fund.10jqka.com.cn/datacenter/xfjj/）===
+//
+// 对应 akshare `fund/fund_init_ths.py` 的 `fund_new_found_ths`。页面内
+// `jsonData=` 后的完整 JSON 对象（括号计数提取），键值对为基金数据，
+// `zzfx` 筛选发行中/将发行。
+
+/// 同花顺-新发基金（对应 akshare [`akshare.fund_new_found_ths`]）。
+///
+/// - `symbol`: `"全部"` / `"发行中"` / `"将发行"`
+///
+/// # 返回列
+/// `基金代码, 基金名称, 投资类型, 募集起始日, 募集终止日, 管理人, 基金经理,
+/// 认购费率, 最低认购, 基金类型, 投资风格`
+pub fn fund_new_found_ths(symbol: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let text = http.get_text(
+        "https://fund.10jqka.com.cn/datacenter/xfjj/",
+        &Map::new(),
+        None,
+    )?;
+    // 括号计数提取 jsonData= 后的完整 JSON
+    let start_idx = text
+        .find("jsonData=")
+        .ok_or_else(|| AkshareError::Empty("同花顺新发基金响应缺少 jsonData=".into()))?;
+    let start_bracket = text[start_idx..]
+        .find('{')
+        .map(|i| start_idx + i)
+        .ok_or_else(|| AkshareError::Empty("同花顺新发基金 JSON 缺少 {".into()))?;
+    let mut count = 0i64;
+    let mut end_idx = text.len();
+    for (i, c) in text[start_bracket..].char_indices() {
+        match c {
+            '{' => count += 1,
+            '}' => {
+                count -= 1;
+                if count == 0 {
+                    end_idx = start_bracket + i + 1;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let value: Value = serde_json::from_str(&text[start_bracket..end_idx])
+        .map_err(|e| AkshareError::json("fund_new_found_ths", e.to_string()))?;
+    let obj = value
+        .as_object()
+        .cloned()
+        .ok_or_else(|| AkshareError::Empty("同花顺新发基金 JSON 非对象".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(obj.len());
+    let mut zzfx_flags: Vec<bool> = Vec::with_capacity(obj.len());
+    for v in obj.values() {
+        let f = |k: &str| v.get(k).and_then(json_value_to_string);
+        // manager 可能是数组，取首个元素
+        let manager = v.get("manager").and_then(|m| match m {
+            Value::Array(a) => a.first().and_then(json_value_to_string),
+            other => json_value_to_string(other),
+        });
+        let zzfx: i64 = v
+            .get("zzfx")
+            .and_then(json_value_to_string)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        rows.push(vec![
+            f("code"),
+            f("name"),
+            f("type"),
+            f("start"),
+            f("end"),
+            f("orgname"),
+            manager,
+            f("zgrgfl"),
+            f("zdrg"),
+            f("jjlx"),
+            f("tzfg"),
+        ]);
+        zzfx_flags.push(zzfx == 1);
+    }
+    // symbol 筛选：发行中 zzfx==1 / 将发行 zzfx!=1
+    if symbol == "发行中" || symbol == "将发行" {
+        let keep_zzfx = symbol == "发行中";
+        let mut kept: Vec<Vec<Option<String>>> = Vec::new();
+        for (i, r) in rows.into_iter().enumerate() {
+            if zzfx_flags[i] == keep_zzfx {
+                kept.push(r);
+            }
+        }
+        rows = kept;
+    }
+    const COLS: [&str; 11] = [
+        "基金代码",
+        "基金名称",
+        "投资类型",
+        "募集起始日",
+        "募集终止日",
+        "管理人",
+        "基金经理",
+        "认购费率",
+        "最低认购",
+        "基金类型",
+        "投资风格",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_date(&["募集起始日", "募集终止日"])?;
+    df.cast_numeric(&["认购费率", "最低认购"])?;
+    Ok(df)
+}
+
 // === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应

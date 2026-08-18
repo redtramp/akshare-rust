@@ -162,6 +162,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("fund_portfolio_hold_em", ["000001", "2023"], "loose", "基金持仓"),
     ("fund_portfolio_bond_hold_em", ["000001", "2023"], "loose", "基金债券持仓"),
     ("fund_new_found_em", [], "loose", "新成立基金"),
+    ("fund_new_found_ths", ["全部"], "loose", "同花顺新发基金"),
     ("fund_money_fund_info_em", ["000009"], "loose", "货币基金历史净值"),
     ("fund_etf_fund_info_em", ["511280", "20240101", "20241231"], "loose", "ETF历史净值"),
     ("fund_graded_fund_info_em", ["150232"], "loose", "分级基金历史净值"),

@@ -98,11 +98,13 @@
 
 > **2026-08-17 批次 50 刷新**：批量实现 fund 基金评级 4 个（`fund_rating_all`/`fund_rating_sh`/`fund_rating_zs`/`fund_rating_ja`，`fundrating*.html` `#fundinfo` 内嵌 JS 解析，公共实现 `fund_rating_parse`/`extract_fundinfo_script`，按 `var` 分段取数据串、`|_` 拆分数据项、`|` 拆位置式列，27/22/20/20 列契约 select 11/16/12/13 列），akshare 同名 `pub fn` 达 **729** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 66.3%**。
 
+> **2026-08-18 批次 51 刷新**：批量实现 fund 同花顺新发基金 1 个（`fund_new_found_ths`，`fund.10jqka.com.cn/datacenter/xfjj/` 页面内 `jsonData=` 括号计数提取 JSON 对象，`zzfx` 筛选发行中/将发行，manager 数组取首元素，11 列契约），akshare 同名 `pub fn` 达 **730** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 66.4%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **729**（2026-08-17 批次 50 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（729 / 1099 实测口径） | **≈ 66.3%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **730**（2026-08-18 批次 51 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（730 / 1099 实测口径） | **≈ 66.4%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -113,7 +115,7 @@
 |---|---:|---:|---:|
 | economic | 147 | 225 | 65.3% |
 | index | 52 | 95 | 54.7% |
-| fund | 33 | 88 | 37.5% |
+| fund | 34 | 88 | 38.6% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -147,7 +149,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **729（66.3%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 37.5%（33/88）**。最大缺口在 **index / fund / economic**（合计 176）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **730（66.4%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 38.6%（34/88）**。最大缺口在 **index / fund / economic**（合计 175）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -801,6 +803,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 49（2026-08-17）· fund 历史净值明细 3 个批量落地**：akshare 同名 `pub fn` 达 **725（66.0%）**。覆盖 **fund 历史净值明细 3 个**（BATCH49-A `fund_money_fund_info_em`（货币版，5 列：净值日期/每万份收益/7日年化收益率/申购状态/赎回状态）、`fund_etf_fund_info_em`（普通版，6 列：净值日期/单位净值/累计净值/日增长率/申购状态/赎回状态，参数 fund/start_date/end_date）、`fund_graded_fund_info_em`（普通版 6 列），`api.fund.eastmoney.com/f10/lsjz` 分页 `Data.LSJZList`（FSRQ/DWJZ/LJJZ/JZZZL/SGZT/SHZT），公共实现 `fund_lsjz_base`（本地 `fmt_date` YYYYMMDD→YYYY-MM-DD），按净值日期升序）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；3 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 > **批次 50（2026-08-17）· fund 基金评级 4 个批量落地**：akshare 同名 `pub fn` 达 **729（66.3%）**。覆盖 **fund 基金评级 4 个**（BATCH50-A `fund_rating_all`（`fundrating.html`，`var` 段 index=6，27 列 select 11：代码/简称/基金经理/基金公司/5星评级家数/上海证券/招商证券/济安金信/晨星评级/手续费（去 % 后 /100）/类型）、`fund_rating_sh`（`fundrating_3_{date}.html`，var idx=1，22 列 select 16）、`fund_rating_zs`（`fundrating_2_{date}.html`，20 列 select 12）、`fund_rating_ja`（`fundrating_4_{date}.html`，20 列 select 13），`#fundinfo` 内 `<script>` 提取 + 按 `var` 分段取数据串、`|_` 拆分数据项、`|` 拆位置式列，公共实现 `fund_rating_parse`/`extract_fundinfo_script`/`cnindex_fmt_date_local`）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；4 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 51（2026-08-18）· fund 同花顺新发基金 1 个落地**：akshare 同名 `pub fn` 达 **730（66.4%）**。覆盖 **fund 同花顺-新发基金 1 个**（BATCH51-A `fund_new_found_ths`，`fund.10jqka.com.cn/datacenter/xfjj/` 页面内 `jsonData=` 后完整 JSON 对象（括号计数提取），键值对为基金数据，`zzfx==1` 筛选发行中 / `zzfx!=1` 筛选将发行，manager 数组取首元素，rename 11 列：基金代码/基金名称/投资类型/募集起始日/募集终止日/管理人/基金经理/认购费率/最低认购/基金类型/投资风格）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；1 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在
