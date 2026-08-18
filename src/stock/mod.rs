@@ -8885,3 +8885,58 @@ pub fn stock_a_code_to_symbol(symbol: &str) -> String {
         format!("sz{}", symbol)
     }
 }
+
+/// 东方财富-财经早餐（对应 akshare [`akshare.stock_info_cjzc_em`]）。
+///
+/// 东财 np-listapi.eastmoney.com 接口，返回财经早餐资讯列表。
+pub fn stock_info_cjzc_em() -> Result<Df> {
+    let url = "https://np-listapi.eastmoney.com/comm/web/getNewsByColumns";
+    let params = json!({
+        "client": "web",
+        "biz": "web_news_col",
+        "column": "1207",
+        "order": "1",
+        "needInteractData": "0",
+        "page_index": "1",
+        "page_size": "200",
+        "req_trace": "1710314682980",
+        "fields": "code,showTime,title,mediaName,summary,image,url,uniqueUrl,Np_dst",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+
+    let mut all_rows: Vec<Vec<Option<String>>> = Vec::new();
+
+    for page in 1..=2 {
+        let page_params = params.clone();
+        let mut params_mut = page_params;
+        params_mut.insert("page_index".to_string(), Value::from(page));
+
+        let data: Value = http.get_json(url, &params_mut, None)?;
+
+        if let Some(list) = data
+            .get("data")
+            .and_then(|v| v.get("list"))
+            .and_then(Value::as_array)
+        {
+            for item in list {
+                let title = item.get("title").and_then(Value::as_str).map(|s| s.to_string());
+                let summary = item
+                    .get("summary")
+                    .and_then(Value::as_str)
+                    .map(|s| s.to_string());
+                let show_time = item
+                    .get("showTime")
+                    .and_then(Value::as_str)
+                    .map(|s| s.to_string());
+                let unique_url = item
+                    .get("uniqueUrl")
+                    .and_then(Value::as_str)
+                    .map(|s| s.to_string());
+                all_rows.push(vec![title, summary, show_time, unique_url]);
+            }
+        }
+    }
+
+    Df::from_string_rows(&["标题", "摘要", "发布时间", "链接"], &all_rows)
+}

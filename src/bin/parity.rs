@@ -416,6 +416,7 @@ use akshare_rust::stock::{
     stock_hk_index_spot_sina,
     stock_info_global_sina,
     stock_a_code_to_symbol,
+    stock_info_cjzc_em,
     stock_zh_a_hist,
     stock_zh_a_hist_min_em,
     stock_zh_a_spot_em,
@@ -809,6 +810,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let sym = stock_a_code_to_symbol(s);
             Ok(Df::from_string_rows(&["symbol"], &vec![vec![Some(sym)]])?)
         }
+        "stock_info_cjzc_em" => Ok(stock_info_cjzc_em()?),
         "index_zh_a_hist" => {
             let [s, p, d0, d1] = take4(func, args)?;
             Ok(index_zh_a_hist(s, p, d0, d1)?)
