@@ -723,6 +723,148 @@ pub fn stock_board_concept_spot_em(symbol: &str) -> Result<Df> {
     board_spot(&http, &code)
 }
 
+// === BATCH68 板块异动/盘口变动 ===
+
+/// 东方财富-当日板块异动详情（对应 akshare [`akshare.stock_board_change_em`]）。
+///
+/// 数据源 `push2ex.eastmoney.com/getAllBKChanges`，JSON 响应 `data.allbk` 数组。
+///
+/// # 返回列
+/// `板块名称, 涨跌幅, 主力净流入, 板块异动总次数, 代码, 名称, 买卖方向, 异动类型`
+pub fn stock_board_change_em() -> Result<Df> {
+    use serde_json::Value;
+    let http = HttpClient::default();
+    let url = "https://push2ex.eastmoney.com/getAllBKChanges";
+    let params: serde_json::Map<String, Value> = serde_json::from_value(serde_json::json!({
+        "ut": "7eea3edcaed734bea9cbfc24409ed989",
+        "dpt": "wzchanges",
+        "pageindex": "0",
+        "pagesize": "5000",
+    })).unwrap();
+    let r = http.get_json(url, &params, None).unwrap();
+    let allbk = r["data"]["allbk"].as_array().ok_or_else(|| {
+        AkshareError::json(url, "allbk not array")
+    })?;
+
+    let mut rows = Vec::new();
+    for item in allbk {
+        let name = item[2].as_str().unwrap_or("");
+        let pct = item[3].to_string();
+        let net = item[4].to_string();
+        let count = item[5].to_string();
+        let _ms = item[6].as_array().and_then(|a| a.first());
+        let codes = item["c"].as_str().unwrap_or("");
+        let names = item["n"].as_str().unwrap_or("");
+        let dirs = match item["m"].as_i64() {
+            Some(0) => "大笔买入",
+            Some(1) => "大笔卖出",
+            _ => "",
+        };
+        let types = item[7].to_string();
+        rows.push(vec![
+            Some(name.to_string()),
+            Some(pct),
+            Some(net),
+            Some(count),
+            Some(codes.to_string()),
+            Some(names.to_string()),
+            Some(dirs.to_string()),
+            Some(types),
+        ]);
+    }
+
+    const COLS: [&str; 8] = [
+        "板块名称",
+        "涨跌幅",
+        "主力净流入",
+        "板块异动总次数",
+        "代码",
+        "名称",
+        "买卖方向",
+        "异动类型",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["涨跌幅", "主力净流入", "板块异动总次数"])?;
+    Ok(df)
+}
+
+/// 东方财富-盘口异动详情（对应 akshare [`akshare.stock_changes_em`]）。
+///
+/// `symbol`: 异动类型，可选 '大笔买入'/'大笔卖出' 等，默认 '大笔买入'。
+///
+/// # 返回列
+/// `时间, 代码, 名称, 板块, 相关信息`
+pub fn stock_changes_em(symbol: &str) -> Result<Df> {
+    use serde_json::Value;
+    let http = HttpClient::default();
+    let url = "https://push2ex.eastmoney.com/getAllStockChanges";
+    let symbol_map: &[(&str, &str)] = &[
+        ("火箭发射", "8201"),
+        ("快速反弹", "8202"),
+        ("大笔买入", "8193"),
+        ("封涨停板", "4"),
+        ("打开跌停板", "32"),
+        ("有大买盘", "64"),
+        ("竞价上涨", "8207"),
+        ("高开5日线", "8209"),
+        ("向上缺口", "8211"),
+        ("60日新高", "8213"),
+        ("60日大幅上涨", "8215"),
+        ("加速下跌", "8204"),
+        ("高台跳水", "8205"),
+        ("大笔卖出", "8194"),
+        ("封跌停板", "16"),
+        ("打开涨停板", "8"),
+        ("有大卖盘", "128"),
+        ("竞价下跌", "8208"),
+        ("低开5日线", "8210"),
+        ("向下缺口", "8212"),
+        ("60日新低", "8214"),
+        ("60日大幅下跌", "8216"),
+    ];
+    let code = symbol_map
+        .iter()
+        .find(|(k, _)| *k == symbol)
+        .map(|(_, v)| *v)
+        .unwrap_or("8193");
+
+    let params: serde_json::Map<String, Value> = serde_json::from_value(serde_json::json!({
+        "type": code,
+        "pageindex": "0",
+        "pagesize": "5000",
+        "ut": "7eea3edcaed734bea9cbfc24409ed989",
+        "dpt": "wzchanges",
+    })).unwrap();
+    let r = http.get_json(url, &params, None).unwrap();
+    let stocks = r["data"]["allstock"].as_array().ok_or_else(|| {
+        AkshareError::json(url, "allstock not array")
+    })?;
+
+    let mut rows = Vec::new();
+    for item in stocks {
+        let time_str = item["tm"].as_i64().unwrap_or(0).to_string();
+        let time = if time_str.len() == 6 {
+            format!("{}:{}:{}", &time_str[0..2], &time_str[2..4], &time_str[4..6])
+        } else {
+            time_str
+        };
+        let code = item["c"].as_str().unwrap_or("");
+        let name = item["n"].as_str().unwrap_or("");
+        let change_type = symbol;
+        let info = item["i"].as_str().unwrap_or("");
+        rows.push(vec![
+            Some(time),
+            Some(code.to_string()),
+            Some(name.to_string()),
+            Some(change_type.to_string()),
+            Some(info.to_string()),
+        ]);
+    }
+
+    const COLS: [&str; 5] = ["时间", "代码", "名称", "板块", "相关信息"];
+    Df::from_string_rows(&COLS, &rows)
+}
+
 /// 板块分时/分钟历史行情公共实现（对应 akshare `stock_board_*_hist_min_em`）。
 fn board_hist_min(http: &HttpClient, code: &str, period: &str) -> Result<Df> {
     let secid = format!("90.{code}");

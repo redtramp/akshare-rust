@@ -378,6 +378,9 @@ use akshare_rust::stock::{
     stock_board_industry_name_em,
     stock_board_industry_spot_em,
     stock_concept_fund_flow_hist,
+    // === BATCH68 板块异动/盘口变动 ===
+    stock_board_change_em,
+    stock_changes_em,
     // === BATCH15 东财数据中心：股市日历/高管持股/股票回购（RPT_ORGOP_ALL / RPT_EXECUTIVE_HOLD_DETAILS / RPTA_WEB_GETHGLIST_NEW） ===
     stock_gsrl_gsdt_em,
     stock_hk_company_profile_em,
@@ -642,6 +645,12 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_board_industry_spot_em" => {
             let [s] = take1(func, args)?;
             Ok(stock_board_industry_spot_em(s)?)
+        }
+        // BATCH68
+        "stock_board_change_em" => Ok(stock_board_change_em()?),
+        "stock_changes_em" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_changes_em(s)?)
         }
         "stock_board_concept_hist_min_em" => {
             let [s, p] = take2(func, args)?;
