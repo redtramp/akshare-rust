@@ -336,8 +336,9 @@ use akshare_rust::index::{
 use akshare_rust::interest_rate::rate_interbank;
 use akshare_rust::legu::{
     fund_balance_position_lg, fund_linghuo_position_lg, fund_stock_position_lg,
-    stock_a_congestion_lg, stock_buffett_index_lg, stock_ebs_lg, stock_index_pb_lg,
-    stock_index_pe_lg, stock_market_pb_lg, stock_market_pe_lg,
+    stock_a_congestion_lg, stock_a_ttm_lyr, stock_buffett_index_lg, stock_ebs_lg,
+    stock_hk_gxl_lg, stock_index_pb_lg, stock_index_pe_lg, stock_market_pb_lg,
+    stock_market_pe_lg,
 };
 use akshare_rust::news::{
     news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
@@ -2269,6 +2270,8 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(stock_index_pb_lg(s)?)
         }
         "stock_a_congestion_lg" => Ok(stock_a_congestion_lg()?),
+        "stock_a_ttm_lyr" => Ok(stock_a_ttm_lyr()?),
+        "stock_hk_gxl_lg" => Ok(stock_hk_gxl_lg()?),
         "stock_buffett_index_lg" => Ok(stock_buffett_index_lg()?),
         "stock_ebs_lg" => Ok(stock_ebs_lg()?),
         "fund_stock_position_lg" => Ok(fund_stock_position_lg()?),
