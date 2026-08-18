@@ -3536,6 +3536,21 @@ pub fn fund_value_estimation_em(symbol: &str) -> Result<Df> {
     df.cast_numeric(&cols[3..])?;
     Ok(df)
 }
+
+// === BATCH63-A 新浪财经-分级子基金规模（NetValueReturn jsonp 复用）===
+//
+// 对应 akshare `fund/fund_scale_sina.py` 的 `fund_scale_structured_sina`。
+// 与 [`fund_scale_sina_base`] 同源（NetValueReturn_Service.NetValueReturnCX），
+// 直接复用。
+
+/// 新浪财经-分级子基金规模（对应 akshare [`akshare.fund_scale_structured_sina`]）。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 单位净值, 总募集规模, 最近总份额, 成立日期,
+/// 基金经理, 更新日期`
+pub fn fund_scale_structured_sina() -> Result<Df> {
+    fund_scale_sina_base("cRrwseM7NWX68rDa", "NetValueReturnCX", "1000", "")
+}
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
 // `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。

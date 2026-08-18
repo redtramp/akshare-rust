@@ -191,6 +191,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("fund_lof_hist_min_em", ["166009", "1979-09-01 09:32:00", "2222-01-01 09:32:00", "5", ""], "loose", "LOF分钟行情"),
     ("fund_open_fund_info_em", ["710001", "单位净值走势", "成立来"], "loose", "开放式基金净值信息"),
     ("fund_value_estimation_em", ["全部"], "loose", "基金净值估算"),
+    ("fund_scale_structured_sina", [], "loose", "新浪分级子基金规模"),
     ("fund_lof_spot_em", [], "loose", "LOF实时行情"),
     ("stock_profile_cninfo", ["600030"], "strict", "巨潮公司概况"),
     ("stock_industry_category_cninfo", ["巨潮行业分类标准"], "loose", "巨潮行业分类"),
