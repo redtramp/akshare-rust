@@ -2681,6 +2681,177 @@ pub fn fund_hk_fund_hist_em(code: &str, symbol: &str) -> Result<Df> {
         Ok(df)
     }
 }
+
+// === BATCH56-A 天天基金网-分红排行 + 申购状态 ===
+//
+// 对应 akshare `fund/fund_fhsp_em.py` 的 `fund_fh_rank_em`（funddataIndex
+// dt=10 分页）与 `fund/fund_em.py` 的 `fund_purchase_em`（Fund_JJJZ_Data
+// var reData= 解析）。
+
+/// 天天基金网-基金分红排行（对应 akshare [`akshare.fund_fh_rank_em`]）。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 累计分红, 累计次数, 成立日期`
+pub fn fund_fh_rank_em() -> Result<Df> {
+    let url = "https://fund.eastmoney.com/Data/funddataIndex_Interface.aspx";
+    let http = HttpClient::default();
+    let mut params = json!({
+        "dt": "10",
+        "page": "1",
+        "rank": "FHFCZ",
+        "sort": "desc",
+        "gs": "",
+        "ftype": "",
+    });
+    let parse = |text: &str| -> Result<Value> {
+        let start = text
+            .find("[[")
+            .ok_or_else(|| AkshareError::Empty("分红排行响应缺少 [[ 前缀".into()))?;
+        let end = text.find(";var ").unwrap_or(text.len());
+        serde_json::from_str(&text[start..end]).map_err(|e| AkshareError::json(url, e.to_string()))
+    };
+    let first_params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let first_text = http.get_text(url, &first_params, None)?;
+    let total_page: i64 = first_text
+        .split('=')
+        .nth(1)
+        .and_then(|s| s.split(';').next())
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .unwrap_or(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v.as_array() {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    if let Ok(v) = parse(&first_text) {
+        append(&v, &mut rows);
+    }
+    for page in 2..=total_page {
+        params = json!({
+            "dt": "10",
+            "page": page.to_string(),
+            "rank": "FHFCZ",
+            "sort": "desc",
+            "gs": "",
+            "ftype": "",
+        });
+        let pm: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_text(url, &pm, None) {
+            Ok(t) => {
+                if let Ok(v) = parse(&t) {
+                    append(&v, &mut rows);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    // 每行位置式：基金代码,基金简称,累计分红,累计次数,成立日期
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| row.get(idx).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f(0),
+            f(1),
+            f(2),
+            f(3),
+            f(4),
+        ]);
+    }
+    const COLS: [&str; 6] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "累计分红",
+        "累计次数",
+        "成立日期",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["成立日期"])?;
+    df.cast_numeric(&["累计分红", "累计次数"])?;
+    Ok(df)
+}
+
+/// 天天基金网-基金申购状态（对应 akshare [`akshare.fund_purchase_em`]）。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 基金类型, 最新净值/万份收益,
+/// 最新净值/万份收益-报告时间, 申购状态, 赎回状态, 下一开放日, 购买起点,
+/// 日累计限定金额, 手续费`
+pub fn fund_purchase_em() -> Result<Df> {
+    let params = json!({
+        "t": "8",
+        "page": "1,50000",
+        "js": "reData",
+        "sort": "fcode,asc",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        "https://fund.eastmoney.com/Data/Fund_JJJZ_Data.aspx",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/"),
+        ],
+        None,
+    )?;
+    let body = text
+        .trim()
+        .strip_prefix("var reData=")
+        .ok_or_else(|| AkshareError::Empty("基金申购状态响应缺少 var reData= 前缀".into()))?;
+    let value: Value = serde_json::from_str(body)
+        .map_err(|e| AkshareError::json("fund_purchase_em", e.to_string()))?;
+    let rows = value
+        .get("datas")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 14 列位置式 select 12：序号,基金代码,基金简称,基金类型,最新净值/万份收益,报告时间,申购状态,赎回状态,下一开放日,购买起点,日累计限定金额,手续费
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| row.get(idx).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f(0),
+            f(1),
+            f(2),
+            f(3),
+            f(4),
+            f(5),
+            f(6),
+            f(7),
+            f(8),
+            f(9),
+            f(12),
+        ]);
+    }
+    const COLS: [&str; 12] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "基金类型",
+        "最新净值/万份收益",
+        "最新净值/万份收益-报告时间",
+        "申购状态",
+        "赎回状态",
+        "下一开放日",
+        "购买起点",
+        "日累计限定金额",
+        "手续费",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["下一开放日"])?;
+    df.cast_numeric(&["最新净值/万份收益", "购买起点", "日累计限定金额"])?;
+    df.strip_suffix(&["手续费"], "%")?;
+    df.cast_numeric(&["手续费"])?;
+    Ok(df)
+}
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
 // `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。
