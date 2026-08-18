@@ -112,11 +112,13 @@
 
 > **2026-08-18 批次 57 刷新**：批量实现 fund 深交所基金规模日频 1 个（`fund_scale_daily_szse`，`www.szse.cn/api/report/ShowReport` xlsx 下载（CATALOGID=scsj_fund_jjgm，txtStart/txtEnd/jjlb 参数），复用 `szse_xls_rows`，4 列：日期/基金代码（zfill(6)）/基金简称/基金份额（去逗号）），akshare 同名 `pub fn` 达 **743** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 67.6%**。
 
+> **2026-08-18 批次 58 刷新**：批量实现 fund 新浪财经 2 个（`fund_etf_category_sina`，`quotes_service/api/jsonp.php` Market_Center.getHQNodeDataSimple jsonp 解析，node=close_fund/etf_hq_fund/lof_hq_fund，13 列；`fund_etf_hist_sina`，`finance.sina.com.cn/realstock/.../klc_kl.js` 加密日 K，`sina_js_decode` 解密，date/open/high/low/close/volume 按日期升序），akshare 同名 `pub fn` 达 **745** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 67.8%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **743**（2026-08-18 批次 57 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（743 / 1099 实测口径） | **≈ 67.6%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **745**（2026-08-18 批次 58 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（745 / 1099 实测口径） | **≈ 67.8%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -127,7 +129,7 @@
 |---|---:|---:|---:|
 | economic | 147 | 225 | 65.3% |
 | index | 52 | 95 | 54.7% |
-| fund | 47 | 88 | 53.4% |
+| fund | 49 | 88 | 55.7% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -161,7 +163,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **743（67.6%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 53.4%（47/88，过半）**。最大缺口在 **index / fund / economic**（合计 162）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **745（67.8%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 55.7%（49/88，过半）**。最大缺口在 **index / fund / economic**（合计 160）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -829,6 +831,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 56（2026-08-18）· fund 分红排行 + 申购状态 2 个批量落地**：akshare 同名 `pub fn` 达 **742（67.5%）**。覆盖 **fund 分红排行 + 申购状态 2 个**（BATCH56-A `fund_fh_rank_em`（`funddataIndex_Interface.aspx` dt=10 分页，响应 `total_page=xx;var ...=[[...]];var fhph_jjgs=`，6 列：序号/基金代码/基金简称/累计分红/累计次数/成立日期）、`fund_purchase_em`（`Fund_JJJZ_Data.aspx` t=8 单页 50000，响应 `var reData={datas:[...]}`，14 列位置式 select 12 列：序号/基金代码/基金简称/基金类型/最新净值/万份收益/报告时间/申购状态/赎回状态/下一开放日/购买起点/日累计限定金额/手续费（去 %）））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；2 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 > **批次 57（2026-08-18）· fund 深交所基金规模日频 1 个落地**：akshare 同名 `pub fn` 达 **743（67.6%）**。覆盖 **fund 深交所-基金规模日频 1 个**（BATCH57-A `fund_scale_daily_szse`，`www.szse.cn/api/report/ShowReport` xlsx 下载（CATALOGID=scsj_fund_jjgm，txtStart/txtEnd/jjlb 参数，jjlb 按 symbol ETF/LOF/REITS 映射），复用 `szse_xls_rows` calamine 解析，4 列：日期/基金代码（zfill(6)）/基金简称/基金份额（去逗号），空行过滤）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；1 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 58（2026-08-18）· fund 新浪财经 2 个批量落地**：akshare 同名 `pub fn` 达 **745（67.8%）**。覆盖 **fund 新浪财经 2 个**（BATCH58-A `fund_etf_category_sina`（`vip.stock.finance.sina.com.cn/quotes_service/api/jsonp.php/.../Market_Center.getHQNodeDataSimple` jsonp 解析（`([` 取 `}` 前缀），node=close_fund/etf_hq_fund/lof_hq_fund 按 symbol 映射，13 列：代码/名称/最新价/涨跌额/涨跌幅/买入/卖出/昨收/今开/最高/最低/成交量/成交额）、`fund_etf_hist_sina`（`finance.sina.com.cn/realstock/company/{symbol}/hisdata_klc2/klc_kl.js` 加密日 K，`=` 后 `;` 前提取编码串去引号，`sina_js_decode` 解密 → date/open/high/low/close/volume 按日期升序））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；2 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在

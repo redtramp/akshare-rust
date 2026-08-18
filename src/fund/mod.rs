@@ -2947,6 +2947,136 @@ pub fn fund_scale_daily_szse(start_date: &str, end_date: &str, symbol: &str) -> 
     df.cast_numeric(&["基金份额"])?;
     Ok(df)
 }
+
+// === BATCH58-A 新浪财经-基金列表 + ETF 日行情 ===
+//
+// 对应 akshare `fund/fund_etf_sina.py` 的 `fund_etf_category_sina`
+// （jsonp.php Market_Center.getHQNodeDataSimple）与 `fund_etf_hist_sina`
+// （klc_kl.js 加密日 K，sina_js_decode 解密）。
+
+/// 新浪财经-基金列表（对应 akshare [`akshare.fund_etf_category_sina`]）。
+///
+/// - `symbol`: `"封闭式基金"` / `"ETF基金"` / `"LOF基金"`
+///
+/// # 返回列
+/// `代码, 名称, 最新价, 涨跌额, 涨跌幅, 买入, 卖出, 昨收, 今开, 最高, 最低,
+/// 成交量, 成交额`
+pub fn fund_etf_category_sina(symbol: &str) -> Result<Df> {
+    let node = match symbol {
+        "封闭式基金" => "close_fund",
+        "ETF基金" => "etf_hq_fund",
+        "LOF基金" => "lof_hq_fund",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 封闭式基金/ETF基金/LOF基金"
+            )))
+        }
+    };
+    let params = json!({
+        "page": "1",
+        "num": "5000",
+        "sort": "symbol",
+        "asc": "0",
+        "node": node,
+        "[object HTMLDivElement]": "qvvne",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text(
+        "https://vip.stock.finance.sina.com.cn/quotes_service/api/jsonp.php/IO.XSRV2.CallbackList['da_yPT46_Ll7K6WD']/Market_Center.getHQNodeDataSimple",
+        &params,
+        None,
+    )?;
+    // jsonp 包裹：...([{...},...])
+    let start = text
+        .find("([")
+        .ok_or_else(|| AkshareError::Empty("新浪基金列表响应缺少 ([ 前缀".into()))?
+        + 1;
+    let end = text.len().saturating_sub(2);
+    let body = &text[start..end];
+    let rows: Vec<Value> = serde_json::from_str(body)
+        .map_err(|e| AkshareError::json("fund_etf_category_sina", e.to_string()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("symbol"),
+            f("name"),
+            f("trade"),
+            f("pricechange"),
+            f("changepercent"),
+            f("buy"),
+            f("sell"),
+            f("settlement"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("volume"),
+            f("amount"),
+        ]);
+    }
+    const COLS: [&str; 13] = [
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "买入",
+        "卖出",
+        "昨收",
+        "今开",
+        "最高",
+        "最低",
+        "成交量",
+        "成交额",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[2..])?;
+    Ok(df)
+}
+
+/// 新浪财经-ETF 基金日行情数据（对应 akshare [`akshare.fund_etf_hist_sina`]）。
+///
+/// - `symbol`: 基金代码带交易所前缀，如 `"sh510050"`
+///
+/// # 返回列
+/// `date, open, high, low, close, volume`（按 date 升序）
+pub fn fund_etf_hist_sina(symbol: &str) -> Result<Df> {
+    let url =
+        format!("https://finance.sina.com.cn/realstock/company/{symbol}/hisdata_klc2/klc_kl.js");
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &Map::new(), None)?;
+    // 提取 `=` 后 `;` 前的编码串（去引号），复用 bond/g_sina 的提取模式
+    let encoded = text
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty("新浪 ETF JS 响应缺少 '=' 分隔".into()))?
+        .split(';')
+        .next()
+        .ok_or_else(|| AkshareError::Empty("新浪 ETF JS 响应缺少 ';' 分隔".into()))?
+        .replace('"', "");
+    let decoded = crate::core::js_engine::sina_js_decode(&encoded)?;
+    let rows: Vec<Value> = serde_json::from_str(&decoded)
+        .map_err(|e| AkshareError::json("fund_etf_hist_sina", e.to_string()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("date"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("close"),
+            f("volume"),
+        ]);
+    }
+    const COLS: [&str; 6] = ["date", "open", "high", "low", "close", "volume"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["date"])?;
+    df.cast_numeric(&COLS[1..])?;
+    df = df.sort_by("date", true, false)?;
+    Ok(df)
+}
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
 // `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。

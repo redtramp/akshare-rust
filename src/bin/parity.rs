@@ -206,13 +206,14 @@ use akshare_rust::forex::{forex_hist_em, forex_spot_em};
 use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
     fund_announcement_dividend_em, fund_announcement_personnel_em, fund_announcement_report_em,
-    fund_aum_em, fund_aum_hist_em, fund_aum_trend_em, fund_cf_em, fund_etf_category_ths,
-    fund_etf_fund_info_em, fund_etf_hist_min_em, fund_etf_scale_sse, fund_etf_scale_szse,
-    fund_etf_spot_em, fund_etf_spot_ths, fund_exchange_rank_em, fund_fh_em, fund_fh_rank_em,
-    fund_financial_fund_daily_em, fund_graded_fund_info_em, fund_hk_fund_hist_em, fund_hk_rank_em,
-    fund_hold_structure_em, fund_lcx_rank_em, fund_lof_hist_em, fund_lof_spot_em,
-    fund_money_fund_daily_em, fund_money_fund_info_em, fund_money_rank_em, fund_name_em,
-    fund_new_found_em, fund_new_found_ths, fund_open_fund_daily_em, fund_open_fund_rank_em,
+    fund_aum_em, fund_aum_hist_em, fund_aum_trend_em, fund_cf_em, fund_etf_category_sina,
+    fund_etf_category_ths, fund_etf_fund_info_em, fund_etf_hist_min_em, fund_etf_hist_sina,
+    fund_etf_scale_sse, fund_etf_scale_szse, fund_etf_spot_em, fund_etf_spot_ths,
+    fund_exchange_rank_em, fund_fh_em, fund_fh_rank_em, fund_financial_fund_daily_em,
+    fund_graded_fund_info_em, fund_hk_fund_hist_em, fund_hk_rank_em, fund_hold_structure_em,
+    fund_lcx_rank_em, fund_lof_hist_em, fund_lof_spot_em, fund_money_fund_daily_em,
+    fund_money_fund_info_em, fund_money_rank_em, fund_name_em, fund_new_found_em,
+    fund_new_found_ths, fund_open_fund_daily_em, fund_open_fund_rank_em,
     fund_portfolio_bond_hold_em, fund_portfolio_hold_em, fund_portfolio_industry_allocation_em,
     fund_purchase_em, fund_rating_all, fund_rating_ja, fund_rating_sh, fund_rating_zs,
     fund_scale_change_em, fund_scale_daily_szse,
@@ -924,6 +925,14 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "fund_scale_daily_szse" => {
             let [d0, d1, s] = take3(func, args)?;
             Ok(fund_scale_daily_szse(d0, d1, s)?)
+        }
+        "fund_etf_category_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_etf_category_sina(s)?)
+        }
+        "fund_etf_hist_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_etf_hist_sina(s)?)
         }
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
         "stock_profile_cninfo" => {
