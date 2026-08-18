@@ -8828,3 +8828,60 @@ pub fn stock_hk_index_spot_sina() -> Result<Df> {
 
     Ok(df)
 }
+
+/// 新浪财经-全球财经快讯（对应 akshare [`akshare.stock_info_global_sina`]）。
+///
+/// 走 zhibo.sina.com.cn 直播接口，返回快讯列表。
+pub fn stock_info_global_sina() -> Result<Df> {
+    let url = "https://zhibo.sina.com.cn/api/zhibo/feed";
+    let params = json!({
+        "page": "1",
+        "page_size": "20",
+        "zhibo_id": "152",
+        "tag_id": "0",
+        "dire": "f",
+        "dpc": "1",
+        "pagesize": "20",
+        "type": "1",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data: Value = http.get_json(url, &params, None)?;
+
+    let list = data
+        .get("result")
+        .and_then(|v| v.get("data"))
+        .and_then(|v| v.get("feed"))
+        .and_then(|v| v.get("list"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let rows: Vec<Vec<Option<String>>> = list
+        .iter()
+        .map(|item| {
+            let time = item
+                .get("create_time")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let text = item
+                .get("rich_text")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            vec![time, text]
+        })
+        .collect();
+
+    Df::from_string_rows(&["时间", "内容"], &rows)
+}
+
+/// 股票代码转市场符号（对应 akshare [`akshare.stock_a_code_to_symbol`]）。
+///
+/// 输入股票代码，返回带市场前缀的符号（sh/sz）。
+pub fn stock_a_code_to_symbol(symbol: &str) -> String {
+    if symbol.starts_with('6') || symbol.starts_with("900") {
+        format!("sh{}", symbol)
+    } else {
+        format!("sz{}", symbol)
+    }
+}

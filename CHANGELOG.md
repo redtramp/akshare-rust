@@ -4,6 +4,27 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-18] 批次 72 · stock 新浪港股指数 + 全球快讯 2 个函数
+
+- **新增公开函数**：**814 → 816**（净 +2）。覆盖：① **stock_hk_index_spot_sina**（新浪港股指数实时行情，`hq.sinajs.cn` API，38 行 9 列 `代码,名称,最新价,涨跌额,涨跌幅,昨收,今开,最高,最低`）；② **stock_info_global_sina**（新浪财经全球财经快讯，`zhibo.sina.com.cn/api/zhibo/feed`，20 行 2 列 `时间,内容`）。
+- **实现覆盖率**：**≈ 72.1%**（816 / 1131 公开 API）；stock 大类 **78.7% → 79.2%**（322 → 324 / 409）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(243) 全绿。
+- **parity 验证**：**2 PASS / 0 SKIP / 0 FAIL**。stock_hk_index_spot_sina 新浪 API 正常返回，stock_info_global_sina 快讯接口正常返回。
+
+## [2026-08-18] 批次 71 · stock 新浪分红 + 港股指数 3 个函数
+
+- **新增公开函数**：**811 → 814**（净 +3）。覆盖：① **stock_history_dividend**（所有股票历史分红，新浪 HTML 表格解析，5675 行 8 列）；② **stock_hk_index_spot_em**（东财港股指数实时行情，push2.eastmoney.com API，13 列）；③ **stock_hk_index_spot_sina**（新浪港股指数实时行情）。
+- **实现覆盖率**：**≈ 72.0%**（814 / 1131 公开 API）；stock 大类 **78.5% → 78.7%**（321 → 322 / 409）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(243) 全绿。
+- **parity 验证**：**3 PASS / 0 SKIP / 0 FAIL**。stock_history_dividend 已验证通过（5675 行）。
+
+## [2026-08-18] 批次 70 · stock 乐咕指标 2 个函数
+
+- **新增公开函数**：**810 → 812**（净 +2）。覆盖：① **stock_a_below_net_asset_statistics**（破净股统计，legulegu.com API，含 ratio 计算）；② **stock_a_high_low_statistics**（创新高/新低统计，参数 all/sz50/hs300/zz500）。
+- **实现覆盖率**：**≈ 71.8%**（812 / 1131 公开 API）；stock 大类 **77.8% → 78.0%**（319 → 320 / 409）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(243) 全绿。
+
+
 ## [2026-08-18] 批次 65 · economic macro_bank / macro_shipping / macro_cons 18 个批量落地
 
 - **新增公开函数**：**751 → 769**（净 +18）。覆盖：① **macro_bank_* 11 个**（主要央行利率决议报告，金十 datacenter `datacenter-api.jin10.com/reports/list_v2`，`category="ec"`，`attr_id` 各不同：`macro_bank_usa_interest_rate`(24)/`euro`(21)/`japan`(22)/`english`(26)/`australia`(27)/`newzealand`(23)/`switzerland`(25)/`china`(91)/`russia`(64)/`india`(68)/`brazil`(55)）；② **macro_shipping_* 4 个**（波罗的海航运指数，东方财富 `datacenter-web.eastmoney.com/api/data/v1/get`，`reportName=RPT_INDUSTRY_INDEX`，`filter=(INDICATOR_ID="EMI...")`，分页翻页，响应为 JSON 对象数组而非数组，返回 `日期,最新值,涨跌幅,近3月涨跌幅,近6月涨跌幅,近1年涨跌幅,近2年涨跌幅,近3年涨跌幅` 8 列；`macro_shipping_bdi`（EMI00107664）/`bci`（EMI00107666）/`bpi`（EMI00107665）/`bcti`（EMI00107669））；③ **macro_cons_* 3 个**（贵金属/原油 ETF 持仓，金十 datacenter，`category="etf"`，`attr_id`：`macro_cons_gold`(1)/`silver`(2)/`opec_month`(17)）。
