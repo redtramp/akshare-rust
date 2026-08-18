@@ -5,3 +5,6 @@ __pycache__/
 .vscode/
 *.swp
 PLAN.md
+.atomcode/
+.codebase-memory/
+.codebuddy/
