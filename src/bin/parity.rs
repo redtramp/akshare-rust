@@ -411,6 +411,8 @@ use akshare_rust::stock::{
     stock_sh_a_spot_em,
     stock_sz_a_spot_em,
     stock_bj_a_spot_em,
+    stock_history_dividend,
+    stock_hk_index_spot_em,
     stock_zh_a_hist,
     stock_zh_a_hist_min_em,
     stock_zh_a_spot_em,
@@ -795,6 +797,8 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_sh_a_spot_em" => Ok(stock_sh_a_spot_em()?),
         "stock_sz_a_spot_em" => Ok(stock_sz_a_spot_em()?),
         "stock_bj_a_spot_em" => Ok(stock_bj_a_spot_em()?),
+        "stock_history_dividend" => Ok(stock_history_dividend()?),
+        "stock_hk_index_spot_em" => Ok(stock_hk_index_spot_em()?),
         "index_zh_a_hist" => {
             let [s, p, d0, d1] = take4(func, args)?;
             Ok(index_zh_a_hist(s, p, d0, d1)?)
@@ -2048,12 +2052,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(rate_interbank(m, s, ind)?)
         }
         // 批次3 阶段3d 同花顺板块/新股/公司大事
-        "stock_board_industry_name_ths" => Ok(stock_board_industry_name_ths()?),
         "stock_board_industry_info_ths" => {
             let [s] = take1(func, args)?;
             Ok(stock_board_industry_info_ths(s)?)
         }
-        "stock_board_concept_name_ths" => Ok(stock_board_concept_name_ths()?),
         "stock_board_concept_info_ths" => {
             let [s] = take1(func, args)?;
             Ok(stock_board_concept_info_ths(s)?)

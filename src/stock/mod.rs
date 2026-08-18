@@ -8676,3 +8676,109 @@ mod tests_e1 {
         assert_eq!(df.column_names(), SELECT);
     }
 }
+
+/// 所有股票历史分红（对应 akshare [`akshare.stock_history_dividend`]）。
+///
+/// 新浪财经 HTML 表格，5675 行。
+pub fn stock_history_dividend() -> Result<Df> {
+    let url =
+        "https://vip.stock.finance.sina.com.cn/q/go.php/vInvestConsult/kind/lsfh/index.phtml";
+    let params = json!({"p": "1", "num": "50000"});
+    let http = HttpClient::default();
+    let text = http.get_text(url, &params.as_object().cloned().unwrap_or_default(), None)?;
+
+    // 提取 <table> 内容
+    let html = Html::parse_document(&text);
+    let table_selector = Selector::parse("table").unwrap();
+    let table = html
+        .select(&table_selector)
+        .next()
+        .ok_or_else(|| AkshareError::Blocked("未找到历史分红表格".into()))?;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    let tr_selector = Selector::parse("tr").unwrap();
+    let mut first = true;
+    for tr in table.select(&tr_selector) {
+        let mut row = Vec::new();
+        let td_selector = Selector::parse("th,td").unwrap();
+        for td in tr.select(&td_selector).take(8) {
+            let text = td.text().collect::<String>().trim().to_string();
+            row.push(if text.is_empty() { None } else { Some(text) });
+        }
+        if first {
+            first = false;
+            continue; // 跳过表头
+        }
+        if row.len() >= 8 {
+            rows.push(row);
+        }
+    }
+
+    let mut df = Df::from_string_rows(
+        &["代码", "名称", "上市日期", "累计股息", "年均股息", "分红次数", "融资总额", "融资次数"],
+        &rows,
+    )?;
+
+    // 代码补零
+    df.zfill_col("代码", 6)?;
+    df.cast_date(&["上市日期"])?;
+    df.cast_numeric(&["累计股息", "年均股息", "分红次数", "融资总额", "融资次数"])?;
+
+    Ok(df)
+}
+
+/// 港股指数实时行情（对应 akshare [`akshare.stock_hk_index_spot_em`]）。
+///
+/// 东财 push2 API，港股指数（恒生系列）。
+pub fn stock_hk_index_spot_em() -> Result<Df> {
+    let urls = push2_urls("/api/qt/clist/get");
+    let params = json!({
+        "pn": "1",
+        "pz": "100",
+        "po": "1",
+        "np": "1",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2",
+        "invt": "2",
+        "wbp2u": "|0|0|0|web",
+        "fid": "f3",
+        "fs": "m:124,m:125,m:305",
+        "fields": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f26,f22,f33,f11,f62,f128,f136,f115,f152",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let mut df = fetch_clist(&http, &urls, &params)?;
+
+    // 重命名列
+    let old_names: Vec<&str> = vec![
+        "index", "f2", "f3", "f4", "f5", "f6", "f12", "f13", "f14",
+        "f15", "f16", "f17", "f18",
+    ];
+    let new_names: Vec<&str> = vec![
+        "序号", "最新价", "涨跌幅", "涨跌额", "成交量", "成交额",
+        "代码", "内部编号", "名称", "最高", "最低", "今开", "昨收",
+    ];
+    for (old, new) in old_names.iter().zip(new_names.iter()) {
+        if df.column_names().contains(&old.to_string()) {
+            let mut df_mut = df.clone();
+            df_mut.rename_columns(&[new])?;
+            df = df_mut;
+        }
+    }
+
+    // 选列并按 akshare 顺序排列
+    let select: Vec<&str> = vec![
+        "序号", "内部编号", "代码", "名称", "最新价", "涨跌额", "涨跌幅",
+        "今开", "最高", "最低", "昨收", "成交量", "成交额",
+    ];
+    df = df.select(&select)?;
+
+    // 数值列
+    let numeric: Vec<&str> = vec![
+        "最新价", "涨跌额", "涨跌幅", "今开", "最高", "最低", "昨收",
+        "成交量", "成交额",
+    ];
+    df.cast_numeric(&numeric)?;
+
+    Ok(df)
+}
