@@ -2357,6 +2357,162 @@ pub fn fund_aum_trend_em() -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH54-A 交易所 ETF 规模（sse query / szse xlsx）===
+//
+// 对应 akshare `fund/fund_etf_sse.py` 的 `fund_etf_scale_sse` 与
+// `fund/fund_etf_szse.py` 的 `fund_etf_scale_szse`。前者为
+// `query.sse.com.cn/commonQuery.do` JSON（result 数组），后者为
+// `fund.szse.cn/api/report/ShowReport` xlsx 下载。
+
+/// 上交所-ETF产品-基金规模（对应 akshare [`akshare.fund_etf_scale_sse`]）。
+///
+/// - `date`: 统计日期 `YYYYMMDD`
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, ETF类型, 统计日期, 基金份额`
+pub fn fund_etf_scale_sse(date: &str) -> Result<Df> {
+    let data_str = if date.len() == 8 && date.bytes().all(|b| b.is_ascii_digit()) {
+        format!("{}-{}-{}", &date[..4], &date[4..6], &date[6..])
+    } else {
+        date.to_string()
+    };
+    let params = json!({
+        "isPagination": "true",
+        "pageHelp.pageSize": "10000",
+        "pageHelp.pageNo": "1",
+        "pageHelp.beginPage": "1",
+        "pageHelp.cacheSize": "1",
+        "pageHelp.endPage": "1",
+        "sqlId": "COMMON_SSE_ZQPZ_ETFZL_XXPL_ETFGM_SEARCH_L",
+        "STAT_DATE": data_str,
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://query.sse.com.cn/commonQuery.do",
+        &params,
+        &[
+            ("Referer", "https://www.sse.com.cn/"),
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36"),
+        ],
+        None,
+    )?;
+    let rows = value
+        .get("result")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        // 基金份额 × 10000
+        let vol = f("TOT_VOL").and_then(|s| s.parse::<f64>().ok());
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f("SEC_CODE"),
+            f("SEC_NAME"),
+            f("ETF_TYPE"),
+            f("STAT_DATE"),
+            vol.map(|v| (v * 10000.0).to_string()),
+        ]);
+    }
+    const COLS: [&str; 6] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "ETF类型",
+        "统计日期",
+        "基金份额",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["统计日期"])?;
+    df.cast_numeric(&["序号", "基金份额"])?;
+    Ok(df)
+}
+
+/// 深交所-ETF基金份额（对应 akshare [`akshare.fund_etf_scale_szse`]）。
+///
+/// # 返回列
+/// `基金代码, 基金简称, 基金份额, ...`（xlsx 首表原键列，`当前规模(份)` → `基金份额`）
+pub fn fund_etf_scale_szse() -> Result<Df> {
+    let params = json!({
+        "SHOWTYPE": "xlsx",
+        "CATALOGID": "1000_lf",
+        "TABKEY": "tab1",
+        "random": "0.07610353191740105",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let bytes = http.get_bytes_with_headers(
+        "https://fund.szse.cn/api/report/ShowReport",
+        &params,
+        &[
+            ("Referer", "https://fund.szse.cn/marketdata/fundslist/index.html"),
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36"),
+        ],
+        None,
+    )?;
+    let all = szse_xls_rows(&bytes)?;
+    let mut iter = all.into_iter();
+    let header: Vec<String> = iter.next().unwrap_or_default();
+    // 列名：当前规模(份) → 基金份额
+    let col_refs: Vec<String> = header
+        .iter()
+        .map(|s| {
+            if s == "当前规模(份)" {
+                "基金份额".to_string()
+            } else {
+                s.clone()
+            }
+        })
+        .collect();
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for row in iter {
+        let r: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+        out.push(r);
+    }
+    let col_strs: Vec<&str> = col_refs.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_strs, &out)?;
+    df.cast_numeric(&["基金份额"])?;
+    Ok(df)
+}
+
+/// szse xlsx 首表解析（calamine，与 index 模块 csindex_xls_rows 同构）。
+fn szse_xls_rows(bytes: &[u8]) -> Result<Vec<Vec<String>>> {
+    use calamine::{Data, Reader, Xls};
+    let cur = std::io::Cursor::new(bytes.to_vec());
+    let mut wb = Xls::new(cur).map_err(|e| AkshareError::Empty(format!("xls 解析失败: {e}")))?;
+    let range = wb
+        .worksheet_range_at(0)
+        .ok_or_else(|| AkshareError::Empty("xls 无工作表".into()))?
+        .map_err(|e| AkshareError::Empty(format!("读取 xls 工作表失败: {e}")))?;
+    let mut rows = Vec::with_capacity(range.height());
+    for r in range.rows() {
+        let mut row = Vec::with_capacity(r.len());
+        for c in r {
+            row.push(match c {
+                Data::Empty => String::new(),
+                Data::String(s) => s.clone(),
+                Data::Float(f) => {
+                    let v = *f;
+                    if v.fract() == 0.0 {
+                        format!("{}", v as i64)
+                    } else {
+                        format!("{v}")
+                    }
+                }
+                Data::Int(i) => i.to_string(),
+                Data::Bool(b) => b.to_string(),
+                Data::DateTime(_) => String::new(),
+                Data::Error(e) => format!("{e:?}"),
+                other => other.to_string(),
+            });
+        }
+        rows.push(row);
+    }
+    Ok(rows)
+}
+
 // === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
