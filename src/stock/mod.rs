@@ -122,16 +122,17 @@ pub fn stock_sz_a_spot_em() -> Result<Df> {
         "fltt": "2",
         "invt": "2",
         "fid": "f12",
-        "fs": "m:0 t:6,m:0 t:80",
-        "fields": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152",
+        "fs": "m:0 t:81 s:2048",
+        "fields": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,v25,v22,v11,v62,v128,v136,v115,v152",
     });
     let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
     let http = HttpClient::default();
     spot_common_transform(fetch_clist(&http, &urls, &params)?)
 }
 
-/// 京 A 股实时行情（对应 akshare [`akshare.stock_bj_a_spot_em`]）。
+/// 北 A 股实时行情（对应 akshare [`akshare.stock_bj_a_spot_em`]）。
 pub fn stock_bj_a_spot_em() -> Result<Df> {
+    // 北交所代码 8/9 开头，使用 fs="m:0 t:81 s:2048"
     let urls = push2_urls("/api/qt/clist/get");
     let params = json!({
         "pn": "1",
@@ -143,7 +144,7 @@ pub fn stock_bj_a_spot_em() -> Result<Df> {
         "invt": "2",
         "fid": "f12",
         "fs": "m:0 t:81 s:2048",
-        "fields": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152",
+        "fields": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,v25,v22,v11,v62,v128,v136,v115,v152",
     });
     let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
     let http = HttpClient::default();
