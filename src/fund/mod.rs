@@ -1742,6 +1742,297 @@ fn fund_lsjz_base(symbol: &str, start_date: &str, end_date: &str, is_money: bool
     }
 }
 
+// === BATCH50-A 天天基金网-基金评级（fundrating*.html 内嵌 JS 解析）===
+//
+// 对应 akshare `fund/fund_rating.py` 的 `fund_rating_all` /
+// `fund_rating_sh` / `fund_rating_zs` / `fund_rating_ja`。页面 `#fundinfo`
+// 内 `<script>` 含 `var ...="代码|简称|...|_|..."` 数据，按 `|_` 拆分数据项、
+// 每项按 `|` 拆分为位置式列。
+
+/// 天天基金网-基金评级总汇（对应 akshare [`akshare.fund_rating_all`]）。
+///
+/// # 返回列
+/// `代码, 简称, 基金经理, 基金公司, 5星评级家数, 上海证券, 招商证券, 济安金信,
+/// 晨星评级, 手续费, 类型`
+pub fn fund_rating_all() -> Result<Df> {
+    let http = HttpClient::default();
+    let text = http.get_text(
+        "https://fund.eastmoney.com/data/fundrating.html",
+        &Map::new(),
+        None,
+    )?;
+    let rows = fund_rating_parse(&text, 6)?;
+    // 27 列位置式 select 11：代码,简称,类型,基金经理,_,基金公司,_,5星评级家数,_,_,招商证券,_,上海证券,_,晨星评级,_,济安金信,_,手续费,_,_,_,_,_,_,_,_
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let f = |i: usize| row.get(i).cloned().unwrap_or(None);
+        out.push(vec![
+            f(0),
+            f(1),
+            f(3),
+            f(5),
+            f(7),
+            f(12),
+            f(10),
+            f(16),
+            f(14),
+            f(18),
+            f(2),
+        ]);
+    }
+    const COLS: [&str; 11] = [
+        "代码",
+        "简称",
+        "基金经理",
+        "基金公司",
+        "5星评级家数",
+        "上海证券",
+        "招商证券",
+        "济安金信",
+        "晨星评级",
+        "手续费",
+        "类型",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&[
+        "5星评级家数",
+        "上海证券",
+        "招商证券",
+        "济安金信",
+        "晨星评级",
+    ])?;
+    df.strip_suffix(&["手续费"], "%")?;
+    df.cast_numeric(&["手续费"])?;
+    df.scale("手续费", 1.0 / 100.0)?;
+    Ok(df)
+}
+
+/// 天天基金网-上海证券评级（对应 akshare [`akshare.fund_rating_sh`]）。
+///
+/// - `date`: 查询日期 `YYYYMMDD`
+///
+/// # 返回列
+/// `代码, 简称, 类型, 基金经理, 基金公司, 3年期评级-3年评级, 3年期评级-较上期,
+/// 5年期评级-5年评级, 5年期评级-较上期, 单位净值, 日期, 日增长率, 近1年涨幅,
+/// 近3年涨幅, 近5年涨幅, 手续费`
+pub fn fund_rating_sh(date: &str) -> Result<Df> {
+    let d = cnindex_fmt_date_local(date);
+    let url = format!("https://fund.eastmoney.com/data/fundrating_3_{d}.html");
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &Map::new(), None)?;
+    let rows = fund_rating_parse(&text, 1)?;
+    // 22 列位置式 select 16
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let f = |i: usize| row.get(i).cloned().unwrap_or(None);
+        out.push(vec![
+            f(0),
+            f(1),
+            f(2),
+            f(3),
+            f(5),
+            f(7),
+            f(8),
+            f(9),
+            f(10),
+            f(11),
+            f(12),
+            f(13),
+            f(14),
+            f(15),
+            f(16),
+            f(17),
+        ]);
+    }
+    const COLS: [&str; 16] = [
+        "代码",
+        "简称",
+        "类型",
+        "基金经理",
+        "基金公司",
+        "3年期评级-3年评级",
+        "3年期评级-较上期",
+        "5年期评级-5年评级",
+        "5年期评级-较上期",
+        "单位净值",
+        "日期",
+        "日增长率",
+        "近1年涨幅",
+        "近3年涨幅",
+        "近5年涨幅",
+        "手续费",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[5..])?;
+    Ok(df)
+}
+
+/// 天天基金网-招商证券评级（对应 akshare [`akshare.fund_rating_zs`]）。
+///
+/// - `date`: 查询日期 `YYYYMMDD`
+///
+/// # 返回列
+/// `代码, 简称, 基金经理, 基金公司, 3年期评级-3年评级, 3年期评级-较上期,
+/// 单位净值, 日期, 日增长率, 近1年涨幅, 近3年涨幅, 手续费`
+pub fn fund_rating_zs(date: &str) -> Result<Df> {
+    let d = cnindex_fmt_date_local(date);
+    let url = format!("https://fund.eastmoney.com/data/fundrating_2_{d}.html");
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &Map::new(), None)?;
+    let rows = fund_rating_parse(&text, 1)?;
+    // 20 列位置式 select 12
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let f = |i: usize| row.get(i).cloned().unwrap_or(None);
+        out.push(vec![
+            f(0),
+            f(1),
+            f(3),
+            f(5),
+            f(7),
+            f(8),
+            f(9),
+            f(10),
+            f(11),
+            f(12),
+            f(13),
+            f(17),
+        ]);
+    }
+    const COLS: [&str; 12] = [
+        "代码",
+        "简称",
+        "基金经理",
+        "基金公司",
+        "3年期评级-3年评级",
+        "3年期评级-较上期",
+        "单位净值",
+        "日期",
+        "日增长率",
+        "近1年涨幅",
+        "近3年涨幅",
+        "手续费",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[4..])?;
+    Ok(df)
+}
+
+/// 天天基金网-济安金信评级（对应 akshare [`akshare.fund_rating_ja`]）。
+///
+/// - `date`: 查询日期 `YYYYMMDD`
+///
+/// # 返回列
+/// `代码, 简称, 类型, 基金经理, 基金公司, 3年期评级-3年评级, 3年期评级-较上期,
+/// 单位净值, 日期, 日增长率, 近1年涨幅, 近3年涨幅, 手续费`
+pub fn fund_rating_ja(date: &str) -> Result<Df> {
+    let d = cnindex_fmt_date_local(date);
+    let url = format!("https://fund.eastmoney.com/data/fundrating_4_{d}.html");
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &Map::new(), None)?;
+    let rows = fund_rating_parse(&text, 1)?;
+    // 20 列位置式 select 13
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let f = |i: usize| row.get(i).cloned().unwrap_or(None);
+        out.push(vec![
+            f(0),
+            f(1),
+            f(2),
+            f(3),
+            f(5),
+            f(7),
+            f(8),
+            f(9),
+            f(10),
+            f(11),
+            f(12),
+            f(13),
+            f(17),
+        ]);
+    }
+    const COLS: [&str; 13] = [
+        "代码",
+        "简称",
+        "类型",
+        "基金经理",
+        "基金公司",
+        "3年期评级-3年评级",
+        "3年期评级-较上期",
+        "单位净值",
+        "日期",
+        "日增长率",
+        "近1年涨幅",
+        "近3年涨幅",
+        "手续费",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[5..])?;
+    Ok(df)
+}
+
+/// `YYYYMMDD` → `YYYY-MM-DD`（本地实现，供 fund 模块使用）。
+fn cnindex_fmt_date_local(d: &str) -> String {
+    if d.len() == 8 && d.bytes().all(|b| b.is_ascii_digit()) {
+        format!("{}-{}-{}", &d[..4], &d[4..6], &d[6..])
+    } else {
+        d.to_string()
+    }
+}
+
+/// fundrating 内嵌 JS 解析：按 `var` 分段取第 `var_idx` 段，等号后取数据串，
+/// 按 `|_` 拆分数据项、每项按 `|` 拆分为位置式列。
+fn fund_rating_parse(html: &str, var_idx: usize) -> Result<Vec<Vec<Option<String>>>> {
+    // 提取 #fundinfo 内 <script> 内容
+    let script = extract_fundinfo_script(html)
+        .ok_or_else(|| AkshareError::Empty("基金评级页面缺少 #fundinfo script".into()))?;
+    let seg = script
+        .split("var")
+        .nth(var_idx)
+        .ok_or_else(|| AkshareError::Empty("基金评级数据缺少 var 段".into()))?;
+    let data = seg
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty("基金评级数据缺少 = 分隔".into()))?
+        .trim()
+        .trim_start_matches(';')
+        .trim_matches('"')
+        .trim_matches('|');
+    let items: Vec<&str> = data.split("|_").collect();
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(items.len());
+    for item in items {
+        let cells: Vec<Option<String>> = item
+            .split('|')
+            .map(|s| {
+                let t = s.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            })
+            .collect();
+        rows.push(cells);
+    }
+    Ok(rows)
+}
+
+/// 提取 `id="fundinfo"` 的 `<script>` 内容。
+fn extract_fundinfo_script(html: &str) -> Option<&str> {
+    let marker = r#"id="fundinfo""#;
+    let pos = html.find(marker)?;
+    let rest = &html[pos..];
+    let script_start = rest.find("<script")? + 6;
+    let inner = &rest[script_start..];
+    let content_start = inner.find('>')? + 1;
+    let after = &inner[content_start..];
+    let content_end = after.find("</script>")?;
+    Some(&after[..content_end])
+}
+
 // === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
