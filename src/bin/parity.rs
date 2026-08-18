@@ -205,6 +205,7 @@ use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_ma
 use akshare_rust::forex::{forex_hist_em, forex_spot_em};
 use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
+    fund_announcement_dividend_em, fund_announcement_personnel_em, fund_announcement_report_em,
     fund_cf_em, fund_etf_category_ths, fund_etf_fund_info_em, fund_etf_hist_min_em,
     fund_etf_spot_em, fund_etf_spot_ths, fund_exchange_rank_em, fund_fh_em,
     fund_financial_fund_daily_em, fund_graded_fund_info_em, fund_hold_structure_em,
@@ -887,6 +888,18 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "fund_rating_ja" => {
             let [d] = take1(func, args)?;
             Ok(fund_rating_ja(d)?)
+        }
+        "fund_announcement_dividend_em" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_announcement_dividend_em(s)?)
+        }
+        "fund_announcement_report_em" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_announcement_report_em(s)?)
+        }
+        "fund_announcement_personnel_em" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_announcement_personnel_em(s)?)
         }
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
         "stock_profile_cninfo" => {

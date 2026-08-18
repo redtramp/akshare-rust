@@ -2141,6 +2141,83 @@ pub fn fund_new_found_ths(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH52-A 天天基金网-基金公告（api.fund.eastmoney.com/f10/JJGG）===
+//
+// 对应 akshare `fund/fund_announcement_em.py` 的 `fund_announcement_dividend_em` /
+// `fund_announcement_report_em` / `fund_announcement_personnel_em`。同源
+// `f10/JJGG` 仅 `type` 参数不同（2=分红配送 / 3=定期报告 / 4=人事调整），
+// 响应 `Data` 数组 8 列位置式 select 5 列。
+
+/// 天天基金网-基金公告-分红配送（对应 akshare [`akshare.fund_announcement_dividend_em`]）。
+///
+/// - `symbol`: 基金代码
+///
+/// # 返回列
+/// `基金代码, 公告标题, 基金名称, 公告日期, 报告ID`
+pub fn fund_announcement_dividend_em(symbol: &str) -> Result<Df> {
+    fund_announcement_base(symbol, "2")
+}
+
+/// 天天基金网-基金公告-定期报告（对应 akshare [`akshare.fund_announcement_report_em`]）。
+///
+/// - `symbol`: 基金代码
+///
+/// # 返回列
+/// `基金代码, 公告标题, 基金名称, 公告日期, 报告ID`
+pub fn fund_announcement_report_em(symbol: &str) -> Result<Df> {
+    fund_announcement_base(symbol, "3")
+}
+
+/// 天天基金网-基金公告-人事调整（对应 akshare [`akshare.fund_announcement_personnel_em`]）。
+///
+/// - `symbol`: 基金代码
+///
+/// # 返回列
+/// `基金代码, 公告标题, 基金名称, 公告日期, 报告ID`
+pub fn fund_announcement_personnel_em(symbol: &str) -> Result<Df> {
+    fund_announcement_base(symbol, "4")
+}
+
+/// f10/JJGG 公告公共实现（type 分公告类别）。
+fn fund_announcement_base(symbol: &str, typ: &str) -> Result<Df> {
+    let url = "http://api.fund.eastmoney.com/f10/JJGG";
+    let params = json!({
+        "fundcode": symbol,
+        "pageIndex": "1",
+        "pageSize": "1000",
+        "type": typ,
+        "_": chrono::Utc::now().timestamp_millis().to_string(),
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        url,
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"),
+            ("Referer", &format!("http://fundf10.eastmoney.com/jjgg_{symbol}_2.html")),
+        ],
+        None,
+    )?;
+    let rows = value
+        .get("Data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 8 列位置式 select 5：基金代码,公告标题,基金名称,公告日期,报告ID
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| row.get(idx).and_then(json_value_to_string);
+        out.push(vec![f(0), f(1), f(2), f(5), f(7)]);
+    }
+    const COLS: [&str; 5] = ["基金代码", "公告标题", "基金名称", "公告日期", "报告ID"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["公告日期"])?;
+    df = df.sort_by("公告日期", true, false)?;
+    Ok(df)
+}
+
 // === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
