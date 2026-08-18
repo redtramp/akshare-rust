@@ -197,8 +197,7 @@ pub fn stock_a_below_net_asset_statistics(symbol: &str) -> Result<Df> {
         );
     }
     let mut out = Df::from_json_rows(&rows)?;
-    // 重命名列（akshare 会做 rename）
-    out.rename_columns(&["date", "belowNetAsset", "totalCompany"])?;
+    // 列名已为 snake_case（API 直接返回），无需重命名
     out.cast_date(&["date"])?;
     out.cast_numeric(&["below_net_asset", "total_company"])?;
     // 计算 ratio 并添加到输出
