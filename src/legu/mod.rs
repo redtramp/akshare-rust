@@ -163,6 +163,109 @@ pub fn stock_a_ttm_lyr() -> Result<Df> {
     Ok(out)
 }
 
+/// 乐咕乐股-破净股统计（对应 akshare [`akshare.stock_a_below_net_asset_statistics`]）。
+///
+/// `symbol`: `"全部A股"/"沪深300"/"上证50"/"中证500"`。
+///
+/// # 返回列
+/// `date, below_net_asset, total_company, below_net_asset_ratio`
+pub fn stock_a_below_net_asset_statistics(symbol: &str) -> Result<Df> {
+    let symbol_map: &[(&str, &str)] = &[
+        ("全部A股", "1"),
+        ("沪深300", "000300.XSHG"),
+        ("上证50", "000016.SH"),
+        ("中证500", "000905.SH"),
+    ];
+    let market_id = symbol_map
+        .iter()
+        .find(|(k, _)| *k == symbol)
+        .map(|(_, v)| *v)
+        .ok_or_else(|| AkshareError::Param(format!(
+            "无效 symbol: {symbol}（应为 全部A股/沪深300/上证50/中证500）"
+        )))?;
+    let http = HttpClient::default();
+    let page_url = "https://www.legulegu.com/stockdata/below-net-asset-statistics";
+    let url = format!(
+        "https://legulegu.com/stockdata/below-net-asset-statistics-data?marketId={market_id}&token=325843825a2745a2a8f9b9e3355cb864"
+    );
+    let data = api_get(&http, page_url, &url)?;
+    let rows = data.as_array().cloned().unwrap_or_default();
+    if rows.is_empty() {
+        return Df::from_string_rows(
+            &["date", "below_net_asset", "total_company", "below_net_asset_ratio"],
+            &[],
+        );
+    }
+    let mut out = Df::from_json_rows(&rows)?;
+    // 重命名列（akshare 会做 rename）
+    out.rename_columns(&["date", "belowNetAsset", "totalCompany"])?;
+    out.cast_date(&["date"])?;
+    out.cast_numeric(&["below_net_asset", "total_company"])?;
+    // 计算 ratio 并添加到输出
+    let ratio: Vec<Option<String>> = (0..out.height())
+        .map(|i| {
+            let b = out
+                .inner()
+                .column("below_net_asset")
+                .ok()
+                .and_then(|c| c.f64().ok())
+                .and_then(|s| s.get(i));
+            let t = out
+                .inner()
+                .column("total_company")
+                .ok()
+                .and_then(|c| c.f64().ok())
+                .and_then(|s| s.get(i));
+            match (b, t) {
+                (Some(b), Some(t)) if t > 0.0 => Some(format!("{:.4}", b / t)),
+                _ => Some("0.0000".to_string()),
+            }
+        })
+        .collect();
+    out.with_column("below_net_asset_ratio", &ratio)?;
+    out = out.select(&["date", "below_net_asset", "total_company", "below_net_asset_ratio"])?;
+    Ok(out)
+}
+
+/// 乐咕乐股-创新高/新低统计（对应 akshare [`akshare.stock_a_high_low_statistics`]）。
+///
+/// `symbol`: `"all"/"sz50"/"hs300"/"zz500"`。
+///
+/// # 返回列
+/// `date, close, high20, low20, high60, low60, high120, low120`
+pub fn stock_a_high_low_statistics(symbol: &str) -> Result<Df> {
+    let symbol_map: &[(&str, &str)] = &[
+        ("all", "all"),
+        ("sz50", "sz50"),
+        ("hs300", "hs300"),
+        ("zz500", "zz500"),
+    ];
+    let code = symbol_map
+        .iter()
+        .find(|(k, _)| *k == symbol)
+        .map(|(_, v)| *v)
+        .ok_or_else(|| AkshareError::Param(format!(
+            "无效 symbol: {symbol}（应为 all/sz50/hs300/zz500）"
+        )))?;
+    let http = HttpClient::default();
+    let page_url = "https://www.legulegu.com/stockdata/high-low-statistics";
+    let url = format!("https://www.legulegu.com/stockdata/member-ship/get-high-low-statistics/{code}");
+    let data = api_get(&http, page_url, &url)?;
+    let rows = data.as_array().cloned().unwrap_or_default();
+    let mut out = Df::from_json_rows(&rows)?;
+    // 删除 indexCode 列（akshare 会删除）
+    out = out.select(&out
+        .column_names()
+        .iter()
+        .filter(|n| *n != "indexCode")
+        .map(|s| s.as_str())
+        .collect::<Vec<&str>>()[..])?;
+    out.cast_date(&["date"])?;
+    out.cast_numeric(&["close", "high20", "low20", "high60", "low60", "high120", "low120"])?;
+    out = out.sort_by("date", true, false)?;
+    Ok(out)
+}
+
 /// 拉取乐咕数据 `data` 数组并归一化 `date` 列（对应 akshare `pd.to_datetime().dt.date`）。
 ///
 /// `page_url` / `api_path` / `params` 由各函数提供；`select` 为输出列序。
