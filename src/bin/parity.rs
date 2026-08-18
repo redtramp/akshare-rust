@@ -431,7 +431,6 @@ use akshare_rust::stock::{
 };
 use akshare_rust::stock::{
     get_us_stock_name, stock_hk_daily, stock_hk_famous_spot_em, stock_hk_fhpx_detail_ths,
-    stock_board_concept_name_ths, stock_board_industry_name_ths,
     stock_hot_search_baidu, stock_hsgt_sh_hk_spot_em, stock_info_a_code_name,
     stock_info_bj_name_code, stock_info_change_name, stock_info_sh_delist, stock_info_sh_name_code,
     stock_info_sz_change_name, stock_info_sz_delist, stock_info_sz_name_code, stock_intraday_em,
