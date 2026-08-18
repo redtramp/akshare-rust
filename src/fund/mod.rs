@@ -2218,6 +2218,145 @@ fn fund_announcement_base(symbol: &str, typ: &str) -> Result<Df> {
     Ok(df)
 }
 
+// === BATCH53-A 东方财富-基金公司规模（fund.eastmoney.com/Company/home/）===
+//
+// 对应 akshare `fund/fund_aum_em.py` 的 `fund_aum_em` / `fund_aum_hist_em` /
+// `fund_aum_trend_em`。前两个为 HTML 表（read_html_tables 解析），
+// 后者为 `GetFundTotalScaleForChart` JSON（x/y 两列）。
+
+/// 东方财富-基金公司排名列表（对应 akshare [`akshare.fund_aum_em`]）。
+///
+/// # 返回列
+/// `序号, 基金公司, 成立时间, 全部管理规模, 全部基金数, 全部经理数, 更新日期`
+pub fn fund_aum_em() -> Result<Df> {
+    let http = HttpClient::default();
+    let params = json!({ "fundType": "0" });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let text = http.get_text(
+        "https://fund.eastmoney.com/Company/home/gspmlist",
+        &params,
+        None,
+    )?;
+    let tables = crate::core::html::read_html_tables(&text)?;
+    let table = tables
+        .first()
+        .ok_or_else(|| AkshareError::Empty("基金公司排名响应缺少表格".into()))?;
+    // 表头：序号,基金公司,成立时间,全部管理规模,全部基金数,全部经理数,相关链接,天相评级
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for row in table.iter().skip(1) {
+        let cells: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+        let mut r: Vec<Option<String>> = cells.iter().take(6).cloned().collect();
+        while r.len() < 6 {
+            r.push(None);
+        }
+        // 全部管理规模 "1234.5亿 更新日期" → 拆规模 + 更新日期
+        let mut update_date: Option<String> = None;
+        if let Some(Some(s)) = r.get_mut(3) {
+            let s_val = s.clone();
+            let parts: Vec<&str> = s_val.split(' ').collect();
+            if let Some(first) = parts.first() {
+                *s = first.replace(',', "");
+            }
+            if parts.len() > 1 {
+                update_date = Some(parts[1].to_string());
+            }
+        }
+        r.push(update_date);
+        out.push(r);
+    }
+    const COLS: [&str; 7] = [
+        "序号",
+        "基金公司",
+        "成立时间",
+        "全部管理规模",
+        "全部基金数",
+        "全部经理数",
+        "更新日期",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["成立时间", "更新日期"])?;
+    df.cast_numeric(&["全部管理规模", "全部基金数", "全部经理数"])?;
+    Ok(df)
+}
+
+/// 东方财富-基金公司历年管理规模排行（对应 akshare [`akshare.fund_aum_hist_em`]）。
+///
+/// - `year`: 查询年份，如 `"2023"`
+///
+/// # 返回列
+/// `序号, 基金公司, 总规模, 股票型, 混合型, 债券型, 指数型, QDII, 货币型`
+pub fn fund_aum_hist_em(year: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let params = json!({ "year": year });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let text = http.get_text(
+        "https://fund.eastmoney.com/Company/home/HistoryScaleTable",
+        &params,
+        None,
+    )?;
+    let tables = crate::core::html::read_html_tables(&text)?;
+    let table = tables
+        .first()
+        .ok_or_else(|| AkshareError::Empty("历年规模排行响应缺少表格".into()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for row in table.iter().skip(1) {
+        let cells: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+        let r: Vec<Option<String>> = cells.iter().take(9).cloned().collect();
+        out.push(r);
+    }
+    const COLS: [&str; 9] = [
+        "序号",
+        "基金公司",
+        "总规模",
+        "股票型",
+        "混合型",
+        "债券型",
+        "指数型",
+        "QDII",
+        "货币型",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_numeric(&COLS[2..])?;
+    Ok(df)
+}
+
+/// 东方财富-基金市场管理规模走势图（对应 akshare [`akshare.fund_aum_trend_em`]）。
+///
+/// # 返回列
+/// `date, value`
+pub fn fund_aum_trend_em() -> Result<Df> {
+    let url = "https://fund.eastmoney.com/Company/home/GetFundTotalScaleForChart";
+    let form: Map<String, Value> = json!({ "fundType": "0" })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.post_form(url, &form, &[])?;
+    let xs = value
+        .get("x")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let ys = value
+        .get("y")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(xs.len());
+    let n = xs.len().max(ys.len());
+    for i in 0..n {
+        out.push(vec![
+            xs.get(i).and_then(json_value_to_string),
+            ys.get(i).and_then(json_value_to_string),
+        ]);
+    }
+    const COLS: [&str; 2] = ["date", "value"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["date"])?;
+    df.cast_numeric(&["value"])?;
+    Ok(df)
+}
+
 // === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应

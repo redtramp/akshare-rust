@@ -102,11 +102,13 @@
 
 > **2026-08-18 批次 52 刷新**：批量实现 fund 基金公告 3 个（`fund_announcement_dividend_em`/`fund_announcement_report_em`/`fund_announcement_personnel_em`，`api.fund.eastmoney.com/f10/JJGG` 同源仅 type 不同（2=分红配送/3=定期报告/4=人事调整），响应 `Data` 数组 8 列位置式 select 5 列，公共实现 `fund_announcement_base`，按公告日期升序），akshare 同名 `pub fn` 达 **733** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 66.7%**。
 
+> **2026-08-18 批次 53 刷新**：批量实现 fund 基金公司规模 3 个（`fund_aum_em`/`fund_aum_hist_em`/`fund_aum_trend_em`，`fund.eastmoney.com/Company/home/` 同源，前两个 HTML 表解析（7/9 列契约，全部管理规模拆分规模+更新日期）、后者 `GetFundTotalScaleForChart` JSON（date/value 两列）），akshare 同名 `pub fn` 达 **736** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 67.0%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **733**（2026-08-18 批次 52 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（733 / 1099 实测口径） | **≈ 66.7%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **736**（2026-08-18 批次 53 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（736 / 1099 实测口径） | **≈ 67.0%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -117,7 +119,7 @@
 |---|---:|---:|---:|
 | economic | 147 | 225 | 65.3% |
 | index | 52 | 95 | 54.7% |
-| fund | 37 | 88 | 42.0% |
+| fund | 40 | 88 | 45.5% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -151,7 +153,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **733（66.7%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 42.0%（37/88）**。最大缺口在 **index / fund / economic**（合计 172）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **736（67.0%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 45.5%（40/88）**。最大缺口在 **index / fund / economic**（合计 169）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -809,6 +811,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 51（2026-08-18）· fund 同花顺新发基金 1 个落地**：akshare 同名 `pub fn` 达 **730（66.4%）**。覆盖 **fund 同花顺-新发基金 1 个**（BATCH51-A `fund_new_found_ths`，`fund.10jqka.com.cn/datacenter/xfjj/` 页面内 `jsonData=` 后完整 JSON 对象（括号计数提取），键值对为基金数据，`zzfx==1` 筛选发行中 / `zzfx!=1` 筛选将发行，manager 数组取首元素，rename 11 列：基金代码/基金名称/投资类型/募集起始日/募集终止日/管理人/基金经理/认购费率/最低认购/基金类型/投资风格）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；1 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 > **批次 52（2026-08-18）· fund 基金公告 3 个批量落地**：akshare 同名 `pub fn` 达 **733（66.7%）**。覆盖 **fund 基金公告 3 个**（BATCH52-A `fund_announcement_dividend_em`（type=2 分红配送）、`fund_announcement_report_em`（type=3 定期报告）、`fund_announcement_personnel_em`（type=4 人事调整），`api.fund.eastmoney.com/f10/JJGG` 同源仅 `type` 不同，响应 `Data` 数组 8 列位置式 select 5 列：基金代码/公告标题/基金名称/公告日期/报告ID，公共实现 `fund_announcement_base`，按公告日期升序）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；3 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 53（2026-08-18）· fund 基金公司规模 3 个批量落地**：akshare 同名 `pub fn` 达 **736（67.0%）**。覆盖 **fund 基金公司规模 3 个**（BATCH53-A `fund_aum_em`（`Company/home/gspmlist` HTML 表，7 列：序号/基金公司/成立时间/全部管理规模（拆分规模+更新日期）/全部基金数/全部经理数/更新日期）、`fund_aum_hist_em`（`HistoryScaleTable?year=`，9 列：序号/基金公司/总规模/股票型/混合型/债券型/指数型/QDII/货币型）、`fund_aum_trend_em`（`GetFundTotalScaleForChart` POST，date/value 两列），`fund.eastmoney.com/Company/home/` 同源，前两个 `read_html_tables` 解析、后者 JSON）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；3 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在
