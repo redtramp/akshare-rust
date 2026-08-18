@@ -8782,3 +8782,49 @@ pub fn stock_hk_index_spot_em() -> Result<Df> {
 
     Ok(df)
 }
+
+/// 新浪港股指数实时行情（对应 akshare [`akshare.stock_hk_index_spot_sina`]）。
+///
+/// 新浪 hq.sinajs.cn API，返回港股主要指数实时行情。
+pub fn stock_hk_index_spot_sina() -> Result<Df> {
+    let url = "https://hq.sinajs.cn/rn=test&list=hkCES100,hkCES120,hkCES280,hkCES300,hkCESA80,hkCESG10,hkCESHKM,hkCSCMC,hkCSHK100,hkCSHKDIV,hkCSHKLC,hkCSHKLRE,hkCSHKMCS,hkCSHKME,hkCSHKPE,hkCSHKSE,hkCSI300,hkCSRHK50,hkGEM,hkHKL,hkHSCCI,hkHSCEI,hkHSI,hkHSMBI,hkHSMOGI,hkHSMPI,hkHSTECH,hkSSE180,hkSSE180GV,hkSSE380,hkSSE50,hkSSECEQT,hkSSECOMP,hkSSEDIV,hkSSEITOP,hkSSEMCAP,hkSSEMEGA,hkVHSI";
+    let headers = &[("Referer", "https://vip.stock.finance.sina.com.cn/")];
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(url, &serde_json::Map::new(), headers, None)?;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for line in text.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        // 格式: var hq_str_hkXXX="值1,值2,...";
+        let parts: Vec<&str> = line.split('"').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        let values: Vec<&str> = parts[1].split(',').collect();
+        if values.len() < 9 {
+            continue;
+        }
+        rows.push(vec![
+            Some(values[0].to_string()),
+            Some(values[1].to_string()),
+            Some(values[6].to_string()),
+            Some(values[7].to_string()),
+            Some(values[8].to_string()),
+            Some(values[3].to_string()),
+            Some(values[2].to_string()),
+            Some(values[4].to_string()),
+            Some(values[5].to_string()),
+        ]);
+    }
+
+    let mut df = Df::from_string_rows(
+        &["代码", "名称", "最新价", "涨跌额", "涨跌幅", "昨收", "今开", "最高", "最低"],
+        &rows,
+    )?;
+
+    df.cast_numeric(&["最新价", "涨跌额", "涨跌幅", "昨收", "今开", "最高", "最低"])?;
+
+    Ok(df)
+}

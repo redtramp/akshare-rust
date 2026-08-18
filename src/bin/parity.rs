@@ -413,6 +413,7 @@ use akshare_rust::stock::{
     stock_bj_a_spot_em,
     stock_history_dividend,
     stock_hk_index_spot_em,
+    stock_hk_index_spot_sina,
     stock_zh_a_hist,
     stock_zh_a_hist_min_em,
     stock_zh_a_spot_em,
@@ -799,6 +800,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_bj_a_spot_em" => Ok(stock_bj_a_spot_em()?),
         "stock_history_dividend" => Ok(stock_history_dividend()?),
         "stock_hk_index_spot_em" => Ok(stock_hk_index_spot_em()?),
+        "stock_hk_index_spot_sina" => Ok(stock_hk_index_spot_sina()?),
         "index_zh_a_hist" => {
             let [s, p, d0, d1] = take4(func, args)?;
             Ok(index_zh_a_hist(s, p, d0, d1)?)
