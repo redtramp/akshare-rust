@@ -3077,6 +3077,109 @@ pub fn fund_etf_hist_sina(symbol: &str) -> Result<Df> {
     df = df.sort_by("date", true, false)?;
     Ok(df)
 }
+
+// === BATCH59-A 新浪财经-基金规模（NetValueReturn jsonp）===
+//
+// 对应 akshare `fund/fund_scale_sina.py` 的 `fund_scale_open_sina` /
+// `fund_scale_close_sina`。同源
+// `vip.stock.finance.sina.com.cn/fund_center/data/jsonp.php/.../NetValueReturn_Service.`，
+// 响应 jsonp 包裹 JSON（`({` 起、`}` 结尾），`data` 数组 19 列 select 9 列。
+
+/// 新浪财经-开放式基金规模（对应 akshare [`akshare.fund_scale_open_sina`]）。
+///
+/// - `symbol`: `"股票型基金"` / `"混合型基金"` / `"债券型基金"` / `"货币型基金"` / `"QDII基金"`
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 单位净值, 总募集规模, 最近总份额, 成立日期,
+/// 基金经理, 更新日期`
+pub fn fund_scale_open_sina(symbol: &str) -> Result<Df> {
+    let type2 = match symbol {
+        "股票型基金" => "2",
+        "混合型基金" => "1",
+        "债券型基金" => "3",
+        "货币型基金" => "5",
+        "QDII基金" => "6",
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 股票型基金/混合型基金/债券型基金/货币型基金/QDII基金"
+            )))
+        }
+    };
+    fund_scale_sina_base("J2cW8KXheoWKdSHc", "NetValueReturnOpen", "10000", type2)
+}
+
+/// 新浪财经-封闭式基金规模（对应 akshare [`akshare.fund_scale_close_sina`]）。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 单位净值, 总募集规模, 最近总份额, 成立日期,
+/// 基金经理, 更新日期`
+pub fn fund_scale_close_sina() -> Result<Df> {
+    fund_scale_sina_base("_bjN6KvXOkfPy2Bu", "NetValueReturnClose", "1000", "")
+}
+
+/// NetValueReturn jsonp 公共实现。
+fn fund_scale_sina_base(callback: &str, service: &str, num: &str, type2: &str) -> Result<Df> {
+    let url = format!(
+        "http://vip.stock.finance.sina.com.cn/fund_center/data/jsonp.php/IO.XSRV2.CallbackList['{callback}']/NetValueReturn_Service.{service}"
+    );
+    let params = json!({
+        "page": "1",
+        "num": num,
+        "sort": "zmjgm",
+        "asc": "0",
+        "ccode": "",
+        "type2": type2,
+        "type3": "",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &params, None)?;
+    // jsonp 包裹：...({...}) → 取 `({` 到 `})` 前的 JSON
+    let start = text
+        .find("({")
+        .ok_or_else(|| AkshareError::Empty("新浪基金规模响应缺少 ({ 前缀".into()))?
+        + 1;
+    let end = text.len().saturating_sub(2);
+    let body = &text[start..end];
+    let value: Value = serde_json::from_str(body)
+        .map_err(|e| AkshareError::json("fund_scale_sina", e.to_string()))?;
+    let rows = value
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 19 列位置式 select 9：序号,基金代码,基金简称,单位净值,总募集规模,最近总份额,成立日期,基金经理,更新日期
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f("symbol"),
+            f("sname"),
+            f("dwjz"),
+            f("zmjgm"),
+            f("zjzfe"),
+            f("clrq"),
+            f("jjjl"),
+            f("jzrq"),
+        ]);
+    }
+    const COLS: [&str; 9] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "单位净值",
+        "总募集规模",
+        "最近总份额",
+        "成立日期",
+        "基金经理",
+        "更新日期",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["成立日期", "更新日期"])?;
+    df.cast_numeric(&["单位净值", "总募集规模", "最近总份额"])?;
+    Ok(df)
+}
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
 // `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。
