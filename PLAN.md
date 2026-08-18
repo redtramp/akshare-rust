@@ -106,11 +106,13 @@
 
 > **2026-08-18 批次 54 刷新**：批量实现 fund 交易所 ETF 规模 2 个（`fund_etf_scale_sse`/`fund_etf_scale_szse`，前者 `query.sse.com.cn/commonQuery.do` JSON（result 数组，6 列：序号/基金代码/基金简称/ETF类型/统计日期/基金份额×10000）、后者 `fund.szse.cn/api/report/ShowReport` xlsx 下载（calamine 解析，`当前规模(份)`→`基金份额`）），akshare 同名 `pub fn` 达 **738** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 67.2%**。
 
+> **2026-08-18 批次 55 刷新**：批量实现 fund 香港基金 2 个（`fund_hk_rank_em`/`fund_hk_fund_hist_em`，`overseas.1234567.com.cn/overseasapi/OpenApiHander.ashx` 同源 api=HKFDApi（MethodFundList 21 列 select 18 / MethodJZ action 2=历史净值明细 5 列、action 3=分红送配详情 6 列）），akshare 同名 `pub fn` 达 **740** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 67.3%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **738**（2026-08-18 批次 54 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（738 / 1099 实测口径） | **≈ 67.2%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **740**（2026-08-18 批次 55 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（740 / 1099 实测口径） | **≈ 67.3%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -121,7 +123,7 @@
 |---|---:|---:|---:|
 | economic | 147 | 225 | 65.3% |
 | index | 52 | 95 | 54.7% |
-| fund | 42 | 88 | 47.7% |
+| fund | 44 | 88 | 50.0% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -155,7 +157,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **738（67.2%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 47.7%（42/88）**。最大缺口在 **index / fund / economic**（合计 167）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **740（67.3%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 50.0%（44/88，过半）**。最大缺口在 **index / fund / economic**（合计 165）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -817,6 +819,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 53（2026-08-18）· fund 基金公司规模 3 个批量落地**：akshare 同名 `pub fn` 达 **736（67.0%）**。覆盖 **fund 基金公司规模 3 个**（BATCH53-A `fund_aum_em`（`Company/home/gspmlist` HTML 表，7 列：序号/基金公司/成立时间/全部管理规模（拆分规模+更新日期）/全部基金数/全部经理数/更新日期）、`fund_aum_hist_em`（`HistoryScaleTable?year=`，9 列：序号/基金公司/总规模/股票型/混合型/债券型/指数型/QDII/货币型）、`fund_aum_trend_em`（`GetFundTotalScaleForChart` POST，date/value 两列），`fund.eastmoney.com/Company/home/` 同源，前两个 `read_html_tables` 解析、后者 JSON）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；3 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 > **批次 54（2026-08-18）· fund 交易所 ETF 规模 2 个批量落地**：akshare 同名 `pub fn` 达 **738（67.2%）**。覆盖 **fund 交易所 ETF 规模 2 个**（BATCH54-A `fund_etf_scale_sse`（`query.sse.com.cn/commonQuery.do` JSON，sqlId=COMMON_SSE_ZQPZ_ETFZL_XXPL_ETFGM_SEARCH_L，result 数组 6 列：序号/基金代码/基金简称/ETF类型/统计日期/基金份额×10000）、`fund_etf_scale_szse`（`fund.szse.cn/api/report/ShowReport` xlsx 下载，calamine 解析（`szse_xls_rows` 内联，与 csindex_xls_rows 同构），`当前规模(份)`→`基金份额`））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；2 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 55（2026-08-18）· fund 香港基金 2 个批量落地**：akshare 同名 `pub fn` 达 **740（67.3%）**，**fund 过半（44/88 = 50.0%）**。覆盖 **fund 香港基金 2 个**（BATCH55-A `fund_hk_rank_em`（`overseasapi/OpenApiHander.ashx` api=HKFDApi m=MethodFundList，21 列位置式 select 18 列：序号/基金代码/基金简称/币种/日期/单位净值/日增长率/近1周/近1月/近3月/近6月/近1年/近2年/近3年/今年来/成立来/可购买/香港基金代码）、`fund_hk_fund_hist_em`（m=MethodJZ，symbol 参数：action=2 历史净值明细 5 列/action=3 分红送配详情 6 列），同源 `overseas.1234567.com.cn`）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；2 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在

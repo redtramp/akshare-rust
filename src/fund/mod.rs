@@ -2513,7 +2513,174 @@ fn szse_xls_rows(bytes: &[u8]) -> Result<Vec<Vec<String>>> {
     Ok(rows)
 }
 
-// === BATCH45-A 天天基金网-新发基金（FundNewIssue.aspx，var newfunddata=）===
+// === BATCH55-A 东方财富-香港基金（overseas.1234567.com.cn API）===
+//
+// 对应 akshare `fund/fund_rank_em.py` 的 `fund_hk_rank_em` 与
+// `fund/fund_em.py` 的 `fund_hk_fund_hist_em`。同源
+// `overseasapi/OpenApiHander.ashx`（api=HKFDApi）。
+
+/// 东方财富-香港基金排行（对应 akshare [`akshare.fund_hk_rank_em`]）。
+///
+/// # 返回列
+/// `序号, 基金代码, 基金简称, 币种, 日期, 单位净值, 日增长率, 近1周, 近1月,
+/// 近3月, 近6月, 近1年, 近2年, 近3年, 今年来, 成立来, 可购买, 香港基金代码`
+pub fn fund_hk_rank_em() -> Result<Df> {
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let params = json!({
+        "api": "HKFDApi",
+        "m": "MethodFundList",
+        "action": "1",
+        "pageindex": "0",
+        "pagesize": "5000",
+        "dy": "1",
+        "date1": today,
+        "date2": today,
+        "sortfield": "Y",
+        "sorttype": "-1",
+        "isbuy": "0",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://overseas.1234567.com.cn/overseasapi/OpenApiHander.ashx",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/fundguzhi.html"),
+        ],
+        None,
+    )?;
+    let rows = value
+        .get("Data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 21 列位置式 select 18：序号,基金代码,基金简称,币种,日期,单位净值,日增长率,近1周,近1月,近3月,近6月,近1年,近2年,近3年,今年来,成立来,可购买,香港基金代码
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.iter().enumerate() {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| row.get(idx).and_then(json_value_to_string);
+        out.push(vec![
+            Some((i + 1).to_string()),
+            f(3),
+            f(5),
+            f(20),
+            f(7),
+            f(8),
+            f(9),
+            f(11),
+            f(12),
+            f(13),
+            f(14),
+            f(15),
+            f(16),
+            f(17),
+            f(18),
+            f(19),
+            f(6),
+            f(2),
+        ]);
+    }
+    const COLS: [&str; 18] = [
+        "序号",
+        "基金代码",
+        "基金简称",
+        "币种",
+        "日期",
+        "单位净值",
+        "日增长率",
+        "近1周",
+        "近1月",
+        "近3月",
+        "近6月",
+        "近1年",
+        "近2年",
+        "近3年",
+        "今年来",
+        "成立来",
+        "可购买",
+        "香港基金代码",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&COLS[5..])?;
+    Ok(df)
+}
+
+/// 东方财富-香港基金历史净值明细/分红送配详情（对应 akshare [`akshare.fund_hk_fund_hist_em`]）。
+///
+/// - `code`: 香港基金代码；`symbol`: `"历史净值明细"` / `"分红送配详情"`
+///
+/// # 返回列（历史净值明细）
+/// `净值日期, 单位净值, 日增长值, 日增长率, 单位`
+///
+/// # 返回列（分红送配详情）
+/// `年份, 权益登记日, 除息日, 分红发放日, 分红金额, 单位`
+pub fn fund_hk_fund_hist_em(code: &str, symbol: &str) -> Result<Df> {
+    let action = if symbol == "历史净值明细" {
+        "2"
+    } else {
+        "3"
+    };
+    let params = json!({
+        "api": "HKFDApi",
+        "m": "MethodJZ",
+        "hkfcode": code,
+        "action": action,
+        "pageindex": "0",
+        "pagesize": "1000",
+        "date1": "",
+        "date2": "",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let value = http.get_json_with_headers(
+        "https://overseas.1234567.com.cn/overseasapi/OpenApiHander.ashx",
+        &params,
+        &[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"),
+            ("Referer", "https://fund.eastmoney.com/fundguzhi.html"),
+        ],
+        None,
+    )?;
+    let rows = value
+        .get("Data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let f = |idx: usize| row.get(idx).and_then(json_value_to_string);
+        if action == "2" {
+            // 11 列 select 5：净值日期,单位净值,日增长值,日增长率,单位
+            out.push(vec![f(3), f(4), f(6), f(7), f(9)]);
+        } else {
+            // 15 列 select 6：年份,权益登记日,除息日,分红发放日,分红金额,单位
+            out.push(vec![f(5), f(8), f(7), f(9), f(6), f(11)]);
+        }
+    }
+    if action == "2" {
+        const COLS: [&str; 5] = ["净值日期", "单位净值", "日增长值", "日增长率", "单位"];
+        let mut df = Df::from_string_rows(&COLS, &out)?;
+        df.cast_date(&["净值日期"])?;
+        df.cast_numeric(&["单位净值", "日增长值", "日增长率"])?;
+        Ok(df)
+    } else {
+        const COLS: [&str; 6] = [
+            "年份",
+            "权益登记日",
+            "除息日",
+            "分红发放日",
+            "分红金额",
+            "单位",
+        ];
+        let mut df = Df::from_string_rows(&COLS, &out)?;
+        df.cast_date(&["权益登记日", "除息日", "分红发放日"])?;
+        df.cast_numeric(&["分红金额"])?;
+        Ok(df)
+    }
+}
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
 // `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。
