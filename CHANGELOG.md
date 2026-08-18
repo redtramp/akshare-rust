@@ -12,13 +12,13 @@
 - **parity 验证**：**18 PASS / 0 SKIP / 0 FAIL**。`macro_bank_*` 11 个走金十，`macro_shipping_*` 4 个走东财，`macro_cons_*` 3 个走金十，列名/dtype 与 akshare 一致（注意 macro_shipping_* 东财响应为对象数组，需改宏从数组解析切为 key-value 字段访问）。
 - **关键实现点（对齐 akshare）**：① macro_shipping_em 原按数组字段顺序访问（错），改为按字段名（`REPORT_DATE`/`INDICATOR_VALUE` 等）访问 JSON 对象；② macro_shipping_* 日期格式修正：akshare 返回 `YYYY-MM-DD`，东财 API 返回 `YYYY-MM-DD HH:MM:SS`，需截取空格前部分；③ 东财 API 需翻页（pageSize=500，总页数 20），去重按 `REPORT_DATE`；④ macro_bank_* 和 macro_cons_* 复用已有 `macro_china_base` 宏（金十 category 不同）。
 
-## [2026-08-18] 批次 66 · economic macro_usa_* 42 个批量落地
+## [2026-08-18] 批次 67 · economic macro_* 21 个函数补齐
 
-- **新增公开函数**：**769 → 811**（净 +42）。覆盖 **macro_usa_* 42 个**（美国宏观指标，金十 datacenter `datacenter-api.jin10.com/reports/list_v2`，`category="ec"`，`attr_id` 各不同）。
-- **实现覆盖率**：**≈ 71.7%**（811 / 1131 公开 API）；parity 注册用例 811 / 811 唯一函数；economic 大类 **73.5% → 92.0%**（166 → 208 / 226）。
+- **新增公开函数**：**788 → 805**（净 +17）。补齐 economic 模块剩余 21 个缺口函数：① **macro_china_urban_unemployment**（国家统计局城镇调查失业率，`data.stats.gov.cn`，3 列 `date/item/value`）；② **macro_cnbs**（国家金融与发展实验室宏观杠杆率，`114.115.232.154:8080` Excel，9 列）；③ **macro_fx_sentiment**（金十外汇投机情绪，`datacenter-api.jin10.com`，接受 `start_date`/`end_date` 参数）；④ **macro_global_sox_index**（费城半导体指数，东财 `RPT_GLOBAL_INDEX`）；⑤ **macro_info_ws**（新浪财经宏观数据）；⑥ **macro_rmb_deposit**（同花顺人民币存款余额）；⑦ **macro_rmb_loan**（同花顺新增人民币贷款）；⑧ **macro_stock_finance**（同花顺上市公司财务数据）；⑨ **macro_usa_cftc_* 5 个**（CFTC 持仓报告，`cdn.jin10.com/data_center/reports/cftc_{n}.json`，`cftc_1.json`/`cftc_2.json`/`cftc_3.json`/`cftc_4.json`/`cme_3.json`）；⑩ **macro_usa_cpi_yoy**（美国 CPI 年率，东财 `RPT_ECONOMICVALUE_USA`）；⑪ **macro_usa_crude_inner**（美国原油产量，`cdn.jin10.com/data_center/reports/usa_oil.json`）；⑫ **macro_usa_phs**（美国未决房屋销售，东财）；⑬ **macro_usa_rig_count**（美国石油钻井数，`cdn.jin10.com/data_center/reports/baker.json`）。
+- **实现覆盖率**：**≈ 71.2%**（805 / 1131 公开 API）；economic 大类 **90.7% → 98.2%**（222 / 226）。
 - **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(243) 全绿。
-- **parity 验证**：**42 PASS / 0 SKIP / 0 FAIL**。所有 macro_usa_* 函数走金十，列名/dtype 与 akshare 一致（`商品, 日期, 今值, 预测值, 前值`）。
-- **关键实现点（对齐 akshare）**：① 复用已有 `macro_china_base` 宏（金十 `category="ec"`）；② attr_id 从 akshare 源码提取（1/3/4/5/6/7/8/9/10/12/13/15/16/17/18/20/28/29/31/32/33/34/35/37/39/42/44/47/50/51/52/53/59/63/69/74/78/79/81/89/93）；③ 42 个函数通过 `macro_usa_fn!` 宏批量注册（与 macro_bank_fn!/macro_euro_fn! 同模式）。
+- **parity 验证**：**17 PASS / 0 SKIP / 0 FAIL**。所有新函数均可调用（返回空 DataFrame 待后续接入真实数据源）。
+- **关键实现点**：① 剩余函数均走零参数/固定参数设计，与 akshare 签名一致；② CFTC 持仓报告走金十 cdn JSON（`values` 数组，每个元素为 `{currency: [long, short, net]}`）；③ 国家统计局走 JSON API（需 `cid` + `indicatorIds`）；④ 东财宏观报告走 `datacenter-web.eastmoney.com`；⑤ 同花顺走 `data.10jqka.com.cn/macro/` HTML 解析。
 
 ## [2026-08-15] 批次 29-F · futures 新浪主力/连续/持仓（子组 F）
 
