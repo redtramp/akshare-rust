@@ -12,7 +12,7 @@ use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use crate::sources::eastmoney::{
     fetch_clist, fetch_kline, fetch_kline_min, fetch_trends, json_value_to_string, kline_to_df,
-    push2_urls, KLINE_COLS,
+    min_kline_to_df, push2_urls, KLINE_COLS,
 };
 use serde_json::{json, Map, Value};
 
@@ -3179,6 +3179,84 @@ fn fund_scale_sina_base(callback: &str, service: &str, num: &str, type2: &str) -
     df.cast_date(&["成立日期", "更新日期"])?;
     df.cast_numeric(&["单位净值", "总募集规模", "最近总份额"])?;
     Ok(df)
+}
+
+// === BATCH60-A 东方财富-LOF 分时行情（push2his trends/kline）===
+//
+// 对应 akshare `fund/fund_lof_em.py` 的 `fund_lof_hist_min_em`。
+// period=1 用 [`fetch_trends`]（trends2/get，8 列），其余用
+// [`fetch_kline_min`]（分钟 K 线，11 列），复用 [`min_kline_to_df`]。
+
+/// 东方财富-LOF 分时行情（对应 akshare [`akshare.fund_lof_hist_min_em`]）。
+///
+/// - `symbol`: LOF 代码；`start_date`/`end_date`: `YYYY-MM-DD HH:MM:SS`；
+///   `period`: `"1"` / `"5"` / `"15"` / `"30"` / `"60"`；`adjust`: `""` / `"qfq"` / `"hfq"`
+///
+/// # 返回列
+/// period=1: `时间, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 均价`；
+/// 其余: `时间, 开盘, 收盘, 最高, 最低, 涨跌幅, 涨跌额, 成交量, 成交额, 振幅, 换手率`
+pub fn fund_lof_hist_min_em(
+    symbol: &str,
+    start_date: &str,
+    end_date: &str,
+    period: &str,
+    adjust: &str,
+) -> Result<Df> {
+    // LOF 代码深市 0（对应 akshare _fund_lof_code_id_map_em）
+    let secid = format!("0.{symbol}");
+    let http = HttpClient::default();
+    if period == "1" {
+        let lines = fetch_trends(&http, &secid, "5", "0")?;
+        let cols = [
+            "时间",
+            "开盘",
+            "收盘",
+            "最高",
+            "最低",
+            "成交量",
+            "成交额",
+            "均价",
+        ];
+        min_kline_to_df(&lines, start_date, end_date, &cols, &cols, &cols[1..])
+    } else {
+        if !matches!(period, "5" | "15" | "30" | "60") {
+            return Err(AkshareError::Param(format!("无效 period: {period}")));
+        }
+        let fqt = match adjust {
+            "" => "0",
+            "qfq" => "1",
+            "hfq" => "2",
+            _ => return Err(AkshareError::Param(format!("无效 adjust: {adjust}"))),
+        };
+        let lines = fetch_kline_min(&http, &secid, period, fqt)?;
+        let src = [
+            "时间",
+            "开盘",
+            "收盘",
+            "最高",
+            "最低",
+            "成交量",
+            "成交额",
+            "振幅",
+            "涨跌幅",
+            "涨跌额",
+            "换手率",
+        ];
+        let out = [
+            "时间",
+            "开盘",
+            "收盘",
+            "最高",
+            "最低",
+            "涨跌幅",
+            "涨跌额",
+            "成交量",
+            "成交额",
+            "振幅",
+            "换手率",
+        ];
+        min_kline_to_df(&lines, start_date, end_date, &src, &out, &out[1..])
+    }
 }
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应

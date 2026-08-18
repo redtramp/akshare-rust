@@ -116,11 +116,13 @@
 
 > **2026-08-18 批次 59 刷新**：批量实现 fund 新浪财经基金规模 2 个（`fund_scale_open_sina`/`fund_scale_close_sina`，`vip.stock.finance.sina.com.cn/fund_center/data/jsonp.php/.../NetValueReturn_Service.{Open,Close}` jsonp 解析（`({` 起 `}` 结尾），`data` 数组 19 列 select 9 列：序号/基金代码/基金简称/单位净值/总募集规模/最近总份额/成立日期/基金经理/更新日期，公共实现 `fund_scale_sina_base`），akshare 同名 `pub fn` 达 **747** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 68.0%**。
 
+> **2026-08-18 批次 60 刷新**：批量实现 fund 东方财富 LOF 分时行情 1 个（`fund_lof_hist_min_em`，`push2his.eastmoney.com` `trends2/get`（period=1 分时 8 列）/`kline/get`（分钟 K 线 11 列）复用 `fetch_trends`/`fetch_kline_min`/`min_kline_to_df`），akshare 同名 `pub fn` 达 **748** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 68.1%**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **747**（2026-08-18 批次 59 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（747 / 1099 实测口径） | **≈ 68.0%** |
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **748**（2026-08-18 批次 60 后实测；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（748 / 1099 实测口径） | **≈ 68.1%** |
 | golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
@@ -131,7 +133,7 @@
 |---|---:|---:|---:|
 | economic | 147 | 225 | 65.3% |
 | index | 52 | 95 | 54.7% |
-| fund | 51 | 88 | 58.0% |
+| fund | 52 | 88 | 59.1% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |
 | futures | 46 | 70 | 65.7% |
@@ -165,7 +167,7 @@
 | interest_rate | 1 | 1 | 100.0% |
 | spot | 15 | 15 | 100.0% |
 
-> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **747（68.0%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 58.0%（51/88，过半）**。最大缺口在 **index / fund / economic**（合计 158）。
+> 合计：akshare **1099** 个可调用函数（实测 `dir(akshare)`），Rust 已实现 **748（68.1%）**；**stock 已达 97.7%（127/130）**，仅剩 `stock_individual_spot_xq`（雪球需登录态）与 `stock_industry_clf_hist_sw`（申万宏源 xls SSL）2 个受限源。**economic 65.3%（147/225）**、**index 54.7%（52/95，过半）**、**fund 59.1%（52/88，过半）**。最大缺口在 **index / fund / economic**（合计 157）。
 
 **已落地的函数（按类别，历史部分清单 · 仅含批次 1/3 早期阶段，约 195 个；当前全量已 438 个，详见 §9 批次记录）：**
 
@@ -837,6 +839,8 @@ camoufox-rust 已完整复刻该流程拿到股息率历史数据。
 > **批次 58（2026-08-18）· fund 新浪财经 2 个批量落地**：akshare 同名 `pub fn` 达 **745（67.8%）**。覆盖 **fund 新浪财经 2 个**（BATCH58-A `fund_etf_category_sina`（`vip.stock.finance.sina.com.cn/quotes_service/api/jsonp.php/.../Market_Center.getHQNodeDataSimple` jsonp 解析（`([` 取 `}` 前缀），node=close_fund/etf_hq_fund/lof_hq_fund 按 symbol 映射，13 列：代码/名称/最新价/涨跌额/涨跌幅/买入/卖出/昨收/今开/最高/最低/成交量/成交额）、`fund_etf_hist_sina`（`finance.sina.com.cn/realstock/company/{symbol}/hisdata_klc2/klc_kl.js` 加密日 K，`=` 后 `;` 前提取编码串去引号，`sina_js_decode` 解密 → date/open/high/low/close/volume 按日期升序））。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；2 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 > **批次 59（2026-08-18）· fund 新浪基金规模 2 个批量落地**：akshare 同名 `pub fn` 达 **747（68.0%）**。覆盖 **fund 新浪基金规模 2 个**（BATCH59-A `fund_scale_open_sina`（`fund_center/data/jsonp.php/.../NetValueReturn_Service.NetValueReturnOpen`，type2 按 symbol 映射：股票型2/混合型1/债券型3/货币型5/QDII6，num=10000）、`fund_scale_close_sina`（`NetValueReturnClose`，num=1000），jsonp 解析（`({` 起 `}` 结尾）`data` 数组 19 列 select 9 列：序号/基金代码/基金简称/单位净值/总募集规模/最近总份额/成立日期/基金经理/更新日期，公共实现 `fund_scale_sina_base`）。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；2 个新函数全部注册 parity dispatch + parity_runner（loose）。
+
+> **批次 60（2026-08-18）· fund 东财 LOF 分时行情 1 个落地**：akshare 同名 `pub fn` 达 **748（68.1%）**。覆盖 **fund 东方财富-LOF 分时行情 1 个**（BATCH60-A `fund_lof_hist_min_em`，`push2his.eastmoney.com` `trends2/get`（period=1 分时 8 列：时间/开盘/收盘/最高/最低/成交量/成交额/均价）/`kline/get`（period=5/15/30/60 分钟 K 线 11 列），复用 `fetch_trends`/`fetch_kline_min`/`min_kline_to_df`（与 stock_zh_a_hist_min_em 同源），LOF 深市 secid=0.{symbol}）。**注：本批次盘点误判 `fund_etf_hist_em` 为缺口，实际已在 `src/stock/mod.rs` 实现并注册 parity（统一入口），已撤销重复实现**。质量门禁：`cargo fmt --check` + `cargo clippy --all-targets` 零警告 + 全量 `cargo test --lib` **243 passed**；1 个新函数全部注册 parity dispatch + parity_runner（loose）。
 
 ### 9.1 后续候选（未实现）
 - 东财 `datacenter-web` / `securities` 系仍有大量 `RPT_*` 报表未覆盖（如盈利预测、融资融券等已在
