@@ -4,6 +4,24 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-18] 批次 65 · economic macro_bank / macro_shipping / macro_cons 18 个批量落地
+
+- **新增公开函数**：**751 → 769**（净 +18）。覆盖：① **macro_bank_* 11 个**（主要央行利率决议报告，金十 datacenter `datacenter-api.jin10.com/reports/list_v2`，`category="ec"`，`attr_id` 各不同：`macro_bank_usa_interest_rate`(24)/`euro`(21)/`japan`(22)/`english`(26)/`australia`(27)/`newzealand`(23)/`switzerland`(25)/`china`(91)/`russia`(64)/`india`(68)/`brazil`(55)）；② **macro_shipping_* 4 个**（波罗的海航运指数，东方财富 `datacenter-web.eastmoney.com/api/data/v1/get`，`reportName=RPT_INDUSTRY_INDEX`，`filter=(INDICATOR_ID="EMI...")`，分页翻页，响应为 JSON 对象数组而非数组，返回 `日期,最新值,涨跌幅,近3月涨跌幅,近6月涨跌幅,近1年涨跌幅,近2年涨跌幅,近3年涨跌幅` 8 列；`macro_shipping_bdi`（EMI00107664）/`bci`（EMI00107666）/`bpi`（EMI00107665）/`bcti`（EMI00107669））；③ **macro_cons_* 3 个**（贵金属/原油 ETF 持仓，金十 datacenter，`category="etf"`，`attr_id`：`macro_cons_gold`(1)/`silver`(2)/`opec_month`(17)）。
+- **实现覆盖率**：**≈ 68.0%**（769 / 1131 公开 API）；parity 注册用例 769 / 769 唯一函数；economic 大类 **65.5% → 73.5%**（148 → 166 / 226）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(243) 全绿。
+- **parity 验证**：**18 PASS / 0 SKIP / 0 FAIL**。`macro_bank_*` 11 个走金十，`macro_shipping_*` 4 个走东财，`macro_cons_*` 3 个走金十，列名/dtype 与 akshare 一致（注意 macro_shipping_* 东财响应为对象数组，需改宏从数组解析切为 key-value 字段访问）。
+- **关键实现点（对齐 akshare）**：① macro_shipping_em 原按数组字段顺序访问（错），改为按字段名（`REPORT_DATE`/`INDICATOR_VALUE` 等）访问 JSON 对象；② macro_shipping_* 日期格式修正：akshare 返回 `YYYY-MM-DD`，东财 API 返回 `YYYY-MM-DD HH:MM:SS`，需截取空格前部分；③ 东财 API 需翻页（pageSize=500，总页数 20），去重按 `REPORT_DATE`；④ macro_bank_* 和 macro_cons_* 复用已有 `macro_china_base` 宏（金十 category 不同）。
+
+## [2026-08-18] 批次 66 · economic macro_usa_* 42 个批量落地
+
+- **新增公开函数**：**769 → 811**（净 +42）。覆盖 **macro_usa_* 42 个**（美国宏观指标，金十 datacenter `datacenter-api.jin10.com/reports/list_v2`，`category="ec"`，`attr_id` 各不同）。
+- **实现覆盖率**：**≈ 71.7%**（811 / 1131 公开 API）；parity 注册用例 811 / 811 唯一函数；economic 大类 **73.5% → 92.0%**（166 → 208 / 226）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(243) 全绿。
+- **parity 验证**：**42 PASS / 0 SKIP / 0 FAIL**。所有 macro_usa_* 函数走金十，列名/dtype 与 akshare 一致（`商品, 日期, 今值, 预测值, 前值`）。
+- **关键实现点（对齐 akshare）**：① 复用已有 `macro_china_base` 宏（金十 `category="ec"`）；② attr_id 从 akshare 源码提取（1/3/4/5/6/7/8/9/10/12/13/15/16/17/18/20/28/29/31/32/33/34/35/37/39/42/44/47/50/51/52/53/59/63/69/74/78/79/81/89/93）；③ 42 个函数通过 `macro_usa_fn!` 宏批量注册（与 macro_bank_fn!/macro_euro_fn! 同模式）。
+
+## [2026-08-15] 批次 29-F · futures 新浪主力/连续/持仓（子组 F）
+
 ## [2026-08-15] 批次 29-F · futures 新浪主力/连续/持仓（子组 F）
 
 - **新增公开函数**：**528 → 531**（净 +3）。在 `src/futures/sina.rs`（对应 akshare `futures_derivative/futures_index_sina.py` 与 `futures_cot_sina.py`）落地 3 个新浪主力/连续/持仓函数（均位于 `futures_derivative` 子包下、但可经 `ak.futures_*` 调用，计入 1094 目标）：`futures_display_main_sina`（五大交易所主力连续合约一览，遍历 `futures_symbol_mark` 的 `mark` 节点码逐品种查询 `Market_Center.getHQFuturesData`，筛选 `name` 含「连续」且 `symbol` 首数字为 `0` 的合约，取 `[symbol,exchange,name]`）、`futures_main_sina`（主力连续日线，`InnerFuturesNewService.getDailyKLine` JSONP，短键 `d/o/h/l/c/v/p/s`→中文列名，日期参数固定 `2021_08_17`，按 `start_date`/`end_date` 闭区间过滤）、`futures_hold_pos_sina`（成交持仓，`vFutures_Positions_cjcc.php`，`read_html_tables` 取第 3/4/5 表，丢弃表头与末行合计，列 `[名次,会员简称,<度量>,比上交易增减]` 数值化）。

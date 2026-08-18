@@ -2346,3 +2346,274 @@ fn macro_lme_base(url: &str) -> Result<Df> {
     }
     Ok(df)
 }
+
+// === macro_bank_* 主要央行利率决议报告（11 个，金十 datacenter）===
+// 对应 akshare `economic/macro_bank.py`。走 `datacenter-api.jin10.com/reports/list_v2`
+// 与 macro_china_base 同契约，category="ec"，按 attr_id 分指标。
+macro_rules! macro_bank_fn {
+    ($name:ident, $symbol:literal, $attr:literal) => {
+        /// 金十数据中心-主要央行利率决议报告（对应 akshare [`akshare.$name`]）。
+        /// 数据源 `datacenter-api.jin10.com/reports/list_v2`（`attr_id=$attr`）。
+        /// # 返回列 `商品, 日期, 今值, 预测值, 前值`
+        pub fn $name() -> Result<Df> {
+            macro_china_base($symbol, $attr)
+        }
+    };
+}
+
+macro_bank_fn!(macro_bank_usa_interest_rate, "美联储利率决议报告", "24");
+macro_bank_fn!(macro_bank_euro_interest_rate, "欧洲央行决议报告", "21");
+macro_bank_fn!(macro_bank_japan_interest_rate, "日本央行决议报告", "22");
+macro_bank_fn!(macro_bank_english_interest_rate, "英国央行决议报告", "26");
+macro_bank_fn!(macro_bank_australia_interest_rate, "澳洲联储决议报告", "27");
+macro_bank_fn!(macro_bank_newzealand_interest_rate, "新西兰利率决议报告", "23");
+macro_bank_fn!(macro_bank_switzerland_interest_rate, "瑞士央行决议报告", "25");
+macro_bank_fn!(macro_bank_china_interest_rate, "中国央行决议报告", "91");
+macro_bank_fn!(macro_bank_russia_interest_rate, "俄罗斯央行决议报告", "64");
+macro_bank_fn!(macro_bank_india_interest_rate, "印度央行决议报告", "68");
+macro_bank_fn!(macro_bank_brazil_interest_rate, "巴西央行决议报告", "55");
+
+// === macro_shipping_* 波罗的海航运指数（4 个，东财）===
+// 对应 akshare `economic/macro_shipping.py`。走 `datacenter-web.eastmoney.com` EMI ID 查询。
+macro_rules! macro_shipping_fn {
+    ($name:ident, $em_id:literal) => {
+        /// 波罗的海航运指数（对应 akshare [`akshare.$name`]）。
+        /// 数据源 `datacenter-web.eastmoney.com`（`EMI_ID=$em_id`）。
+        /// # 返回列 `日期, 最新值, 涨跌幅, 近3月涨跌幅, 近6月涨跌幅, 近1年涨跌幅, 近2年涨跌幅, 近3年涨跌幅`
+        pub fn $name() -> Result<Df> {
+            macro_shipping_em($em_id)
+        }
+    };
+}
+
+macro_shipping_fn!(macro_shipping_bdi, "EMI00107664");
+macro_shipping_fn!(macro_shipping_bci, "EMI00107666");
+macro_shipping_fn!(macro_shipping_bpi, "EMI00107665");
+macro_shipping_fn!(macro_shipping_bcti, "EMI00107669");
+
+/// 东财 EM 宏观 1 列接口通用实现（波罗的海航运指数）。
+///
+/// 请求 `datacenter-web.eastmoney.com/api/data/v1/get`，参数 `reportName=RPT_INDUSTRY_INDEX`，
+/// `filter=(INDICATOR_ID="EMI00107664")`，`sortColumns=REPORT_DATE, sortTypes=-1`。
+/// 返回列：`日期, 最新值, 涨跌幅, 近3月涨跌幅, 近6月涨跌幅, 近1年涨跌幅, 近2年涨跌幅, 近3年涨跌幅`。
+fn macro_shipping_em(em_id: &str) -> Result<Df> {
+    let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
+    let ind_id = format!("\"{em_id}\"");
+    let mut params = Map::new();
+    params.insert("sortColumns".into(), Value::String("REPORT_DATE".to_string()));
+    params.insert("sortTypes".into(), Value::String("-1".to_string()));
+    params.insert("pageSize".into(), Value::String("500".to_string()));
+    params.insert("pageNumber".into(), Value::String("1".to_string()));
+    params.insert("reportName".into(), Value::String("RPT_INDUSTRY_INDEX".to_string()));
+    params.insert(
+        "columns".into(),
+        Value::String(
+            "REPORT_DATE,INDICATOR_VALUE,CHANGE_RATE,CHANGERATE_3M,\
+            CHANGERATE_6M,CHANGERATE_1Y,CHANGERATE_2Y,CHANGERATE_3Y"
+                .to_string(),
+        ),
+    );
+    params.insert(
+        "filter".into(),
+        Value::String(format!("(INDICATOR_ID={ind_id})")),
+    );
+    params.insert("source".into(), Value::String("WEB".to_string()));
+    params.insert("client".into(), Value::String("WEB".to_string()));
+
+    let http = HttpClient::default();
+    let first: Value = http.get_json(url, &params, None)?;
+    let total_page: u64 = first
+        .get("result")
+        .and_then(|r| r.get("pages"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+
+    let mut rows: Vec<Value> = first
+        .get("result")
+        .and_then(|r| r.get("data"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    // 翻页
+    for page in 2..=total_page {
+        params.insert("pageNumber".into(), Value::String(page.to_string()));
+        let page_data: Value = http.get_json(url, &params, None)?;
+        if let Some(data) = page_data.get("result").and_then(|r| r.get("data")).and_then(Value::as_array) {
+            rows.extend(data.clone());
+        }
+    }
+
+    // 去重（按 REPORT_DATE）
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    rows.retain(|row| {
+        if let Some(obj) = row.as_object() {
+            if let Some(date) = obj.get("REPORT_DATE").and_then(Value::as_str) {
+                seen.insert(date.to_string())
+            } else {
+                true
+            }
+        } else {
+            true
+        }
+    });
+
+    let cols = [
+        "日期", "最新值", "涨跌幅", "近3月涨跌幅", "近6月涨跌幅",
+        "近1年涨跌幅", "近2年涨跌幅", "近3年涨跌幅",
+    ];
+    let numeric = [
+        "最新值", "涨跌幅", "近3月涨跌幅", "近6月涨跌幅",
+        "近1年涨跌幅", "近2年涨跌幅", "近3年涨跌幅",
+    ];
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut r = vec![None; 8];
+        if let Some(obj) = row.as_object() {
+            if let Some(v) = obj.get("REPORT_DATE").and_then(Value::as_str) {
+                // 只取日期部分，去掉时间
+                r[0] = Some(v.split(' ').next().unwrap_or(v).to_string());
+            }
+            if let Some(v) = obj.get("INDICATOR_VALUE") {
+                r[1] = json_value_to_string(v);
+            }
+            if let Some(v) = obj.get("CHANGE_RATE") {
+                r[2] = json_value_to_string(v);
+            }
+            if let Some(v) = obj.get("CHANGERATE_3M") {
+                r[3] = json_value_to_string(v);
+            }
+            if let Some(v) = obj.get("CHANGERATE_6M") {
+                r[4] = json_value_to_string(v);
+            }
+            if let Some(v) = obj.get("CHANGERATE_1Y") {
+                r[5] = json_value_to_string(v);
+            }
+            if let Some(v) = obj.get("CHANGERATE_2Y") {
+                r[6] = json_value_to_string(v);
+            }
+            if let Some(v) = obj.get("CHANGERATE_3Y") {
+                r[7] = json_value_to_string(v);
+            }
+        }
+        out.push(r);
+    }
+    let mut df = Df::from_string_rows(&cols, &out)?;
+    df.cast_numeric(&numeric)?;
+    // 按日期升序
+    df = df.sort_by("日期", false, false)?;
+    Ok(df)
+}
+
+// === macro_cons_* 贵金属/原油 ETF 持仓（3 个，金十）===
+// 对应 akshare `economic/macro_cons.py`。走 `datacenter-api.jin10.com/reports/list_v2`，category="etf"。
+macro_rules! macro_cons_fn {
+    ($name:ident, $symbol:literal, $attr:literal) => {
+        /// 金十数据中心-{symbol}（对应 akshare [`akshare.$name`]）。
+        /// 数据源 `datacenter-api.jin10.com/reports/list_v2`（`attr_id=$attr`，`category="etf"`）。
+        /// # 返回列 `商品, 日期, 今值, 预测值, 前值`
+        pub fn $name() -> Result<Df> {
+            macro_china_base($symbol, $attr)
+        }
+    };
+}
+
+macro_cons_fn!(macro_cons_gold, "黄金", "1");
+macro_cons_fn!(macro_cons_silver, "白银", "2");
+macro_cons_fn!(macro_cons_opec_month, "欧佩克报告", "17");
+
+// === BATCH66 macro_usa_* 美国宏观指标（50 个，金十 datacenter）===
+// 对应 akshare `economic/macro_usa.py`。走 `datacenter-api.jin10.com/reports/list_v2`，category="ec"。
+macro_rules! macro_usa_fn {
+    ($name:ident, $symbol:literal, $attr:literal) => {
+        /// 金十数据中心-美国宏观指标（对应 akshare [`akshare.$name`]）。
+        /// 数据源 `datacenter-api.jin10.com/reports/list_v2`（`attr_id=$attr`，`category="ec"`）。
+        /// # 返回列 `商品, 日期, 今值, 预测值, 前值`
+        pub fn $name() -> Result<Df> {
+            macro_china_base($symbol, $attr)
+        }
+    };
+}
+
+// attr_id=1
+macro_usa_fn!(macro_usa_adp_employment, "美国ADP就业人口变动", "1");
+// attr_id=3
+macro_usa_fn!(macro_usa_building_permits, "美国新屋开工总数年化", "3");
+// attr_id=4
+macro_usa_fn!(macro_usa_business_inventories, "美国企业库存", "4");
+// attr_id=5
+macro_usa_fn!(macro_usa_cb_consumer_confidence, "美国谘商会消费者信心指数", "5");
+// attr_id=6
+macro_usa_fn!(macro_usa_core_cpi_monthly, "美国核心CPI月率", "6");
+// attr_id=7
+macro_usa_fn!(macro_usa_core_ppi, "美国核心PPI月率", "7");
+// attr_id=8
+macro_usa_fn!(macro_usa_core_pce_price, "美国核心PCE物价指数年率", "8");
+// attr_id=9
+macro_usa_fn!(macro_usa_cpi_monthly, "美国CPI月率", "9");
+// attr_id=10
+macro_usa_fn!(macro_usa_eia_crude_rate, "美国EIA原油库存变动", "10");
+// attr_id=12
+macro_usa_fn!(macro_usa_current_account, "美国经常帐", "12");
+// attr_id=13
+macro_usa_fn!(macro_usa_durable_goods_orders, "美国耐用品订单月率", "13");
+// attr_id=15
+macro_usa_fn!(macro_usa_exist_home_sales, "美国成屋销售总数年化", "15");
+// attr_id=16
+macro_usa_fn!(macro_usa_factory_orders, "美国API原油库存", "16");
+// attr_id=17
+macro_usa_fn!(macro_usa_house_starts, "美国新屋开始总数年化", "17");
+// attr_id=18
+macro_usa_fn!(macro_usa_import_price, "美国进口物价指数月率", "18");
+// attr_id=20
+macro_usa_fn!(macro_usa_industrial_production, "美国工业产出月率", "20");
+// attr_id=28
+macro_usa_fn!(macro_usa_ism_pmi, "美国ISM制造业PMI", "28");
+// attr_id=29
+macro_usa_fn!(macro_usa_ism_non_pmi, "美国ISM非制造业PMI", "29");
+// attr_id=31
+macro_usa_fn!(macro_usa_nahb_house_market_index, "美国NAHB房屋市场指数", "31");
+// attr_id=32
+macro_usa_fn!(macro_usa_new_home_sales, "美国新屋销售总数年化", "32");
+// attr_id=33
+macro_usa_fn!(macro_usa_non_farm, "美国非农就业人数", "33");
+// attr_id=34
+macro_usa_fn!(macro_usa_pending_home_sales, "美国成屋签约销售指数月率", "34");
+// attr_id=35
+macro_usa_fn!(macro_usa_personal_spending, "美国个人支出月率", "35");
+// attr_id=37
+macro_usa_fn!(macro_usa_ppi, "美国PPI月率", "37");
+// attr_id=39
+macro_usa_fn!(macro_usa_retail_sales, "美国零售销售额月率", "39");
+// attr_id=42
+macro_usa_fn!(macro_usa_trade_balance, "美国贸易帐", "42");
+// attr_id=44
+macro_usa_fn!(macro_usa_initial_jobless, "美国初请失业金人数", "44");
+// attr_id=47
+macro_usa_fn!(macro_usa_unemployment_rate, "美国失业率", "47");
+// attr_id=50
+macro_usa_fn!(macro_usa_michigan_consumer_sentiment, "美国密歇根大学消费者信心指数", "50");
+// attr_id=51
+macro_usa_fn!(macro_usa_house_price_index, "美国FHFA房价指数月率", "51");
+// attr_id=52
+macro_usa_fn!(macro_usa_spcs20, "美国20大城市新房开工年化", "52");
+// attr_id=53
+macro_usa_fn!(macro_usa_gdp_monthly, "美国GDP环比初值", "53");
+// attr_id=59
+macro_usa_fn!(macro_usa_m2_yearly, "中国M2货币供应年率", "59");
+// attr_id=63
+macro_usa_fn!(macro_usa_nfib_small_business, "美国NFIB小型企业信心指数", "63");
+// attr_id=69
+macro_usa_fn!(macro_usa_api_crude_stock, "美国API原油库存", "69");
+// attr_id=74
+macro_usa_fn!(macro_usa_pmi, "美国Markit制造业PMI初值", "74");
+// attr_id=78
+macro_usa_fn!(macro_usa_job_cuts, "美国JobCuts", "78");
+// attr_id=79
+macro_usa_fn!(macro_usa_export_price, "美国出口价格指数月率", "79");
+// attr_id=81
+macro_usa_fn!(macro_usa_real_consumer_spending, "美国实际个人消费支出季率初值", "81");
+// attr_id=89
+macro_usa_fn!(macro_usa_services_pmi, "美国Markit服务业PMI终值", "89");
+// attr_id=93
+macro_usa_fn!(macro_usa_lmci, "美国劳动力市场条件指数", "93");

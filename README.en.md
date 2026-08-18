@@ -29,33 +29,36 @@ println!("{}", df);
 
 ## Implemented Interfaces
 
-> As of now, a total of **364** data interfaces are implemented, covering **19 / 47** functional categories, with an overall coverage of **≈ 33.1%**
-> (benchmarked against akshare's 1099 public APIs). All interfaces align with the identically-named Python akshare functions
-> (column names / column order / values verified differentially item by item). 
+> As of now, a total of **811** data interfaces are implemented, covering **17 / 35** functional categories, with an overall coverage of **≈ 71.7%**
+> (benchmarked against akshare's 1131 public APIs). All interfaces align with the identically-named Python akshare functions
+> (column names / column order / values verified differentially item by item).
 
 **By category (implemented / akshare total / coverage):**
 
 | Category | Implemented | akshare | Coverage |
 |---|---|---|---|
-| stock | 21 | 407 | 5.2% |
-| fund | 4 | 74 | 5.4% |
-| index | 3 | 79 | 3.8% |
-| stock_feature | 95 | 211 | 45.0% |
-| stock_fundamental | 25 | 57 | 43.9% |
-| economic | 48 | 226 | 21.2% |
-| futures | 7 | 70 | 10.0% |
-| option | 46 | 47 | 97.9% |
-| bond | 29 | 46 | 63.0% |
-| currency | 2 | ~dozens | long tail |
-| energy | 17 | ~dozens | long tail |
+| stock | 313 | 407 | 76.9% |
+| fund | 55 | 88 | 62.5% |
+| index | 50 | 95 | 52.6% |
+| economic | 208 | 226 | 92.0% |
+| futures | 55 | 70 | 78.6% |
+| option | 28 | 47 | 59.6% |
+| bond | 41 | 46 | 89.1% |
+| spot | 16 | ~dozens | long tail |
 | news | 5 | ~dozens | long tail |
-| fortune | 1 | ~10 | long tail |
-| spot | 3 | ~dozens | long tail |
-| cninfo | 10 | — | CNINFO family |
-| sina | 2 | — | Sina family |
+| energy | 4 | ~dozens | long tail |
+| currency | 2 | ~dozens | long tail |
+| fx | 5 | 6 | 83.3% |
+| forex | 2 | 2 | 100.0% |
+| reits | 3 | 3 | 100.0% |
+| cninfo | 45 | — | CNINFO family |
 | legu | 14 | — | Legulegu family |
-| xueqiu | 2 | — | Xueqiu family |
+| xueqiu | 6 | — | Xueqiu family |
 | exchange | 3 | — | Exchange family |
+| sina | 4 | — | Sina family |
+| ths | 15 | — | THS family |
+| interest_rate | 1 | 2 | 50.0% |
+| fortune | 1 | ~10 | long tail |
 
 > The interfaces below are listed by data source; the full function list for each category is in the corresponding `src/` module.
 
@@ -84,9 +87,45 @@ println!("{}", df);
 | `stock_comment_em` / `stock_comment_detail_*` / `stock_rank_*_ths` | `ak.stock_*` | Per-stock commentary / technical stock screening |
 | `stock_xgsglb_em` / `stock_analyst_rank_em` / `stock_analyst_detail_em` | `ak.stock_*` | New-stock subscriptions / analyst indices |
 
-> Stock features (`stock_feature`) total 95, covering quote snapshots, shareholder analysis, dragon-tiger list, Shanghai-Shenzhen-HK Connect, financial statements, per-stock commentary, technical screening, etc.; full list in `src/stock_feature/mod.rs`.
+> Stock features (`stock_feature`) total ~130, covering quote snapshots, shareholder analysis, dragon-tiger list, Shanghai-Shenzhen-HK Connect, financial statements, per-stock commentary, technical screening, etc.; full list in `src/stock_feature/mod.rs`.
 
 ### Index / Fund
+
+> Index 50, fund 55.
+
+| Function | Corresponding akshare | Description |
+|---|---|---|
+| `index_zh_a_hist` / `index_zh_a_hist_min_em` / `index_code_id_map_em` | `ak.index_*` | A-share index K-line / minute line / code mapping |
+| `index_all_cni` / `index_hist_cni` / `index_detail_cni` / `index_detail_hist_cni` / `index_detail_hist_adjust_cni` | `ak.index_*_cni` | CSI index list / history / details |
+| `index_hist_sw` / `index_min_sw` / `index_realtime_sw` / `index_analysis_*_sw` / `index_component_sw` / `index_hist_fund_sw` | `ak.index_*_sw` | SW (Shenwan Hongyuan) index |
+| `index_pmi_*_cx` / `index_dei_cx` / `index_ii_cx` / `index_si_cx` etc. (19 total) | `ak.index_*_cx` | Caixin PMI / composite index (19 types) |
+| `index_price_cflp` / `index_volume_cflp` | `ak.index_price_*` / `ak.index_volume_*` | CFLP freight rate / volume index |
+| `index_sugar_msweet` / `index_inner_quote_sugar_msweet` / `index_outer_quote_sugar_msweet` | `ak.index_*_sugar_msweet` | MuTian sugar index |
+| `index_stock_cons` | `ak.index_stock_cons` | Sina latest index constituents |
+| `index_stock_cons_csindex` / `index_stock_cons_weight_csindex` | `ak.index_stock_cons_*` | CSI constituents / weights |
+| `index_stock_cons_sina` / `index_stock_info` / `index_global_*` series | `ak.index_*` | Index list / global indices |
+| `fund_etf_hist_em` / `fund_etf_spot_em` / `fund_lof_spot_em` | `ak.fund_*` | ETF/LOF K-line / quotes |
+| `fund_etf_hist_min_em` / `fund_lof_hist_em` / `fund_lof_hist_min_em` | `ak.fund_*` | ETF/LOF minute K-line |
+| `fund_etf_category_ths` / `fund_etf_spot_ths` | `ak.fund_*_ths` | ETF categories / real-time (JS encryption) |
+| `fund_etf_category_sina` / `fund_etf_hist_sina` | `ak.fund_*_sina` | Sina ETF category / daily K-line |
+| `fund_open_fund_rank_em` / `fund_exchange_rank_em` / `fund_money_rank_em` / `fund_lcx_rank_em` | `ak.fund_*_rank_*` | Fund rankings (open/exchange/money/wealth) |
+| `fund_open_fund_daily_em` / `fund_money_fund_daily_em` / `fund_financial_fund_daily_em` | `ak.fund_*_daily_*` | Fund NAV list |
+| `fund_fh_em` / `fund_cf_em` | `ak.fund_fh_*` / `ak.fund_cf_*` | Fund dividends / splits |
+| `fund_fh_rank_em` | `ak.fund_fh_rank_em` | Fund dividend ranking |
+| `fund_purchase_em` | `ak.fund_purchase_em` | Fund subscription status |
+| `fund_scale_change_em` / `fund_hold_structure_em` | `ak.fund_scale_*` / `ak.fund_hold_*` | Fund scale change / hold structure |
+| `fund_scale_daily_szse` | `ak.fund_scale_daily_szse` | SZSE fund scale daily |
+| `fund_scale_open_sina` / `fund_scale_close_sina` / `fund_scale_structured_sina` | `ak.fund_scale_*_sina` | Sina fund scale (open/closed/structured) |
+| `fund_aum_em` / `fund_aum_hist_em` / `fund_aum_trend_em` | `ak.fund_aum_*` | Fund company AUM |
+| `fund_etf_scale_sse` / `fund_etf_scale_szse` | `ak.fund_etf_scale_*` | Exchange ETF scale |
+| `fund_portfolio_hold_em` / `fund_portfolio_bond_hold_em` / `fund_portfolio_industry_allocation_em` | `ak.fund_portfolio_*` | Fund portfolio holdings |
+| `fund_money_fund_info_em` / `fund_etf_fund_info_em` / `fund_graded_fund_info_em` | `ak.fund_*_info_*` | Fund historical NAV details |
+| `fund_rating_all` / `fund_rating_sh` / `fund_rating_zs` / `fund_rating_ja` | `ak.fund_rating_*` | Fund rating |
+| `fund_new_found_em` / `fund_new_found_ths` | `ak.fund_new_found_*` | New fund launches |
+| `fund_announcement_dividend_em` / `fund_announcement_report_em` / `fund_announcement_personnel_em` | `ak.fund_announcement_*` | Fund announcements |
+| `fund_value_estimation_em` | `ak.fund_value_estimation_em` | Fund NAV estimation |
+| `fund_name_em` | `ak.fund_name_em` | Fund name list |
+| `fund_hk_rank_em` / `fund_hk_fund_hist_em` | `ak.fund_hk_*` | HK fund ranking / historical NAV |
 
 | Function | Corresponding akshare | Description |
 |---|---|---|
@@ -163,7 +202,7 @@ println!("{}", df);
 | `option_hist_czce` / `option_hist_yearly_czce` / `option_hist_dce` / `option_hist_gfex` / `option_hist_shfe` / `option_vol_shfe` / `option_vol_gfex` | `ak.option_hist_*` | Futures-option history (CZCE / DCE / GFEX / SHFE) |
 | `option_contract_info_ctp` | `ak.option_contract_info_ctp` | CTP option contract info |
 
-> Options total 46, covering CFFEX / SSE / SZSE / Eastmoney / commodity / futures-option history; full list in `src/option/mod.rs`.
+> Options total 28, covering CFFEX / SSE / SZSE / Eastmoney / commodity / futures-option history; full list in `src/option/mod.rs`.
 
 ### Bonds (bond)
 
@@ -179,7 +218,7 @@ println!("{}", df);
 | `bond_buy_back_hist_em` / `bond_sh_buy_back_em` / `bond_sz_buy_back_em` | `ak.bond_*_buy_back_*` | Pledged repo |
 | `bond_info_cm` / `bond_info_detail_cm` / `bond_info_cm_query` | `ak.bond_info_cm*` | China Money bond query |
 
-> Bonds total 29, covering convertible bonds / spot bonds / treasury / repo / issuance / China Money; full list in `src/bond/mod.rs`.
+> Bonds total 41, covering convertible bonds / spot bonds / treasury / repo / issuance / China Money; full list in `src/bond/mod.rs`.
 
 ### Macro (economic)
 
@@ -193,7 +232,7 @@ println!("{}", df);
 | `macro_china_hk_cpi` / `macro_china_hk_rate_of_unemployment` / `macro_china_hk_gbp` / `macro_china_hk_ppi` / `macro_china_hk_market_info` | `ak.macro_china_hk_*` | Hong Kong macro |
 | `macro_china_qyspjg` / `macro_china_fdi` / `macro_china_new_house_price` / `macro_china_consumer_goods_retail` / `macro_china_stock_market_cap` / `macro_china_daily_energy` / `macro_china_au_report` | `ak.macro_china_*` | Corporate goods price / FDI / house price / consumption / market cap / energy / gold |
 
-> Macro totals 48 (Jin10 + Eastmoney datacenter-web + Hong Kong + multi-caliber); full list in `src/economic/mod.rs` and `src/sources/jin10.rs`.
+> Macro totals 148 (Jin10 + Eastmoney datacenter-web + Hong Kong + multi-caliber + Eurozone + global); full list in `src/economic/mod.rs` and `src/sources/jin10.rs`.mic/mod.rs` and `src/sources/jin10.rs`.
 
 ### Energy & Commodities (energy)
 
@@ -206,10 +245,14 @@ println!("{}", df);
 
 ### News (news)
 
+> Total 5 interfaces (news module 5 + stock module 2 stock-related news).
+
 | Function | Corresponding akshare | Description |
 |---|---|---|
 | `news_economic_baidu` / `news_trade_notify_suspend_baidu` / `news_trade_notify_dividend_baidu` / `news_report_time_baidu` | `ak.news_*` | Baidu finance news / suspension / dividends / earnings schedule |
 | `news_cctv` | `ak.news_cctv` | CCTV news |
+| `stock_news_em` | `ak.stock_news_em` | Eastmoney individual stock news (in stock module) |
+| `stock_news_main_cx` | `ak.stock_news_main_cx` | Caixin news (in stock module) |
 
 ### Wealth Rankings (fortune)
 
@@ -217,26 +260,65 @@ println!("{}", df);
 |---|---|---|
 | `hurun_rank` | `ak.hurun_rank` | Hurun Rich List |
 
+### REITs (real estate investment trusts)
+
+> Total 3 interfaces, all implemented (100%).
+
+| Function | Corresponding akshare | Description |
+|---|---|---|
+| `reits_realtime_em` | `ak.reits_realtime_em` | Shanghai/Shenzhen REITs real-time quotes |
+| `reits_hist_em` | `ak.reits_hist_em` | Shanghai/Shenzhen REITs daily K-line |
+| `reits_hist_min_em` | `ak.reits_hist_min_em` | Shanghai/Shenzhen REITs minute K-line |
+
 ### Spot (spot)
+
+> Total 16 interfaces covering Shanghai Gold Exchange, Soozhu network, 99 futures, etc.
 
 | Function | Corresponding akshare | Description |
 |---|---|---|
 | `spot_goods` | `ak.spot_goods` | Commodity spot |
 | `spot_price_table_qh` / `spot_price_qh` | `ak.spot_price_*_qh` | 99 futures spot/futures prices |
+| `spot_symbol_table_sge` / `spot_golden_benchmark_sge` / `spot_silver_benchmark_sge` | `ak.spot_*_sge` | Shanghai Gold Exchange |
+| `spot_hist_sge` / `spot_quotations_sge` | `ak.spot_*_sge` | SGE history / quotes |
+| `spot_hog_soozhu` / `spot_hog_year_trend_soozhu` / `spot_hog_lean_price_soozhu` | `ak.spot_hog_*` | Soozhu hog data |
+| `spot_hog_three_way_soozhu` / `spot_hog_crossbred_soozhu` | `ak.spot_hog_*` | Soozhu three-way / crossbred |
+| `spot_corn_price_soozhu` / `spot_soybean_price_soozhu` / `spot_mixed_feed_soozhu` | `ak.spot_*` | Soozhu corn / soybean meal / feed |
 
-### FX (currency)
+### FX (currency / forex / fx)
+
+> Total 9 interfaces (RMB central parity 2 + forex quotes 2 + forex exchange 5).
 
 | Function | Corresponding akshare | Description |
 |---|---|---|
 | `currency_boc_safe` / `currency_boc_sina` | `ak.currency_boc_*` | SAFE / Sina RMB central parity |
+| `forex_spot_em` / `forex_hist_em` | `ak.forex_*` | Eastmoney forex quotes / history |
+| `fx_c_swap_cm` / `fx_quote_baidu` / `fx_spot_quote` / `fx_swap_quote` / `fx_pair_quote` | `ak.fx_*` | China Money / Baidu FX |
 
-### Futures Exchanges (settlement parameters + contract details)
+### Futures (futures)
+
+> Total 55 interfaces covering settlement parameters for five exchanges, contract details, historical quotes, global futures, and inventory data.
 
 | Function | Corresponding akshare | Description |
 |---|---|---|
 | `futures_settle_cffex` / `futures_settle_czce` / `futures_settle_gfex` / `futures_settle_shfe` / `futures_settle_ine` | `ak.futures_settle_*` | Settlement parameters for the five exchanges |
 | `futures_settle` | `ak.futures_settle` | Unified settlement-parameter entry (20-column normalization, `market` dispatch) |
 | `futures_contract_detail` | `ak.futures_contract_detail` | Sina futures contract details (GB2312 page) |
+| `futures_contract_detail_em` | `ak.futures_contract_detail_em` | Eastmoney futures contract details |
+| `futures_contract_info_*` series (6 exchanges) | `ak.futures_contract_info_*` | Contract info for each exchange |
+| `futures_warehouse_receipt_*` series (4 exchanges) | `ak.futures_warehouse_receipt_*` | Warehouse receipts for each exchange |
+| `futures_delivery_*` / `futures_to_spot_*` series (8) | `ak.futures_delivery_*` / `ak.futures_to_spot_*` | Delivery / forward-to-spot |
+| `futures_hist_daily_cffex` | `ak.futures_hist_daily_cffex` | CFFEX historical daily |
+| `futures_hist_em` / `futures_hist_table_em` | `ak.futures_hist_*` | Eastmoney futures historical K-line |
+| `futures_global_spot_em` / `futures_global_hist_em` | `ak.futures_global_*` | Eastmoney global futures real-time/history |
+| `futures_index_ccidx` | `ak.futures_index_ccidx` | CSI Commodity Index CCIDX |
+| `futures_symbol_mark` / `futures_zh_realtime` / `futures_zh_spot` | `ak.futures_*` | Sina variety mapping / real-time quotes |
+| `futures_zh_daily_sina` / `futures_zh_minute_sina` | `ak.futures_zh_*` | Sina daily / minute K-line |
+| `futures_foreign_commodity_realtime` / `futures_foreign_detail` / `futures_foreign_hist` | `ak.futures_foreign_*` | Global commodity futures real-time/detail/history |
+| `futures_comm_info` / `futures_comm_js` / `futures_fees_info` | `ak.futures_*` | Commission / fee tables |
+| `futures_news_shmet` | `ak.futures_news_shmet` | Shanghai Metals Market news |
+| `futures_inventory_99` / `futures_spot_stock` / `futures_stock_shfe_js` | `ak.futures_*` | Inventory / spot data |
+| `futures_rule` | `ak.futures_rule` | Guotai Junan trading calendar |
+| `futures_hold_pos_sina` / `futures_main_sina` / `futures_display_main_sina` | `ak.futures_*` | Sina position / main contract |
 
 ## Architecture
 
@@ -261,13 +343,15 @@ src/
 │   ├── spot_goods.rs / spot_qh.rs # Spot
 │   ├── jisilu.rs / chinamoney.rs  # Jisilu / China Money (bonds)
 │   └── ...         # Other source modules
-├── economic/       # Macro: Jin10 China macro + Eastmoney datacenter-web macro + HK / multi-caliber (48 total)
-├── futures/        # Futures: settlement parameters for five exchanges + unified entry + Sina contract details
-├── option/         # Options: CFFEX / SSE / SZSE / Eastmoney / commodity / futures-option history (46 total)
-├── bond/           # Bonds: convertible / spot / treasury / repo / issuance / China Money (29 total)
+├── economic/       # Macro: Jin10 China macro + Eastmoney datacenter-web macro + HK/Eurozone/global (148 total)
+├── futures/        # Futures: settlement parameters for five exchanges + contract details + history + global (55 total)
+├── option/         # Options: CFFEX / SSE / SZSE / Eastmoney / commodity / futures-option history (28 total)
+├── bond/           # Bonds: convertible / spot / treasury / repo / issuance / China Money (41 total)
+├── interest_rate/  # Interest rate: SHIBOR (Shanghai Interbank Offered Rate)
 ├── cninfo/         # CNINFO: datacenter query + built-in JS encryption
 ├── legu/           # Legulegu: md5 token + session cookie + csrf two-step flow
 ├── sina/           # Sina Finance: HK spot pagination / minute line JSONP
+├── reits/          # REITs: China REITs daily/weekly/monthly K-line / spot
 ├── exchange/       # Exchanges: SSE / SZSE margin trading
 ├── xueqiu/         # Xueqiu: session cookie + heat-ranking pagination
 ├── stock/          # Stock interfaces (corresponding to akshare stock_* functions)
