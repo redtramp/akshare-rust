@@ -32,7 +32,7 @@ const JIN10_COLS: [&str; 5] = ["商品", "日期", "今值", "预测值", "前�
 const JIN10_NUMERIC: [&str; 3] = ["今值", "预测值", "前值"];
 
 /// 当前毫秒时间戳（对应 akshare `str(int(round(t * 1000)))` 的 `_` 参数）。
-fn now_ms() -> u64 {
+pub fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
