@@ -8940,3 +8940,94 @@ pub fn stock_info_cjzc_em() -> Result<Df> {
 
     Df::from_string_rows(&["标题", "摘要", "发布时间", "链接"], &all_rows)
 }
+
+/// 沪深港通-北向/南向资金分时数据（对应 akshare [`akshare.stock_hsgt_fund_min_em`]）。
+///
+/// 东财 push2.eastmoney.com API，返回北向/南向资金分时数据。
+pub fn stock_hsgt_fund_min_em(symbol: &str) -> Result<Df> {
+    let url = "https://push2.eastmoney.com/api/qt/kamtbs.rtmin/get";
+    let params = json!({
+        "fields1": "f1,f2,f3,f4",
+        "fields2": "f51,f54,f52,f58,f53,f62,f56,f57,f60,f61",
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data: Value = http.get_json(url, &params, None)?;
+
+    let is_south = symbol == "南向资金";
+
+    if is_south {
+        // 南向资金
+        let n2s = data
+            .get("data")
+            .and_then(|v| v.get("n2s"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let date = data
+            .get("data")
+            .and_then(|v| v.get("n2nDate"))
+            .and_then(Value::as_str)
+            .unwrap_or("");
+
+        let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+        for item in n2s {
+            if let Some(text) = item.as_str() {
+                let parts: Vec<&str> = text.split(',').collect();
+                if parts.len() >= 6 {
+                    rows.push(vec![
+                        Some(date.to_string()),
+                        Some(parts[0].to_string()),
+                        Some(parts[1].to_string()),
+                        Some(parts[3].to_string()),
+                        Some(parts[5].to_string()),
+                    ]);
+                }
+            }
+        }
+
+        let mut df = Df::from_string_rows(
+            &["日期", "时间", "港股通(沪)", "港股通(深)", "南向资金"],
+            &rows,
+        )?;
+        df.cast_numeric(&["港股通(沪)", "港股通(深)", "南向资金"])?;
+        Ok(df)
+    } else {
+        // 北向资金
+        let s2n = data
+            .get("data")
+            .and_then(|v| v.get("s2n"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let date = data
+            .get("data")
+            .and_then(|v| v.get("s2nDate"))
+            .and_then(Value::as_str)
+            .unwrap_or("");
+
+        let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+        for item in s2n {
+            if let Some(text) = item.as_str() {
+                let parts: Vec<&str> = text.split(',').collect();
+                if parts.len() >= 6 {
+                    rows.push(vec![
+                        Some(date.to_string()),
+                        Some(parts[0].to_string()),
+                        Some(parts[1].to_string()),
+                        Some(parts[3].to_string()),
+                        Some(parts[5].to_string()),
+                    ]);
+                }
+            }
+        }
+
+        let mut df = Df::from_string_rows(
+            &["日期", "时间", "沪股通", "深股通", "北向资金"],
+            &rows,
+        )?;
+        df.cast_numeric(&["沪股通", "深股通", "北向资金"])?;
+        Ok(df)
+    }
+}
