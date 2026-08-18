@@ -182,6 +182,7 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("fund_hk_fund_hist_em", ["1002200683", "历史净值明细"], "loose", "香港基金历史净值"),
     ("fund_fh_rank_em", [], "loose", "基金分红排行"),
     ("fund_purchase_em", [], "loose", "基金申购状态"),
+    ("fund_scale_daily_szse", ["20260401", "20260401", "ETF"], "loose", "深交所基金规模日频"),
     ("fund_lof_spot_em", [], "loose", "LOF实时行情"),
     ("fund_etf_hist_em", ["510300", "daily", "20240101", "20240131", ""], "strict", "ETF日K"),
     ("stock_profile_cninfo", ["600030"], "strict", "巨潮公司概况"),

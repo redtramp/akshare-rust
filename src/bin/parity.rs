@@ -215,7 +215,7 @@ use akshare_rust::fund::{
     fund_new_found_em, fund_new_found_ths, fund_open_fund_daily_em, fund_open_fund_rank_em,
     fund_portfolio_bond_hold_em, fund_portfolio_hold_em, fund_portfolio_industry_allocation_em,
     fund_purchase_em, fund_rating_all, fund_rating_ja, fund_rating_sh, fund_rating_zs,
-    fund_scale_change_em,
+    fund_scale_change_em, fund_scale_daily_szse,
 };
 use akshare_rust::futures::{
     futures_comex_inventory, futures_comm_info, futures_comm_js, futures_contract_detail,
@@ -921,6 +921,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         "fund_fh_rank_em" => Ok(fund_fh_rank_em()?),
         "fund_purchase_em" => Ok(fund_purchase_em()?),
+        "fund_scale_daily_szse" => {
+            let [d0, d1, s] = take3(func, args)?;
+            Ok(fund_scale_daily_szse(d0, d1, s)?)
+        }
         "fund_lof_spot_em" => Ok(fund_lof_spot_em()?),
         "stock_profile_cninfo" => {
             let [s] = take1(func, args)?;

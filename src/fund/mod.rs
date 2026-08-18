@@ -2852,6 +2852,101 @@ pub fn fund_purchase_em() -> Result<Df> {
     df.cast_numeric(&["手续费"])?;
     Ok(df)
 }
+
+// === BATCH57-A 深交所-基金规模日频（szse ShowReport xlsx）===
+//
+// 对应 akshare `fund/fund_scale_szse.py` 的 `fund_scale_daily_szse`。
+// `www.szse.cn/api/report/ShowReport` xlsx 下载（CATALOGID=scsj_fund_jjgm），
+// 复用 [`szse_xls_rows`]，4 列：日期/基金代码/基金简称/基金份额。
+
+/// 深交所-基金规模日频数据（对应 akshare [`akshare.fund_scale_daily_szse`]）。
+///
+/// - `start_date`/`end_date`: `YYYYMMDD`（范围不超 6 个月）；`symbol`: `"ETF"`/`"LOF"`/`"REITS"`
+///
+/// # 返回列
+/// `日期, 基金代码, 基金简称, 基金份额`
+pub fn fund_scale_daily_szse(start_date: &str, end_date: &str, symbol: &str) -> Result<Df> {
+    let (jjlb, referer) = match symbol {
+        "ETF" => (
+            "ETF",
+            "https://www.szse.cn/market/fund/volume/etf/index.html",
+        ),
+        "LOF" => (
+            "LOF",
+            "https://www.szse.cn/market/fund/volume/lof/index.html",
+        ),
+        "REITS" => (
+            "不动产基金",
+            "https://www.szse.cn/market/fund/volume/reits/index.html",
+        ),
+        other => {
+            return Err(AkshareError::Param(format!(
+                "无效 symbol: {other}，可选 ETF/LOF/REITS"
+            )))
+        }
+    };
+    let fmt = |d: &str| -> String {
+        if d.len() == 8 && d.bytes().all(|b| b.is_ascii_digit()) {
+            format!("{}-{}-{}", &d[..4], &d[4..6], &d[6..])
+        } else {
+            d.to_string()
+        }
+    };
+    let params = json!({
+        "SHOWTYPE": "xlsx",
+        "CATALOGID": "scsj_fund_jjgm",
+        "TABKEY": "tab1",
+        "txtStart": fmt(start_date),
+        "txtEnd": fmt(end_date),
+        "jjlb": jjlb,
+        "random": format!("{}", rand::random::<f64>()),
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let bytes = http.get_bytes_with_headers(
+        "https://www.szse.cn/api/report/ShowReport",
+        &params,
+        &[
+            ("Host", "www.szse.cn"),
+            ("Referer", referer),
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"),
+        ],
+        None,
+    )?;
+    let all = szse_xls_rows(&bytes)?;
+    let mut iter = all.into_iter();
+    let header: Vec<String> = iter.next().unwrap_or_default();
+    // 定位列索引：日期/基金代码/基金简称/基金规模(份)
+    let idx = |name: &str| -> Option<usize> {
+        header
+            .iter()
+            .position(|h| h == name || (name == "基金份额" && h == "基金规模(份)"))
+    };
+    let di = idx("日期");
+    let ci = idx("基金代码");
+    let ni = idx("基金简称");
+    let si = idx("基金份额");
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for row in iter {
+        let cells: Vec<Option<String>> = row.iter().map(|s| Some(s.clone())).collect();
+        let get = |i: Option<usize>| i.and_then(|i| cells.get(i).cloned().flatten());
+        let code = get(ci).map(|s| format!("{:0>6}", s));
+        let vol = get(si).map(|s| s.replace(',', ""));
+        // 过滤空行：日期/基金代码/份额全空则跳过
+        if get(di).as_deref().unwrap_or("").is_empty()
+            && code.as_deref().unwrap_or("").is_empty()
+            && vol.as_deref().unwrap_or("").is_empty()
+        {
+            continue;
+        }
+        out.push(vec![get(di), code, get(ni), vol]);
+    }
+    const COLS: [&str; 4] = ["日期", "基金代码", "基金简称", "基金份额"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&["基金份额"])?;
+    Ok(df)
+}
 //
 // 对应 akshare `fund/fund_init_em.py` 的 `fund_new_found_em`。响应
 // `var newfunddata={datas:[...]}`，datas 每行 19 字段位置式。
