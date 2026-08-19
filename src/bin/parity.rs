@@ -332,7 +332,8 @@ use akshare_rust::index::{
     index_price_cflp, index_qli_cx, index_realtime_sw, index_si_cx, index_stock_cons,
     index_stock_cons_csindex, index_stock_cons_sina, index_stock_cons_weight_csindex,
     index_stock_info, index_sugar_msweet, index_ti_cx, index_volume_cflp, index_zh_a_hist,
-    index_zh_a_hist_min_em,
+    index_zh_a_hist_min_em, index_option_100etf_min_qvix, index_option_100etf_qvix,
+    index_us_stock_sina,
 };
 use akshare_rust::interest_rate::rate_interbank;
 use akshare_rust::legu::{
@@ -879,6 +880,12 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(index_global_hist_sina(s)?)
         }
+        "index_us_stock_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(index_us_stock_sina(s)?)
+        }
+        "index_option_100etf_qvix" => Ok(index_option_100etf_qvix()?),
+        "index_option_100etf_min_qvix" => Ok(index_option_100etf_min_qvix()?),
         "index_all_cni" => Ok(index_all_cni()?),
         "index_hist_cni" => {
             let [s, d0, d1] = take3(func, args)?;

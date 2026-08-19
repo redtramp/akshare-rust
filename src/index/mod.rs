@@ -2087,6 +2087,134 @@ pub fn index_global_hist_sina(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
+/// 新浪财经-美股指数行情（对应 akshare [`akshare.index_us_stock_sina`]）。
+///
+/// `symbol`: `".IXIC"`/`".DJI"`/`".INX"`/`".NDX"`
+///
+/// # 返回列
+/// `date, open, high, low, close, volume, amount`
+pub fn index_us_stock_sina(symbol: &str) -> Result<Df> {
+    let symbol_map: &[(&str, &str)] = &[
+        (".IXIC", "NASDAQ"),
+        (".DJI", "DOWJONES"),
+        (".INX", "SPX"),
+        (".NDX", "NASDAQ100"),
+    ];
+    let code = symbol_map
+        .iter()
+        .find(|(k, _)| *k == symbol)
+        .map(|(_, v)| *v)
+        .ok_or_else(|| AkshareError::Param(format!("symbol 应为 .IXIC/.DJI/.INX/.NDX，收到: {symbol}")))?;
+
+    let url = format!("https://finance.sina.com.cn/staticdata/us/{code}");
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &Map::new(), None)?;
+
+    // 解析 JSON 数据（格式: var data = [{...}, ...]）
+    let json_str = text
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty("美股指数响应格式错误".into()))?;
+    let json_str = json_str
+        .split(';')
+        .next()
+        .unwrap_or(json_str)
+        .trim()
+        .trim_matches('"');
+
+    let value: Value = serde_json::from_str(json_str)
+        .map_err(|e| AkshareError::js(format!("解析美股指数 JSON 失败: {e}")))?;
+
+    let arr = value
+        .as_array()
+        .ok_or_else(|| AkshareError::Empty("美股指数响应非数组".into()))?;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for item in arr {
+        let f = |k: &str| -> Option<String> {
+            if let Some(v) = item.get(k) {
+                json_value_to_string(v)
+            } else {
+                None
+            }
+        };
+        rows.push(vec![
+            f("date"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("close"),
+            f("volume"),
+            f("amount"),
+        ]);
+    }
+
+    let mut df = Df::from_string_rows(
+        &["date", "open", "high", "low", "close", "volume", "amount"],
+        &rows,
+    )?;
+    df.cast_date(&["date"])?;
+    df.cast_numeric(&["open", "high", "low", "close", "volume", "amount"])?;
+    Ok(df)
+}
+
+/// 深证100ETF 期权波动率指数 QVIX（对应 akshare [`akshare.index_option_100etf_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_100etf_qvix() -> Result<Df> {
+    index_qvix_impl("100ETF")
+}
+
+/// 深证100ETF 期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_100etf_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_100etf_min_qvix() -> Result<Df> {
+    let url = "http://1.optbbs.com/d/csv/d/vix100.csv";
+    let http = HttpClient::default();
+    let text = http.get_text(url, &Map::new(), None)?;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for line in text.lines().skip(1) {
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() >= 2 {
+            rows.push(vec![
+                Some(parts[0].trim().to_string()),
+                Some(parts[1].trim().to_string()),
+            ]);
+        }
+    }
+
+    Df::from_string_rows(&["time", "qvix"], &rows)
+}
+
+/// QVIX 指数公共实现（对应 akshare `__get_optbbs_daily`）。
+fn index_qvix_impl(symbol: &str) -> Result<Df> {
+    let csv_url = format!("http://1.optbbs.com/d/csv/d/vix_{symbol}.csv");
+    let http = HttpClient::default();
+    let text = http.get_text(&csv_url, &Map::new(), None)?;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for line in text.lines().skip(1) {
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() >= 5 {
+            rows.push(vec![
+                Some(parts[0].trim().to_string()),
+                Some(parts[75].trim().to_string()),
+                Some(parts[76].trim().to_string()),
+                Some(parts[77].trim().to_string()),
+                Some(parts[78].trim().to_string()),
+            ]);
+        }
+    }
+
+    let mut df = Df::from_string_rows(&["date", "open", "high", "low", "close"], &rows)?;
+    df.cast_date(&["date"])?;
+    df.cast_numeric(&["open", "high", "low", "close"])?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2095,5 +2223,57 @@ mod tests {
     fn klt_mapping_rejects_bad_period() {
         let r = index_zh_a_hist("000001", "bad", "20240101", "20240131");
         assert!(matches!(r, Err(AkshareError::Param(_))));
+    }
+
+    #[test]
+    fn index_us_stock_sina_columns() {
+        // 离线单测：列契约
+        let df = index_us_stock_sina(".IXIC");
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"date".to_string()), "应包含 date 列");
+                assert!(cols.contains(&"open".to_string()), "应包含 open 列");
+                assert!(cols.contains(&"close".to_string()), "应包含 close 列");
+                // 至少有一行数据
+                assert!(df.height() > 0, "应至少有一行数据");
+            }
+            Err(e) => {
+                eprintln!("index_us_stock_sina 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn index_option_100etf_qvix_columns() {
+        // 离线单测：列契约
+        let df = index_option_100etf_qvix();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"date".to_string()), "应包含 date 列");
+                assert!(cols.contains(&"open".to_string()), "应包含 open 列");
+                assert!(cols.contains(&"close".to_string()), "应包含 close 列");
+            }
+            Err(e) => {
+                eprintln!("index_option_100etf_qvix 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn index_option_100etf_min_qvix_columns() {
+        // 离线单测：列契约
+        let df = index_option_100etf_min_qvix();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"time".to_string()), "应包含 time 列");
+                assert!(cols.contains(&"qvix".to_string()), "应包含 qvix 列");
+            }
+            Err(e) => {
+                eprintln!("index_option_100etf_min_qvix 网络错误: {e}");
+            }
+        }
     }
 }

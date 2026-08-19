@@ -4,6 +4,16 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-19] 批次 88 · index 模块 3 个函数
+
+- **新增公开函数**：**830 → 833**（净 +3）。覆盖：
+  - `index_us_stock_sina`（新浪财经-美股指数行情，4 个 symbol）
+  - `index_option_100etf_qvix`（深证100ETF期权波动率指数，日线）
+  - `index_option_100etf_min_qvix`（深证100ETF期权波动率指数，分时）
+- **实现覆盖率**：**≈ 73.6%**（833 / 1131 公开 API）；index 大类 **40.5% → 41.3%**（32 → 35 / 79）
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(254) 全绿。
+- **parity 注册**：3 个新函数已注册至 `src/bin/parity.rs`。
+
 ## [2026-08-19] 批次 87 · fund 模块 3 个函数
 
 - **新增公开函数**：**827 → 830**（净 +3）。覆盖：
