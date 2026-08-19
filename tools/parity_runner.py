@@ -795,6 +795,8 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("stock_a_all_pb", [], "loose", "A股市净率"),
     # 批次78 财联社电报（cls.cn，实时新闻）
     ("stock_info_global_cls", [], "loose", "财联社电报"),
+    # 批次79 东财人气榜飙升榜（push2 当前阻断，SKIPPED）
+    ("stock_hot_up_em", [], "loose", "人气榜-飙升榜"),
     # 雪球个股公司简介（需登录态 xq_a_token，无则返回 AuthRequired；无法生成 golden，
     # --check 阶段无 golden 自动跳过，计入登录态豁免，见报告说明）
     ("stock_individual_basic_info_xq", ["SH601127"], "loose", "雪球个股公司简介(A股)"),

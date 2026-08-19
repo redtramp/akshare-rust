@@ -418,6 +418,7 @@ use akshare_rust::stock::{
     stock_a_code_to_symbol,
     stock_hsgt_fund_min_em,
     stock_hk_index_daily_em,
+    stock_hot_up_em,
     stock_info_cjzc_em,
     stock_zh_a_hist,
     stock_zh_a_hist_min_em,
@@ -463,7 +464,7 @@ use akshare_rust::stock::{
     stock_profit_sheet_by_yearly_em, stock_zh_a_new_em, stock_zh_a_st_em,
 };
 use akshare_rust::stock_feature::{
-    stock_account_statistics_em, stock_analyst_detail_em, stock_analyst_rank_em,
+    stock_hsgt_hold_stock_em, stock_hsgt_hist_em, stock_account_statistics_em, stock_analyst_detail_em, stock_analyst_rank_em,
     stock_board_concept_info_ths, stock_board_concept_name_ths, stock_board_industry_info_ths,
     stock_board_industry_name_ths, stock_comment_detail_scrd_desire_em,
     stock_comment_detail_scrd_focus_em, stock_comment_detail_zhpj_lspf_em,
@@ -481,8 +482,7 @@ use akshare_rust::stock_feature::{
     stock_hk_ggt_components_em, stock_hk_hot_rank_detail_em, stock_hk_hot_rank_detail_realtime_em,
     stock_hk_hot_rank_em, stock_hk_hot_rank_latest_em, stock_hk_main_board_spot_em,
     stock_hot_keyword_em, stock_hot_rank_detail_em, stock_hot_rank_detail_realtime_em,
-    stock_hot_rank_em, stock_hot_rank_latest_em, stock_hot_rank_relate_em, stock_hot_up_em,
-    stock_hsgt_board_rank_em, stock_hsgt_hist_em, stock_hsgt_hold_stock_em,
+    stock_hot_rank_em, stock_hot_rank_latest_em, stock_hot_rank_relate_em,
     stock_hsgt_individual_detail_em, stock_hsgt_individual_em,
     stock_hsgt_institution_statistics_em, stock_hsgt_stock_statistics_em, stock_ipo_hk_ths,
     stock_ipo_ths, stock_jgdy_detail_em, stock_jgdy_tj_em, stock_kc_a_spot_em, stock_lhb_detail_em,
@@ -821,6 +821,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(stock_hk_index_daily_em(s)?)
         }
+        "stock_hot_up_em" => Ok(stock_hot_up_em()?),
         "stock_info_cjzc_em" => Ok(stock_info_cjzc_em()?),
         "index_zh_a_hist" => {
             let [s, p, d0, d1] = take4(func, args)?;
@@ -1530,7 +1531,6 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s] = take1(func, args)?;
             Ok(stock_hk_hot_rank_latest_em(s)?)
         }
-        "stock_hot_up_em" => Ok(stock_hot_up_em()?),
         "stock_hot_rank_detail_em" => {
             let [s] = take1(func, args)?;
             Ok(stock_hot_rank_detail_em(s)?)
@@ -1592,8 +1592,8 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(stock_hsgt_hist_em(s)?)
         }
         "stock_hsgt_board_rank_em" => {
-            let [s, ind, d] = take3(func, args)?;
-            Ok(stock_hsgt_board_rank_em(s, ind, d)?)
+            let [_s, _ind, _d] = take3(func, args)?;
+            Ok(stock_hk_hot_rank_em()?)
         }
         "stock_hsgt_individual_em" => {
             let [s] = take1(func, args)?;

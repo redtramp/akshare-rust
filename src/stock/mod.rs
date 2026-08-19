@@ -9093,3 +9093,158 @@ pub fn stock_hk_index_daily_em(symbol: &str) -> Result<Df> {
     df.cast_numeric(&["open", "high", "low", "latest"])?;
     Ok(df)
 }
+
+/// 东财-个股人气榜-飙升榜（对应 akshare [`akshare.stock_hot_up_em`]）。
+///
+/// 东财 `emappdata.eastmoney.com` + `push2.eastmoney.com` 双接口，返回人气飙升榜。
+/// # 返回列
+/// `排名较昨日变动, 当前排名, 代码, 股票名称, 最新价, 涨跌额, 涨跌幅`
+pub fn stock_hot_up_em() -> Result<Df> {
+    let http = HttpClient::default();
+
+    // 第1步：获取排行榜
+    let url1 = "https://emappdata.eastmoney.com/stockrank/getAllHisRcList";
+    let payload = json!({
+        "appId": "appId01",
+        "globalId": "786e4c21-70dc-435a-93bb-38",
+        "marketType": "",
+        "pageNo": 1,
+        "pageSize": 100,
+    });
+    let payload: Map<String, Value> = payload.as_object().cloned().unwrap_or_default();
+    let data1 = http.post_json(url1, &payload, &[])?;
+    let rank_items = data1
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    // 构造 secids
+    let mut secids: Vec<String> = Vec::new();
+    let mut rank_map: Vec<(i64, String, i64)> = Vec::new(); // (排名, 代码, 变动)
+    for item in rank_items {
+        let code = item
+            .get("sc")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let rank = item
+            .get("rk")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let change = item
+            .get("hrc")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let mark = if code.contains("SZ") {
+            format!("0.{}", &code[2..])
+        } else {
+            format!("1.{}", &code[2..])
+        };
+        secids.push(mark);
+        rank_map.push((rank, code, change));
+    }
+
+    if secids.is_empty() {
+        let rows: Vec<Vec<Option<String>>> = vec![];
+        return Ok(Df::from_string_rows(
+            &[
+                "排名较昨日变动",
+                "当前排名",
+                "代码",
+                "股票名称",
+                "最新价",
+                "涨跌额",
+                "涨跌幅",
+            ],
+            &rows,
+        )?);
+    }
+
+    // 第2步：获取行情数据
+    let secids_str = secids.join(",");
+    let url2 = "https://push2.eastmoney.com/api/qt/ulist.np/get";
+    let params = json!({
+        "ut": "f057cbcbce2a86e2866ab8877db1d059",
+        "fltt": "2",
+        "invt": "2",
+        "fields": "f14,f3,f12,f2",
+        "secids": secids_str,
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let data2 = http.get_json(url2, &params, None)?;
+
+    let diffs = data2
+        .get("data")
+        .and_then(|v| v.get("diff"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    // 构建行数据
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for (i, item) in diffs.iter().enumerate() {
+        let price = item
+            .get("f14")
+            .and_then(|v| v.as_str())
+            .unwrap_or("0")
+            .to_string();
+        let pct = item
+            .get("f3")
+            .and_then(|v| v.as_str())
+            .unwrap_or("0")
+            .to_string();
+        let name = item
+            .get("f12")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let code = item
+            .get("f2")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+
+        // 涨跌额 = 最新价 * 涨跌幅 / 100
+        let price_f: f64 = price.parse().unwrap_or(0.0);
+        let pct_f: f64 = pct.parse().unwrap_or(0.0);
+        let chg = price_f * pct_f / 100.0;
+
+        if i < rank_map.len() {
+            let (_, _, change) = &rank_map[i];
+            let price_s = format!("{:.2}", price_f);
+            let chg_s = format!("{:.2}", chg);
+            let pct_s = format!("{:.2}", pct_f);
+            rows.push(vec![
+                Some(change.to_string()),
+                Some(rank_map[i].0.to_string()),
+                Some(code),
+                Some(name),
+                Some(price_s),
+                Some(chg_s),
+                Some(pct_s),
+            ]);
+        }
+    }
+
+    let mut df = Df::from_string_rows(
+        &[
+            "排名较昨日变动",
+            "当前排名",
+            "代码",
+            "股票名称",
+            "最新价",
+            "涨跌额",
+            "涨跌幅",
+        ],
+        &rows,
+    )?;
+    df.cast_numeric(&[
+        "排名较昨日变动",
+        "当前排名",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+    ])?;
+    Ok(df)
+}
