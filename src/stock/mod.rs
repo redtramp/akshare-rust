@@ -9147,7 +9147,7 @@ pub fn stock_hot_up_em() -> Result<Df> {
 
     if secids.is_empty() {
         let rows: Vec<Vec<Option<String>>> = vec![];
-        return Ok(Df::from_string_rows(
+        return Df::from_string_rows(
             &[
                 "排名较昨日变动",
                 "当前排名",
@@ -9158,7 +9158,7 @@ pub fn stock_hot_up_em() -> Result<Df> {
                 "涨跌幅",
             ],
             &rows,
-        )?);
+        );
     }
 
     // 第2步：获取行情数据
