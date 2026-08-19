@@ -8875,6 +8875,165 @@ pub fn stock_info_global_sina() -> Result<Df> {
     Df::from_string_rows(&["时间", "内容"], &rows)
 }
 
+/// 东方财富-全球财经快讯（对应 akshare [`akshare.stock_info_global_em`]）。
+///
+/// 走 `np-weblist.eastmoney.com` 快讯接口，返回最近 200 条。
+/// # 返回列
+/// `标题, 摘要, 发布时间, 链接`
+pub fn stock_info_global_em() -> Result<Df> {
+    let url = "https://np-weblist.eastmoney.com/comm/web/getFastNewsList";
+    let params = json!({
+        "client": "web",
+        "biz": "web_724",
+        "fastColumn": "102",
+        "sortEnd": "",
+        "pageSize": "200",
+        "req_trace": "",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data: Value = http.get_json(url, &params, None)?;
+
+    let items = data
+        .get("data")
+        .and_then(|v| v.get("fastNewsList"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let rows: Vec<Vec<Option<String>>> = items
+        .iter()
+        .map(|item| {
+            let title = item
+                .get("title")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let summary = item
+                .get("summary")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let show_time = item
+                .get("showTime")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let code = item
+                .get("code")
+                .and_then(Value::as_str)
+                .map(|s| format!("https://finance.eastmoney.com/a/{s}.html"));
+            vec![title, summary, show_time, code]
+        })
+        .collect();
+
+    Df::from_string_rows(&["标题", "摘要", "发布时间", "链接"], &rows)
+}
+
+/// 同花顺-全球财经直播（对应 akshare [`akshare.stock_info_global_ths`]）。
+///
+/// 走 `news.10jqka.com.cn` API，返回最近 20 条快讯。
+/// # 返回列
+/// `标题, 内容, 发布时间, 链接`
+pub fn stock_info_global_ths() -> Result<Df> {
+    let url = "https://news.10jqka.com.cn/tapp/news/push/stock";
+    let params = json!({
+        "page": "1",
+        "tag": "",
+        "track": "website",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data: Value = http.get_json(url, &params, None)?;
+
+    let items = data
+        .get("data")
+        .and_then(|v| v.get("list"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let rows: Vec<Vec<Option<String>>> = items
+        .iter()
+        .map(|item| {
+            let title = item
+                .get("title")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let digest = item
+                .get("digest")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let rtime = item
+                .get("rtime")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<i64>().ok())
+                .map(|ts| {
+                    let dt = chrono::DateTime::from_timestamp(ts, 0)
+                        .unwrap_or(chrono::DateTime::UNIX_EPOCH);
+                    dt.format("%Y-%m-%d %H:%M:%S").to_string()
+                });
+            let url_val = item
+                .get("url")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            vec![title, digest, rtime, url_val]
+        })
+        .collect();
+
+    Df::from_string_rows(&["标题", "内容", "发布时间", "链接"], &rows)
+}
+
+/// 富途牛牛-快讯（对应 akshare [`akshare.stock_info_global_futu`]）。
+///
+/// 走 `news.futunn.com` API，返回最近 50 条快讯。
+/// # 返回列
+/// `标题, 内容, 发布时间, 链接`
+pub fn stock_info_global_futu() -> Result<Df> {
+    let url = "https://news.futunn.com/news-site-api/main/get-flash-list";
+    let params = json!({
+        "pageSize": "50",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data: Value = http.get_json(url, &params, None)?;
+
+    let items = data
+        .get("data")
+        .and_then(|v| v.get("data"))
+        .and_then(|v| v.get("news"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let rows: Vec<Vec<Option<String>>> = items
+        .iter()
+        .map(|item| {
+            let title = item
+                .get("title")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let content = item
+                .get("content")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let time = item
+                .get("time")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<i64>().ok())
+                .map(|ts| {
+                    let dt = chrono::DateTime::from_timestamp(ts, 0)
+                        .unwrap_or(chrono::DateTime::UNIX_EPOCH);
+                    dt.format("%Y-%m-%d %H:%M:%S").to_string()
+                });
+            let detail_url = item
+                .get("detailUrl")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            vec![title, content, time, detail_url]
+        })
+        .collect();
+
+    Df::from_string_rows(&["标题", "内容", "发布时间", "链接"], &rows)
+}
+
 /// 股票代码转市场符号（对应 akshare [`akshare.stock_a_code_to_symbol`]）。
 ///
 /// 输入股票代码，返回带市场前缀的符号（sh/sz）。
@@ -9246,5 +9405,130 @@ pub fn stock_hot_up_em() -> Result<Df> {
         "涨跌额",
         "涨跌幅",
     ])?;
+    Ok(df)
+}
+
+/// 东方财富-数据中心-特色数据-一致行动人（对应 akshare [`akshare.stock_yzxdr_em`]）。
+///
+/// 走东财 `datacenter.eastmoney.com/api/data/get` 接口，报表 `RPTA_WEB_YZXDRINDEX`。
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 一致行动人, 股东排名, 持股数量, 持股比例, 持股数量变动, 行业, 公告日期`
+pub fn stock_yzxdr_em(date: &str) -> Result<Df> {
+    // 格式化日期：`20240930` → `2024-09-30`
+    let date_fmt = format!(
+        "{}-{}-{}",
+        &date[0..4], &date[4..6], &date[6..]
+    );
+    let url = "https://datacenter.eastmoney.com/api/data/get";
+    let params = json!({
+        "type": "RPTA_WEB_YZXDRINDEX",
+        "sty": "ALL",
+        "source": "WEB",
+        "p": "1",
+        "ps": "500",
+        "st": "noticedate",
+        "sr": "-1",
+        "var": "mwUyirVm",
+        "filter": format!("(enddate='{date_fmt}')"),
+        "rt": "53575609",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+
+    // 获取总页数
+    let first_data: Value = http.get_json(url, &params, None)?;
+    let total_pages = first_data
+        .get("result")
+        .and_then(|v| v.get("pages"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1) as u32;
+
+    let mut all_rows: Vec<Vec<Option<String>>> = Vec::new();
+
+    for page in 1..=total_pages {
+        let mut page_params = params.clone();
+        page_params.insert("p".to_string(), Value::from(page));
+        page_params.insert(
+            "filter".to_string(),
+            Value::from(format!("(enddate='{date_fmt}')")),
+        );
+        let page_data: Value = http.get_json(url, &page_params, None)?;
+        let items = page_data
+            .get("result")
+            .and_then(|v| v.get("data"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        for item in items {
+            let seq = all_rows.len() + 1;
+            let stock_code = item
+                .get("SECURITY_CODE")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let stock_name = item
+                .get("SECURITY_NAME_ABBR")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let acting_party = item
+                .get("ACTING_PARTY")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let shareholder_rank = item
+                .get("SHAREHOLDER_RANK")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let hold_num = item
+                .get("HOLD_NUM")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let hold_ratio = item
+                .get("HOLD_RATIO")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let hold_num_change = item
+                .get("HOLD_NUM_CHANGE")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let industry = item
+                .get("INDUSTRY")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let announce_date = item
+                .get("NOTICE_DATE")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+
+            all_rows.push(vec![
+                Some(seq.to_string()),
+                stock_code,
+                stock_name,
+                acting_party,
+                shareholder_rank,
+                hold_num,
+                hold_ratio,
+                hold_num_change,
+                industry,
+                announce_date,
+            ]);
+        }
+    }
+
+    let mut df = Df::from_string_rows(
+        &[
+            "序号",
+            "股票代码",
+            "股票简称",
+            "一致行动人",
+            "股东排名",
+            "持股数量",
+            "持股比例",
+            "持股数量变动",
+            "行业",
+            "公告日期",
+        ],
+        &all_rows,
+    )?;
+    df.cast_numeric(&["持股数量", "持股比例", "持股数量变动"])?;
     Ok(df)
 }

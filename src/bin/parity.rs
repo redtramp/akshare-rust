@@ -415,11 +415,15 @@ use akshare_rust::stock::{
     stock_hk_index_spot_em,
     stock_hk_index_spot_sina,
     stock_info_global_sina,
+    stock_info_global_em,
+    stock_info_global_ths,
+    stock_info_global_futu,
     stock_a_code_to_symbol,
     stock_hsgt_fund_min_em,
     stock_hk_index_daily_em,
     stock_hot_up_em,
     stock_info_cjzc_em,
+    stock_yzxdr_em,
     stock_zh_a_hist,
     stock_zh_a_hist_min_em,
     stock_zh_a_spot_em,
@@ -807,6 +811,9 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_hk_index_spot_em" => Ok(stock_hk_index_spot_em()?),
         "stock_hk_index_spot_sina" => Ok(stock_hk_index_spot_sina()?),
         "stock_info_global_sina" => Ok(stock_info_global_sina()?),
+        "stock_info_global_em" => Ok(stock_info_global_em()?),
+        "stock_info_global_ths" => Ok(stock_info_global_ths()?),
+        "stock_info_global_futu" => Ok(stock_info_global_futu()?),
         "stock_info_global_cls" => Ok(stock_info_global_cls("全部")?),
         "stock_a_code_to_symbol" => {
             let [s] = take1(func, args)?;
@@ -823,6 +830,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         "stock_hot_up_em" => Ok(stock_hot_up_em()?),
         "stock_info_cjzc_em" => Ok(stock_info_cjzc_em()?),
+        "stock_yzxdr_em" => {
+            let [d] = take1(func, args)?;
+            Ok(stock_yzxdr_em(d)?)
+        }
         "index_zh_a_hist" => {
             let [s, p, d0, d1] = take4(func, args)?;
             Ok(index_zh_a_hist(s, p, d0, d1)?)
