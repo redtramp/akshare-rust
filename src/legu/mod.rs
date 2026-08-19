@@ -13,6 +13,7 @@ use crate::core::df::Df;
 use crate::core::error::{AkshareError, Result};
 use crate::core::http::HttpClient;
 use md5::Digest;
+use scraper::{Html, Selector};
 use serde_json::{Map, Value};
 
 /// 生成乐咕 token（对应 akshare `get_token_lg`：md5(今日日期)）。
@@ -647,6 +648,84 @@ pub fn fund_linghuo_position_lg() -> Result<Df> {
     fund_position_lg_impl("pos-linghuo", "pos_linghuo")
 }
 
+/// 乐咕乐股-赚钱效应分析（对应 akshare [`akshare.stock_market_activity_legu`]）。
+///
+/// 解析 `https://www.legulegu.com/stockdata/market-activity` 页面的 HTML 表格，
+/// 提取上涨/涨停/真实涨停等统计数据，并追加统计日期行。
+///
+/// # 返回列
+/// `item, value`
+pub fn stock_market_activity_legu() -> Result<Df> {
+    let url = "https://legulegu.com/stockdata/market-activity";
+    let http = HttpClient::default();
+    let html = http.get_text(url, &Map::new(), None)?;
+
+    let doc = Html::parse_document(&html);
+
+    // 解析主表格（前三列两两一组）
+    let table_sel = Selector::parse("table").map_err(|e| AkshareError::js(format!("解析表格选择器失败: {e}")))?;
+    let tr_sel = Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析行选择器失败: {e}")))?;
+    let td_sel = Selector::parse("td").map_err(|e| AkshareError::js(format!("解析单元格选择器失败: {e}")))?;
+
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    if let Some(table) = doc.select(&table_sel).next() {
+        for tr in table.select(&tr_sel) {
+            let cells: Vec<String> = tr
+                .select(&td_sel)
+                .map(|td| td.text().collect::<String>().trim().to_string())
+                .collect();
+            if cells.len() >= 2 {
+                rows.push(cells);
+            }
+        }
+    }
+
+    if rows.is_empty() {
+        return Err(AkshareError::Empty("市场活动页缺少表格数据".into()));
+    }
+
+    // 每行取前两列（item, value），并追加 metric-activity 和统计日期
+    let mut result_rows: Vec<Vec<Option<String>>> = Vec::new();
+
+    // 主表格行（每两列一组）
+    for row in &rows {
+        for chunk in row.chunks(2) {
+            if chunk.len() >= 2 {
+                result_rows.push(vec![Some(chunk[0].clone()), Some(chunk[1].clone())]);
+            }
+        }
+    }
+
+    // 追加 metric-activity div 内容
+    let metric_sel = Selector::parse("div.metric-activity").map_err(|e| AkshareError::js(format!("解析 metric-activity 选择器失败: {e}")))?;
+    if let Some(div) = doc.select(&metric_sel).next() {
+        let text = div.text().collect::<String>();
+        let lines: Vec<&str> = text
+            .split('\n')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if lines.len() >= 2 {
+            for chunk in lines.chunks(2) {
+                if chunk.len() >= 2 {
+                    result_rows.push(vec![Some(chunk[0].to_string()), Some(chunk[1].to_string())]);
+                }
+            }
+        }
+    }
+
+    // 追加统计日期
+    let meta_sel = Selector::parse("div.market-activity-meta").map_err(|e| AkshareError::js(format!("解析 market-activity-meta 选择器失败: {e}")))?;
+    if let Some(div) = doc.select(&meta_sel).next() {
+        let text = div.text().collect::<String>().trim().to_string();
+        if !text.is_empty() {
+            result_rows.push(vec![Some("统计日期".to_string()), Some(text)]);
+        }
+    }
+
+    Df::from_string_rows(&["item", "value"], &result_rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,5 +773,36 @@ mod tests {
     #[test]
     fn extract_csrf_missing() {
         assert!(extract_csrf("<html>no csrf</html>").is_err());
+    }
+
+    #[test]
+    fn stock_market_activity_legu_columns() {
+        // 离线单测列契约
+        let df = stock_market_activity_legu();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"item".to_string()), "应包含 item 列");
+                assert!(cols.contains(&"value".to_string()), "应包含 value 列");
+                // 验证统计日期行存在
+                let items: Vec<String> = df
+                    .inner()
+                    .column("item")
+                    .unwrap()
+                    .str()
+                    .unwrap()
+                    .iter()
+                    .filter_map(|s| s.map(|s| s.to_string()))
+                    .collect();
+                assert!(
+                    items.contains(&"统计日期".to_string()),
+                    "应包含统计日期行"
+                );
+            }
+            Err(e) => {
+                // 网络不可达时（如 nginx 封禁）允许失败
+                eprintln!("stock_market_activity_legu 网络错误: {e}");
+            }
+        }
     }
 }

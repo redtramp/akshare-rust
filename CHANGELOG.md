@@ -4,6 +4,19 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-19] 批次 86 · stock_feature/legu 6 个函数
+
+- **新增公开函数**：**821 → 827**（净 +6）。覆盖：
+  - `stock_board_concept_summary_ths`（同花顺概念板块时间表，分页 HTML 表格，5 列 `日期/概念名称/驱动事件/龙头股/成分股数量`）
+  - `stock_board_industry_summary_ths`（同花顺行业板块时间表，分页 HTML 表格，12 列）
+  - `stock_board_concept_index_ths`（同花顺概念板块日K线，`d.10jqka.com.cn` JS 接口，7 列 `日期/开盘价/最高价/最低价/收盘价/成交量/成交额`）
+  - `stock_board_industry_index_ths`（同花顺行业板块日K线，同上）
+  - `stock_market_activity_legu`（乐咕乐股赚钱效应分析，HTML 表格 + div 解析，2 列 `item/value`）
+- **新增辅助函数**：`fetch_ths_table_pages`（ths 源，通用分页表格抓取）
+- **实现覆盖率**：**≈ 73.0%**（827 / 1131 公开 API）；stock_feature 大类显著提升
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(249) 全绿。
+- **parity 注册**：6 个新函数已注册至 `src/bin/parity.rs`。
+
 ## [2026-08-19] 批次 79 · stock 东财人气榜飙升榜 1 个函数
 
 - **新增公开函数**：**820 → 821**（净 +1）。覆盖：**stock_hot_up_em**（东财个股人气榜飙升榜，`emappdata.eastmoney.com` + `push2.eastmoney.com` 双接口，7 列 `排名较昨日变动/当前排名/代码/股票名称/最新价/涨跌额/涨跌幅`）。

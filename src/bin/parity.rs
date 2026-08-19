@@ -338,7 +338,8 @@ use akshare_rust::legu::{
     fund_balance_position_lg, fund_linghuo_position_lg, fund_stock_position_lg,
     stock_a_congestion_lg, stock_a_below_net_asset_statistics, stock_a_high_low_statistics,
     stock_a_ttm_lyr, stock_a_all_pb, stock_buffett_index_lg, stock_ebs_lg, stock_hk_gxl_lg,
-    stock_index_pb_lg, stock_index_pe_lg, stock_market_pb_lg, stock_market_pe_lg,
+    stock_index_pb_lg, stock_index_pe_lg, stock_market_activity_legu, stock_market_pb_lg,
+    stock_market_pe_lg,
 };
 use akshare_rust::news::{
     news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
@@ -470,8 +471,9 @@ use akshare_rust::stock::{
 };
 use akshare_rust::stock_feature::{
     stock_hsgt_hold_stock_em, stock_hsgt_hist_em, stock_account_statistics_em, stock_analyst_detail_em, stock_analyst_rank_em,
-    stock_board_concept_info_ths, stock_board_concept_name_ths, stock_board_industry_info_ths,
-    stock_board_industry_name_ths, stock_comment_detail_scrd_desire_em,
+    stock_board_concept_info_ths, stock_board_concept_index_ths, stock_board_concept_name_ths, stock_board_concept_summary_ths,
+    stock_board_industry_info_ths, stock_board_industry_index_ths, stock_board_industry_name_ths,
+    stock_board_industry_summary_ths, stock_comment_detail_scrd_desire_em,
     stock_comment_detail_scrd_focus_em, stock_comment_detail_zhpj_lspf_em,
     stock_comment_detail_zlkp_jgcyd_em, stock_comment_em, stock_cy_a_spot_em, stock_dxsyl_em,
     stock_esg_hz_sina, stock_esg_msci_sina, stock_esg_rate_sina, stock_esg_rft_sina,
@@ -840,6 +842,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(stock_a_gxl_lg(s)?)
         }
         "stock_buffett_index_lg" => Ok(stock_buffett_index_lg()?),
+        "stock_market_activity_legu" => Ok(stock_market_activity_legu()?),
         "stock_history_dividend_detail" => {
             let [sym, ind, dt] = take3(func, args)?;
             Ok(stock_history_dividend_detail(sym, ind, dt)?)
@@ -2103,6 +2106,16 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_board_concept_info_ths" => {
             let [s] = take1(func, args)?;
             Ok(stock_board_concept_info_ths(s)?)
+        }
+        "stock_board_concept_summary_ths" => Ok(stock_board_concept_summary_ths()?),
+        "stock_board_industry_summary_ths" => Ok(stock_board_industry_summary_ths()?),
+        "stock_board_concept_index_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_board_concept_index_ths(s)?)
+        }
+        "stock_board_industry_index_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_board_industry_index_ths(s)?)
         }
         "stock_ipo_ths" => {
             let [s] = take1(func, args)?;

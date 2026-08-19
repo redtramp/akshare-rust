@@ -112,6 +112,21 @@ pub fn fetch_ths_rank(url_for_page: &dyn Fn(u32) -> String) -> Result<Vec<Vec<St
     Ok(rows)
 }
 
+/// 抓取分页数据表格全部分页并合并行数据（对应概览/摘要类列表接口）。
+///
+/// `url_for_page(page)` 构造第 page 页 URL；首页同时用于探测总页数
+/// （`page_info` span），随后逐页抓取合并。每页携带全新 v token。
+pub fn fetch_ths_table_pages(url_for_page: &dyn Fn(u32) -> String) -> Result<Vec<Vec<String>>> {
+    let first = fetch_ths(&url_for_page(1))?;
+    let total = total_pages(&first).max(1);
+    let mut rows = parse_ths_table(&first)?;
+    for page in 2..=total {
+        let text = fetch_ths(&url_for_page(page))?;
+        rows.extend(parse_ths_table(&text)?);
+    }
+    Ok(rows)
+}
+
 /// 抓取概念时间表全部分页并合并 `(名称, 代码)` 对（对应 akshare
 /// `__stock_board_concept_summary_ths`）。
 ///

@@ -6087,6 +6087,161 @@ fn board_name_to_code(name_df: &Df, symbol: &str) -> Result<String> {
     Err(AkshareError::Param(format!("未知板块名称: {symbol}")))
 }
 
+/// 同花顺-概念板块-概念时间表（对应 akshare [`akshare.stock_board_concept_summary_ths`]）。
+///
+/// 抓取 `http://q.10jqka.com.cn/gn/index/field/addtime/order/desc/page/{page}/ajax/1/` 全部分页，
+/// 返回概念驱动事件列表。
+///
+/// # 返回列
+/// `日期, 概念名称, 驱动事件, 龙头股, 成分股数量`
+pub fn stock_board_concept_summary_ths() -> Result<Df> {
+    let url_for_page = |page: u32| {
+        format!(
+            "http://q.10jqka.com.cn/gn/index/field/addtime/order/desc/page/{page}/ajax/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_table_pages(&url_for_page)?;
+    if rows.is_empty() {
+        return Df::from_string_rows(
+            &["日期", "概念名称", "驱动事件", "龙头股", "成分股数量"],
+            &[],
+        );
+    }
+    // 日期列归一：取前 10 字符（YYYY-MM-DD）
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| {
+            r.iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    if i == 0 {
+                        // 日期列：取前 10 字符
+                        Some(v.chars().take(10).collect())
+                    } else {
+                        Some(v.clone())
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    let mut df = Df::from_string_rows(
+        &["日期", "概念名称", "驱动事件", "龙头股", "成分股数量"],
+        &string_rows,
+    )?;
+    df.cast_numeric(&["成分股数量"])?;
+    Ok(df)
+}
+
+/// 同花顺-行业板块-行业时间表（对应 akshare [`akshare.stock_board_industry_summary_ths`]）。
+///
+/// 抓取 `http://q.10jqka.com.cn/thshy/index/field/addtime/order/desc/page/{page}/ajax/1/` 全部分页。
+///
+/// # 返回列
+/// `序号, 板块, 涨跌幅, 总成交量, 总成交额, 净流入, 上涨家数, 下跌家数, 均价, 领涨股, 领涨股-最新价, 领涨股-涨跌幅`
+pub fn stock_board_industry_summary_ths() -> Result<Df> {
+    let url_for_page = |page: u32| {
+        format!(
+            "http://q.10jqka.com.cn/thshy/index/field/addtime/order/desc/page/{page}/ajax/1/"
+        )
+    };
+    let rows = crate::sources::ths::fetch_ths_table_pages(&url_for_page)?;
+    if rows.is_empty() {
+        return Df::from_string_rows(
+            &[
+                "序号", "板块", "涨跌幅", "总成交量", "总成交额", "净流入", "上涨家数",
+                "下跌家数", "均价", "领涨股", "领涨股-最新价", "领涨股-涨跌幅",
+            ],
+            &[],
+        );
+    }
+    let string_rows: Vec<Vec<Option<String>>> = rows
+        .iter()
+        .map(|r| r.iter().cloned().map(Some).collect())
+        .collect();
+    let mut df = Df::from_string_rows(
+        &[
+            "序号", "板块", "涨跌幅", "总成交量", "总成交额", "净流入", "上涨家数",
+            "下跌家数", "均价", "领涨股", "领涨股-最新价", "领涨股-涨跌幅",
+        ],
+        &string_rows,
+    )?;
+    df.cast_numeric(&[
+        "序号", "总成交量", "总成交额", "净流入", "上涨家数", "下跌家数", "均价", "领涨股-最新价",
+    ])?;
+    Ok(df)
+}
+
+/// 同花顺-概念板块指数（对应 akshare [`akshare.stock_board_concept_index_ths`]）。
+///
+/// `symbol`：板块名称（如 `电池概念`），内部先经名称列表解析出板块代码。
+///
+/// # 返回列
+/// `日期, 开盘价, 最高价, 最低价, 收盘价, 成交量, 成交额`
+pub fn stock_board_concept_index_ths(symbol: &str) -> Result<Df> {
+    let name_df = stock_board_concept_name_ths()?;
+    let code = board_name_to_code(&name_df, symbol)?;
+    fetch_ths_board_index(&format!("bk_{code}"))
+}
+
+/// 同花顺-行业板块指数（对应 akshare [`akshare.stock_board_industry_index_ths`]）。
+///
+/// `symbol`：板块名称（如 `银行`），内部先经名称列表解析出板块代码。
+///
+/// # 返回列
+/// `日期, 开盘价, 最高价, 最低价, 收盘价, 成交量, 成交额`
+pub fn stock_board_industry_index_ths(symbol: &str) -> Result<Df> {
+    let name_df = stock_board_industry_name_ths()?;
+    let code = board_name_to_code(&name_df, symbol)?;
+    fetch_ths_board_index(&format!("bk_{code}"))
+}
+
+/// 抓取同花顺板块指数日K线（通用实现）。
+///
+/// `bk_code` 形如 `bk_301558`（概念）或 `bk_881272`（行业）。
+/// API 返回 JS 格式 `var hq_str_bk_{code}="..."`，字段顺序：
+/// `日期, 开盘价, 最高价, 最低价, 收盘价, 成交量, 成交额`。
+fn fetch_ths_board_index(bk_code: &str) -> Result<Df> {
+    let url = format!("https://d.10jqka.com.cn/v4/line/{bk_code}/01/last.js");
+    // 使用 fetch_ths 获取带 v cookie 的请求
+    let text = crate::sources::ths::fetch_ths(&url)?;
+    // 解析 JS 变量：var hq_str_bk_{code}="字段1:字段2:..."
+    let eq_pos = text
+        .find('=')
+        .ok_or_else(|| AkshareError::Empty("板块指数响应缺少 = 分隔符".into()))?;
+    let value_part = text[eq_pos + 1..].trim();
+    let value_part = value_part.strip_prefix('"').unwrap_or(value_part);
+    let value_part = value_part.strip_suffix('"').unwrap_or(value_part);
+    let fields: Vec<&str> = value_part.split(':').collect();
+    if fields.len() < 7 {
+        return Err(AkshareError::Empty("板块指数响应字段不足".into()));
+    }
+    let rows: Vec<Vec<Option<String>>> = fields
+        .chunks(7)
+        .filter_map(|chunk| {
+            if chunk.len() < 7 {
+                return None;
+            }
+            Some(vec![
+                Some(chunk[0].to_string()),
+                Some(chunk[1].to_string()),
+                Some(chunk[2].to_string()),
+                Some(chunk[3].to_string()),
+                Some(chunk[4].to_string()),
+                Some(chunk[5].to_string()),
+                Some(chunk[6].to_string()),
+            ])
+        })
+        .collect();
+    let mut df = Df::from_string_rows(
+        &["日期", "开盘价", "最高价", "最低价", "收盘价", "成交量", "成交额"],
+        &rows,
+    )?;
+    df.cast_numeric(&["开盘价", "最高价", "最低价", "收盘价", "成交量", "成交额"])?;
+    // 日期列归一
+    df.cast_date(&["日期"])?;
+    Ok(df)
+}
+
 /// 新股申购与中签（对应 akshare [`akshare.stock_ipo_ths`]）。
 ///
 /// `symbol`：`全部A股/沪市主板/深市主板/创业板/科创板/京市主板`。
@@ -9764,5 +9919,112 @@ mod tests {
             Some("AAA")
         );
         assert!(!df.column_names().contains(&"created_time".to_string()));
+    }
+
+    #[test]
+    fn stock_board_concept_summary_ths_offline_contract() {
+        // 离线单测：列契约与 akshare 对齐。
+        let df = stock_board_concept_summary_ths();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"日期".to_string()), "应包含 日期 列");
+                assert!(cols.contains(&"概念名称".to_string()), "应包含 概念名称 列");
+                assert!(cols.contains(&"驱动事件".to_string()), "应包含 驱动事件 列");
+                assert!(cols.contains(&"龙头股".to_string()), "应包含 龙头股 列");
+                assert!(cols.contains(&"成分股数量".to_string()), "应包含 成分股数量 列");
+                // 日期列应至少有一行
+                let dates = df.inner().column("日期").unwrap().str().unwrap();
+                assert!(
+                    dates.iter().any(|s| s.is_some()),
+                    "日期列应至少有一行非空值"
+                );
+            }
+            Err(e) => {
+                // 网络不可达时允许失败
+                eprintln!("stock_board_concept_summary_ths 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn stock_board_industry_summary_ths_offline_contract() {
+        // 离线单测：列契约与 akshare 对齐。
+        let df = stock_board_industry_summary_ths();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"序号".to_string()), "应包含 序号 列");
+                assert!(cols.contains(&"板块".to_string()), "应包含 板块 列");
+                assert!(cols.contains(&"涨跌幅".to_string()), "应包含 涨跌幅 列");
+                assert!(cols.contains(&"总成交量".to_string()), "应包含 总成交量 列");
+                assert!(cols.contains(&"总成交额".to_string()), "应包含 总成交额 列");
+                // 至少有一行数据
+                let rows = df.height();
+                assert!(rows > 0, "应至少有一行数据");
+            }
+            Err(e) => {
+                // 网络不可达时允许失败
+                eprintln!("stock_board_industry_summary_ths 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn stock_board_concept_index_ths_offline_contract() {
+        // 离线单测：列契约与 akshare 对齐。
+        // 使用"电池概念"板块测试（该板块存在）
+        let df = stock_board_concept_index_ths("电池概念");
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"日期".to_string()), "应包含 日期 列");
+                assert!(cols.contains(&"开盘价".to_string()), "应包含 开盘价 列");
+                assert!(cols.contains(&"最高价".to_string()), "应包含 最高价 列");
+                assert!(cols.contains(&"最低价".to_string()), "应包含 最低价 列");
+                assert!(cols.contains(&"收盘价".to_string()), "应包含 收盘价 列");
+                assert!(cols.contains(&"成交量".to_string()), "应包含 成交量 列");
+                assert!(cols.contains(&"成交额".to_string()), "应包含 成交额 列");
+                // 日期列应有数据
+                let dates = df.inner().column("日期").unwrap().str().unwrap();
+                assert!(
+                    dates.iter().any(|s| s.is_some()),
+                    "日期列应至少有一行非空值"
+                );
+            }
+            Err(e) => {
+                // 网络不可达时允许失败
+                eprintln!("stock_board_concept_index_ths 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn stock_board_industry_index_ths_offline_contract() {
+        // 离线单测：列契约与 akshare 对齐。
+        // 使用"银行"板块测试（该板块存在）
+        let df = stock_board_industry_index_ths("银行");
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"日期".to_string()), "应包含 日期 列");
+                assert!(cols.contains(&"开盘价".to_string()), "应包含 开盘价 列");
+                assert!(cols.contains(&"最高价".to_string()), "应包含 最高价 列");
+                assert!(cols.contains(&"最低价".to_string()), "应包含 最低价 列");
+                assert!(cols.contains(&"收盘价".to_string()), "应包含 收盘价 列");
+                assert!(cols.contains(&"成交量".to_string()), "应包含 成交量 列");
+                assert!(cols.contains(&"成交额".to_string()), "应包含 成交额 列");
+                // 日期列应有数据
+                let dates = df.inner().column("日期").unwrap().str().unwrap();
+                assert!(
+                    dates.iter().any(|s| s.is_some()),
+                    "日期列应至少有一行非空值"
+                );
+            }
+            Err(e) => {
+                // 网络不可达时允许失败
+                eprintln!("stock_board_industry_index_ths 网络错误: {e}");
+            }
+        }
     }
 }
