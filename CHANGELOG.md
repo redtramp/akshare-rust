@@ -13,7 +13,7 @@
   - `stock_board_industry_index_ths`（同花顺行业板块日K线，同上）
   - `stock_market_activity_legu`（乐咕乐股赚钱效应分析，HTML 表格 + div 解析，2 列 `item/value`）
 - **新增辅助函数**：`fetch_ths_table_pages`（ths 源，通用分页表格抓取）
-- **实现覆盖率**：**≈ 73.0%**（827 / 1131 公开 API）；stock_feature 大类显著提升
+- **实现覆盖率**：**≈ 73.4%**（832 / 1131 公开 API）；fund 大类 **60.2% → 61.4%**（53 / 86）
 - **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(249) 全绿。
 - **parity 注册**：6 个新函数已注册至 `src/bin/parity.rs`。
 
