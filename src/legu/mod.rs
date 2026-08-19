@@ -163,6 +163,42 @@ pub fn stock_a_ttm_lyr() -> Result<Df> {
     Ok(out)
 }
 
+/// 乐咕乐股-全部 A 股市净率（对应 akshare [`akshare.stock_a_all_pb`]）。
+///
+/// 返回响应 `data` 全列（`weightingAveragePB` 列被 akshare 删除，Rust 侧同步跳过）。
+/// # 返回列
+/// `date, middlePB, equalWeightAveragePB, close, quantileInAllHistoryMiddlePB,
+/// quantileInRecent10YearsMiddlePB, quantileInAllHistoryEqualWeightAveragePB,
+/// quantileInRecent10YearsEqualWeightAveragePB`
+pub fn stock_a_all_pb() -> Result<Df> {
+    let http = HttpClient::default();
+    let page_url = "https://legulegu.com/stockdata/all-pb";
+    let token = get_token_lg();
+    let url =
+        format!("https://legulegu.com/api/stock-data/market-index-pb?marketId=ALL&token={token}");
+    let data = api_get(&http, page_url, &url)?;
+    let rows = data
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Df::from_json_rows(&rows)?;
+    // akshare 删除 weightingAveragePB 列，只保留 8 列
+    out = out.select(&[
+        "date",
+        "middlePB",
+        "equalWeightAveragePB",
+        "close",
+        "quantileInAllHistoryMiddlePB",
+        "quantileInRecent10YearsMiddlePB",
+        "quantileInAllHistoryEqualWeightAveragePB",
+        "quantileInRecent10YearsEqualWeightAveragePB",
+    ])?;
+    out.cast_date(&["date"])?;
+    out.cast_numeric(&["middlePB", "equalWeightAveragePB", "close"])?;
+    Ok(out)
+}
+
 /// 乐咕乐股-破净股统计（对应 akshare [`akshare.stock_a_below_net_asset_statistics`]）。
 ///
 /// `symbol`: `"全部A股"/"沪深300"/"上证50"/"中证500"`。
