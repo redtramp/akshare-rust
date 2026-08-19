@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 **821** 个数据接口，覆盖 **17 / 35** 个功能大类、整体覆盖率 **≈ 72.5%**
+> 截至当前共 **825** 个数据接口，覆盖 **17 / 35** 个功能大类、整体覆盖率 **≈ 73.0%**
 > （对标 akshare 公开 API 共 1131 个）。全部接口与 Python akshare 同名函数对齐
 > （列名/列序/值逐项差分验证）。
 
@@ -37,7 +37,7 @@ println!("{}", df);
 
 | 大类 | 已实现 | akshare | 覆盖率 |
 |---|---|---|---|
-| stock | 329 | 409 | 80.4% |
+| stock | 333 | 409 | 81.4% |
 | fund | 55 | 74 | 74.3% |
 | index | 50 | 79 | 63.3% |
 | economic | 222 | 226 | 98.2% |
@@ -266,6 +266,9 @@ println!("{}", df);
 | `stock_news_em` | `ak.stock_news_em` | 东财个股新闻（在 stock 模块） |
 | `stock_news_main_cx` | `ak.stock_news_main_cx` | 财新网新闻（在 stock 模块） |
 | `stock_info_global_cls` | `ak.stock_info_global_cls` | 财联社电报滚动新闻（最近 20 条） |
+| `stock_info_global_em` | `ak.stock_info_global_em` | 东方财富全球财经快讯（最近 200 条） |
+| `stock_info_global_ths` | `ak.stock_info_global_ths` | 同花顺全球财经直播 |
+| `stock_info_global_futu` | `ak.stock_info_global_futu` | 富途牛牛快讯 |
 
 ### 财富榜单（fortune）
 
