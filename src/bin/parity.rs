@@ -412,6 +412,7 @@ use akshare_rust::stock::{
     stock_sz_a_spot_em,
     stock_bj_a_spot_em,
     stock_history_dividend,
+    stock_history_dividend_detail,
     stock_hk_index_spot_em,
     stock_hk_index_spot_sina,
     stock_info_global_sina,
@@ -2328,7 +2329,6 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             Ok(stock_a_high_low_statistics(s)?)
         }
         "stock_hk_gxl_lg" => Ok(stock_hk_gxl_lg()?),
-        "stock_buffett_index_lg" => Ok(stock_buffett_index_lg()?),
         "stock_ebs_lg" => Ok(stock_ebs_lg()?),
         "fund_stock_position_lg" => Ok(fund_stock_position_lg()?),
         "fund_balance_position_lg" => Ok(fund_balance_position_lg()?),
@@ -2500,10 +2500,6 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "macro_china_market_margin_sz" => Ok(macro_china_market_margin_sz()?),
         "macro_china_daily_energy" => Ok(macro_china_daily_energy()?),
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
-        "stock_a_gxl_lg" => {
-            let [s] = take1(func, args)?;
-            Ok(stock_a_gxl_lg(s)?)
-        }
         "stock_dzjy_hygtj" => {
             let [s] = take1(func, args)?;
             Ok(stock_dzjy_hygtj(s)?)
