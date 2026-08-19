@@ -9031,3 +9031,65 @@ pub fn stock_hsgt_fund_min_em(symbol: &str) -> Result<Df> {
         Ok(df)
     }
 }
+
+/// 港股指数日K线（对应 akshare [`akshare.stock_hk_index_daily_em`]）。
+///
+/// 东财 push2his.eastmoney.com API，返回港股指数日K线数据。
+pub fn stock_hk_index_daily_em(symbol: &str) -> Result<Df> {
+    // 港股指数代码映射
+    let secid = match symbol {
+        "HSI" => "1.HSI",
+        "HSCEI" => "2.HSCEI",
+        "HSTECH" => "3.HSTECH",
+        "HSHSCCI" => "4.HSHSCCI",
+        "HSMI" => "5.HSMI",
+        "HSCE" => "7.HSCE",
+        "HSF" => "8.HSF",
+        "HSTECF2L" => "248.HSTECF2L",
+        _ => &format!("100.{}", symbol),
+    };
+
+    let url = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
+    let params = json!({
+        "secid": secid,
+        "klt": "101",
+        "fqt": "1",
+        "lmt": "10000",
+        "end": "20500000",
+        "iscca": "1",
+        "fields1": "f1,f2,f3,f4,f5,f6,f7,f8",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64",
+        "ut": "f057cbcbce2a86e2866ab8877db1d059",
+        "forcect": "1",
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data: Value = http.get_json(url, &params, None)?;
+
+    let klines = data
+        .get("data")
+        .and_then(|v| v.get("klines"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for line in klines {
+        if let Some(text) = line.as_str() {
+            let parts: Vec<&str> = text.split(',').collect();
+            if parts.len() >= 5 {
+                rows.push(vec![
+                    Some(parts[0].to_string()),
+                    Some(parts[1].to_string()),
+                    Some(parts[3].to_string()),
+                    Some(parts[4].to_string()),
+                    Some(parts[2].to_string()),
+                ]);
+            }
+        }
+    }
+
+    let mut df = Df::from_string_rows(&["date", "open", "high", "low", "latest"], &rows)?;
+    df.cast_numeric(&["open", "high", "low", "latest"])?;
+    Ok(df)
+}

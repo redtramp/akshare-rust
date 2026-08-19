@@ -4,6 +4,13 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-18] 批次 76 · stock 东财港股指数日K线 1 个函数
+
+- **新增公开函数**：**816 → 817**（净 +1）。覆盖：**stock_hk_index_daily_em**（东财港股指数日K线，`push2his.eastmoney.com` API，5 列 `date/open/high/low/latest`）。
+- **实现覆盖率**：**≈ 72.2%**（817 / 1131 公开 API）；stock 大类 **79.2% → 79.4%**（324 → 325 / 409）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(243) 全绿。
+- **parity 验证**：**1 SKIP / 0 FAIL**。东财 `push2his.eastmoney.com` 当前阻断（§1.2.1 #10），Rust 与 akshare 均返回连接错误，环境恢复后补对账。
+
 ## [2026-08-18] 批次 72 · stock 新浪港股指数 + 全球快讯 2 个函数
 
 - **新增公开函数**：**814 → 816**（净 +2）。覆盖：① **stock_hk_index_spot_sina**（新浪港股指数实时行情，`hq.sinajs.cn` API，38 行 9 列 `代码,名称,最新价,涨跌额,涨跌幅,昨收,今开,最高,最低`）；② **stock_info_global_sina**（新浪财经全球财经快讯，`zhibo.sina.com.cn/api/zhibo/feed`，20 行 2 列 `时间,内容`）。
