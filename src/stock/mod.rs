@@ -9408,6 +9408,99 @@ pub fn stock_hot_up_em() -> Result<Df> {
     Ok(df)
 }
 
+/// 历史分红明细（对应 akshare [`akshare.stock_history_dividend_detail`]）。
+///
+/// `symbol`：6位股票代码，如 `000001`；`indicator`：`分红`/`送股`/`转增`/`配股`；`date`：可选日期过滤。
+/// # 返回列
+/// `公告日期, 送股, 转增, 派息, 进度, 除权除息日, 股权登记日, 红股上市日`
+pub fn stock_history_dividend_detail(symbol: &str, indicator: &str, date: &str) -> Result<Df> {
+    let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
+    let params = json!({
+        "sortColumns": "ANNOUNCE_DATE",
+        "sortTypes": "-1",
+        "pageSize": "500",
+        "pageNo": "1",
+        "reportName": "RPT_LICO_FN_DPD",
+        "columns": "ALL",
+        "filter": format!(r#"("SECURITY_CODE"="{symbol}")(DT_TYPE_CODE)="{}"{}"#, indicator, if !date.is_empty() { format!("(ANNOUNCE_DATE<='{}')", date) } else { "".to_string() }),
+    });
+    let params: Map<String, Value> = params.as_object().cloned().unwrap_or_default();
+    let http = HttpClient::default();
+    let data: Value = http.get_json(url, &params, None)?;
+
+    let items = data
+        .get("result")
+        .and_then(|v| v.get("data"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let rows: Vec<Vec<Option<String>>> = items
+        .iter()
+        .map(|item| {
+            let announce_date = item
+                .get("ANNOUNCE_DATE")
+                .and_then(Value::as_str)
+                .map(|s| s[..10].to_string());
+            let send_stock = item.get("SEND_STOCK").map(|v| {
+                v.as_f64()
+                    .map(|f| format!("{:.2}", f))
+                    .unwrap_or_default()
+            });
+            let transfer_stock = item.get("TRANSFER_STOCK").map(|v| {
+                v.as_f64()
+                    .map(|f| format!("{:.2}", f))
+                    .unwrap_or_default()
+            });
+            let dividend = item.get("DIVIDEND").map(|v| {
+                v.as_f64()
+                    .map(|f| format!("{:.2}", f))
+                    .unwrap_or_default()
+            });
+            let progress = item
+                .get("PROGRESS")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let xqr_date = item
+                .get("XRDR_DATE")
+                .and_then(Value::as_str)
+                .map(|s| s[..10].to_string());
+            let dl_date = item
+                .get("DL_DATE")
+                .and_then(Value::as_str)
+                .map(|s| s[..10].to_string());
+            let rs_list_date = item
+                .get("RS_LIST_DATE")
+                .and_then(Value::as_str)
+                .map(|s| s[..10].to_string());
+            vec![
+                announce_date,
+                send_stock,
+                transfer_stock,
+                dividend,
+                progress,
+                xqr_date,
+                dl_date,
+                rs_list_date,
+            ]
+        })
+        .collect();
+
+    Df::from_string_rows(
+        &[
+            "公告日期",
+            "送股",
+            "转增",
+            "派息",
+            "进度",
+            "除权除息日",
+            "股权登记日",
+            "红股上市日",
+        ],
+        &rows,
+    )
+}
+
 /// 东方财富-数据中心-特色数据-一致行动人（对应 akshare [`akshare.stock_yzxdr_em`]）。
 ///
 /// 走东财 `datacenter.eastmoney.com/api/data/get` 接口，报表 `RPTA_WEB_YZXDRINDEX`。

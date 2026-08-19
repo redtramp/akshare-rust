@@ -834,6 +834,10 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [d] = take1(func, args)?;
             Ok(stock_yzxdr_em(d)?)
         }
+        "stock_history_dividend_detail" => {
+            let [sym, ind, dt] = take3(func, args)?;
+            Ok(stock_history_dividend_detail(sym, ind, dt)?)
+        }
         "index_zh_a_hist" => {
             let [s, p, d0, d1] = take4(func, args)?;
             Ok(index_zh_a_hist(s, p, d0, d1)?)
