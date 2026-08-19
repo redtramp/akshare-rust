@@ -342,7 +342,7 @@ use akshare_rust::legu::{
 };
 use akshare_rust::news::{
     news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
-    news_trade_notify_suspend_baidu, stock_news_em,
+    news_trade_notify_suspend_baidu, stock_info_global_cls, stock_news_em,
 };
 use akshare_rust::option::{
     option_cffex_hs300_daily_sina, option_cffex_hs300_spot_sina, option_cffex_sz50_daily_sina,
@@ -807,6 +807,7 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "stock_hk_index_spot_em" => Ok(stock_hk_index_spot_em()?),
         "stock_hk_index_spot_sina" => Ok(stock_hk_index_spot_sina()?),
         "stock_info_global_sina" => Ok(stock_info_global_sina()?),
+        "stock_info_global_cls" => Ok(stock_info_global_cls("全部")?),
         "stock_a_code_to_symbol" => {
             let [s] = take1(func, args)?;
             let sym = stock_a_code_to_symbol(s);

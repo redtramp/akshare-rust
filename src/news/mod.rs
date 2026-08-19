@@ -1,9 +1,10 @@
-//! news 新闻分类模块（批次 5 长尾 · 百度股市通 / 央视 / 东财搜索）。
+//! news 新闻分类模块（批次 5 长尾 · 百度股市通 / 央视 / 东财搜索 / 财联社电报）。
 //!
 //! 实现覆盖 akshare `news` 分类下「网络可达」的公开函数：
 //! - 百度股市通财经日历（经济数据 / 停复牌 / 分红派息 / 财报披露，`news_baidu` 源）
 //! - 新闻联播文字稿（`news_cctv` 源）
 //! - 东方财富个股新闻（`stock_news_em`，search-api-web JSONP）
+//! - 财联社电报（`stock_info_global_cls`，cls.cn 滚动新闻）
 //!
 //! 列名与 akshare 逐字一致。
 
@@ -13,5 +14,7 @@ pub use crate::sources::news_baidu::{
     news_trade_notify_suspend_baidu,
 };
 pub use crate::sources::news_cctv::news_cctv;
+pub use crate::news::stock_info_cls_cn::stock_info_global_cls;
 
 mod stock_news_em;
+mod stock_info_cls_cn;
