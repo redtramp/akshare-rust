@@ -3794,6 +3794,227 @@ fn fund_fhsp_base(
     }
 }
 
+/// 天天基金网-基金档案-投资组合-重大变动（对应 akshare [`akshare.fund_portfolio_change_em`]）。
+///
+/// `symbol`：基金代码；`indicator`：`累计买入`/`累计卖出`；`date`：查询年份。
+///
+/// # 返回列
+/// `序号, 股票代码, 股票名称, 本期累计买入金额, 占期初基金资产净值比例, 季度`
+pub fn fund_portfolio_change_em(symbol: &str, indicator: &str, date: &str) -> Result<Df> {
+    let indicator_map: &[(&str, &str)] = &[
+        ("累计买入", "1"),
+        ("累计卖出", "2"),
+    ];
+    let indicator_code = indicator_map
+        .iter()
+        .find(|(k, _)| *k == indicator)
+        .map(|(_, v)| *v)
+        .ok_or_else(|| AkshareError::Param(format!("indicator 应为 累计买入/累计卖出，收到: {indicator}")))?;
+
+    // 实际接口：通过 fund_archives_data 获取
+    let http = HttpClient::default();
+    let params: Map<String, Value> = [
+        ("type".to_string(), "zdbd".into()),
+        ("code".to_string(), symbol.to_string().into()),
+        ("date".to_string(), date.to_string().into()),
+        ("ind".to_string(), indicator_code.to_string().into()),
+    ]
+    .into_iter()
+    .collect();
+    let json_data = http.get_json("https://fund.eastmoney.com/data/xgzlb.html", &params, None)?;
+
+    // 解析 HTML 内容，提取表格
+    let content = json_data
+        .get("content")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AkshareError::Empty("基金重大变动数据缺少 content 字段".into()))?;
+
+    // 使用 scraper 解析 HTML 表格
+    let doc = scraper::Html::parse_document(content);
+    let table_sel = scraper::Selector::parse("table").map_err(|e| AkshareError::js(format!("解析表格选择器失败: {e}")))?;
+    let tr_sel = scraper::Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析行选择器失败: {e}")))?;
+    let td_sel = scraper::Selector::parse("td").map_err(|e| AkshareError::js(format!("解析单元格选择器失败: {e}")))?;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    let mut seq = 1u32;
+    for table in doc.select(&table_sel) {
+        for tr in table.select(&tr_sel).skip(1) { // 跳过表头
+            let cells: Vec<String> = tr
+                .select(&td_sel)
+                .map(|td| td.text().collect::<String>().trim().to_string())
+                .collect();
+            if cells.len() >= 5 {
+                rows.push(vec![
+                    Some(seq.to_string()),
+                    Some(cells.get(0).cloned().unwrap_or_default()),
+                    Some(cells.get(1).cloned().unwrap_or_default()),
+                    Some(cells.get(2).cloned().unwrap_or_default()),
+                    Some(cells.get(3).cloned().unwrap_or_default()),
+                    Some(date.to_string()),
+                ]);
+                seq += 1;
+            }
+        }
+    }
+
+    if rows.is_empty() {
+        return Df::from_string_rows(
+            &["序号", "股票代码", "股票名称", "本期累计买入金额", "占期初基金资产净值比例", "季度"],
+            &[],
+        );
+    }
+
+    let mut df = Df::from_string_rows(
+        &["序号", "股票代码", "股票名称", "本期累计买入金额", "占期初基金资产净值比例", "季度"],
+        &rows,
+    )?;
+    df.cast_numeric(&["序号", "本期累计买入金额"])?;
+    Ok(df)
+}
+
+/// 巨潮资讯-基金资产配置（对应 akshare [`akshare.fund_report_asset_allocation_cninfo`]）。
+///
+/// 解析 `webapi.cninfo.com.cn` 的基金资产配置接口，需 JS 加密 token。
+///
+/// # 返回列
+/// `报告期, 基金覆盖家数, 股票权益类占净资产比例, 债券固定收益类占净资产比例, 现金货币类占净资产比例, 基金市场净资产规模`
+pub fn fund_report_asset_allocation_cninfo() -> Result<Df> {
+    // 使用 cninfo JS 引擎获取加密 token
+    let token = crate::core::js_engine::cninfo_get_res_code()?;
+
+    let http = HttpClient::default();
+    let url = "https://webapi.cninfo.com.cn/api/sysapi/p_sysapi1114";
+    let headers: &[(&str, &str)] = &[
+        ("Accept", "*/*"),
+        ("Accept-Enckey", &token),
+        ("Content-Type", "application/json"),
+    ];
+    let json_data = http.post_json(url, &Map::new(), headers)?;
+    let records = json_data
+        .get("records")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AkshareError::Empty("基金资产配置数据缺少 records 字段".into()))?;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for record in records {
+        let obj = record
+            .as_object()
+            .ok_or_else(|| AkshareError::Empty("records 元素非对象".into()))?;
+
+        rows.push(vec![
+            obj.get("ENDDATE")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("F001N")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("F006N")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("F007N")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("F008N")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("F005N")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+        ]);
+    }
+
+    let mut df = Df::from_string_rows(
+        &[
+            "报告期",
+            "基金覆盖家数",
+            "股票权益类占净资产比例",
+            "债券固定收益类占净资产比例",
+            "现金货币类占净资产比例",
+            "基金市场净资产规模",
+        ],
+        &rows,
+    )?;
+    df.cast_date(&["报告期"])?;
+    df.cast_numeric(&[
+        "基金覆盖家数",
+        "股票权益类占净资产比例",
+        "债券固定收益类占净资产比例",
+        "现金货币类占净资产比例",
+        "基金市场净资产规模",
+    ])?;
+    Ok(df)
+}
+
+/// 巨潮资讯-基金行业配置（对应 akshare [`akshare.fund_report_industry_allocation_cninfo`]）。
+///
+/// # 返回列
+/// `报告期, 基金覆盖家数, 行业名称, 股票投资占净资产比例, 持仓家数, 持股数量`
+pub fn fund_report_industry_allocation_cninfo() -> Result<Df> {
+    // 使用 cninfo JS 引擎获取加密 token
+    let token = crate::core::js_engine::cninfo_get_res_code()?;
+
+    let http = HttpClient::default();
+    let url = "https://webapi.cninfo.com.cn/api/sysapi/p_sysapi1115";
+    let headers: &[(&str, &str)] = &[
+        ("Accept", "*/*"),
+        ("Accept-Enckey", &token),
+        ("Content-Type", "application/json"),
+    ];
+    let json_data = http.post_json(url, &Map::new(), headers)?;
+    let records = json_data
+        .get("records")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AkshareError::Empty("基金行业配置数据缺少 records 字段".into()))?;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for record in records {
+        let obj = record
+            .as_object()
+            .ok_or_else(|| AkshareError::Empty("records 元素非对象".into()))?;
+
+        rows.push(vec![
+            obj.get("ENDDATE")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("F001N")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("INDUSTRY")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("STOCK_RATIO")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("HOLD_COUNT")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+            obj.get("STOCK_NUM")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string()),
+        ]);
+    }
+
+    let mut df = Df::from_string_rows(
+        &[
+            "报告期",
+            "基金覆盖家数",
+            "行业名称",
+            "股票投资占净资产比例",
+            "持仓家数",
+            "持股数量",
+        ],
+        &rows,
+    )?;
+    df.cast_date(&["报告期"])?;
+    df.cast_numeric(&[
+        "基金覆盖家数",
+        "股票投资占净资产比例",
+        "持仓家数",
+        "持股数量",
+    ])?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod ths_tests {
     use super::*;
@@ -3813,5 +4034,38 @@ mod ths_tests {
     #[test]
     fn date_validation() {
         assert!(fund_etf_category_ths("ETF", "2024062").is_err());
+    }
+
+    #[test]
+    fn fund_report_asset_allocation_cninfo_columns() {
+        // 离线单测：列契约与 akshare 对齐
+        let df = fund_report_asset_allocation_cninfo();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"报告期".to_string()), "应包含 报告期 列");
+                assert!(cols.contains(&"基金覆盖家数".to_string()), "应包含 基金覆盖家数 列");
+                assert!(cols.contains(&"股票权益类占净资产比例".to_string()), "应包含 股票权益类占净资产比例 列");
+            }
+            Err(e) => {
+                eprintln!("fund_report_asset_allocation_cninfo 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn fund_report_industry_allocation_cninfo_columns() {
+        // 离线单测：列契约与 akshare 对齐
+        let df = fund_report_industry_allocation_cninfo();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"报告期".to_string()), "应包含 报告期 列");
+                assert!(cols.contains(&"行业名称".to_string()), "应包含 行业名称 列");
+            }
+            Err(e) => {
+                eprintln!("fund_report_industry_allocation_cninfo 网络错误: {e}");
+            }
+        }
     }
 }

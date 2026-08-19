@@ -4,6 +4,16 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-08-19] 批次 87 · fund 模块 3 个函数
+
+- **新增公开函数**：**827 → 830**（净 +3）。覆盖：
+  - `fund_portfolio_change_em`（东财基金重大变动，3 参数）
+  - `fund_report_asset_allocation_cninfo`（巨潮基金资产配置，cninfo JS 加密）
+  - `fund_report_industry_allocation_cninfo`（巨潮基金行业配置，cninfo JS 加密）
+- **实现覆盖率**：**≈ 73.5%**（830 / 1131 公开 API）；fund 大类 **94.7%**（54 / 57）
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(251) 全绿。
+- **parity 注册**：3 个新函数已注册至 `src/bin/parity.rs`。
+
 ## [2026-08-19] 批次 86 · stock_feature/legu 6 个函数
 
 - **新增公开函数**：**821 → 827**（净 +6）。覆盖：
@@ -13,7 +23,6 @@
   - `stock_board_industry_index_ths`（同花顺行业板块日K线，同上）
   - `stock_market_activity_legu`（乐咕乐股赚钱效应分析，HTML 表格 + div 解析，2 列 `item/value`）
 - **新增辅助函数**：`fetch_ths_table_pages`（ths 源，通用分页表格抓取）
-- **实现覆盖率**：**≈ 73.4%**（832 / 1131 公开 API）；fund 大类 **60.2% → 61.4%**（53 / 86）
 - **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(249) 全绿。
 - **parity 注册**：6 个新函数已注册至 `src/bin/parity.rs`。
 

@@ -293,11 +293,12 @@ use akshare_rust::fund::{
     fund_lcx_rank_em, fund_lof_hist_em, fund_lof_hist_min_em, fund_lof_spot_em,
     fund_money_fund_daily_em, fund_money_fund_info_em, fund_money_rank_em, fund_name_em,
     fund_new_found_em, fund_new_found_ths, fund_open_fund_daily_em, fund_open_fund_info_em,
-    fund_open_fund_rank_em, fund_portfolio_bond_hold_em, fund_portfolio_hold_em,
-    fund_portfolio_industry_allocation_em, fund_purchase_em, fund_rating_all, fund_rating_ja,
-    fund_rating_sh, fund_rating_zs, fund_scale_change_em, fund_scale_close_sina,
-    fund_scale_daily_szse, fund_scale_open_sina, fund_scale_structured_sina,
-    fund_value_estimation_em,
+    fund_open_fund_rank_em, fund_portfolio_bond_hold_em, fund_portfolio_change_em,
+    fund_portfolio_hold_em, fund_portfolio_industry_allocation_em, fund_purchase_em,
+    fund_rating_all, fund_rating_ja, fund_rating_sh, fund_rating_zs, fund_scale_change_em,
+    fund_scale_close_sina, fund_scale_daily_szse, fund_scale_open_sina,
+    fund_scale_structured_sina, fund_value_estimation_em,
+    fund_report_asset_allocation_cninfo, fund_report_industry_allocation_cninfo,
 };
 use akshare_rust::futures::{
     futures_comex_inventory, futures_comm_info, futures_comm_js, futures_contract_detail,
@@ -1022,6 +1023,12 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
             let [s, d] = take2(func, args)?;
             Ok(fund_portfolio_bond_hold_em(s, d)?)
         }
+        "fund_portfolio_change_em" => {
+            let [s, ind, dt] = take3(func, args)?;
+            Ok(fund_portfolio_change_em(s, ind, dt)?)
+        }
+        "fund_report_asset_allocation_cninfo" => Ok(fund_report_asset_allocation_cninfo()?),
+        "fund_report_industry_allocation_cninfo" => Ok(fund_report_industry_allocation_cninfo()?),
         "fund_new_found_em" => Ok(fund_new_found_em()?),
         "fund_new_found_ths" => {
             let [s] = take1(func, args)?;
