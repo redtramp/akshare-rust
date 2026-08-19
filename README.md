@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 **816** 个数据接口，覆盖 **17 / 35** 个功能大类、整体覆盖率 **≈ 72.1%**
+> 截至当前共 **821** 个数据接口，覆盖 **17 / 35** 个功能大类、整体覆盖率 **≈ 72.5%**
 > （对标 akshare 公开 API 共 1131 个）。全部接口与 Python akshare 同名函数对齐
 > （列名/列序/值逐项差分验证）。
 
@@ -37,7 +37,7 @@ println!("{}", df);
 
 | 大类 | 已实现 | akshare | 覆盖率 |
 |---|---|---|---|
-| stock | 324 | 409 | 79.2% |
+| stock | 329 | 409 | 80.4% |
 | fund | 55 | 74 | 74.3% |
 | index | 50 | 79 | 63.3% |
 | economic | 222 | 226 | 98.2% |
@@ -45,7 +45,7 @@ println!("{}", df);
 | option | 28 | 46 | 60.9% |
 | bond | 41 | 44 | 93.2% |
 | spot | 16 | ~数十 | 长尾 |
-| news | 5 | ~数十 | 长尾 |
+| news | 6 | ~数十 | 长尾 |
 | energy | 4 | ~数十 | 长尾 |
 | currency | 2 | ~数十 | 长尾 |
 | fx | 5 | 6 | 83.3% |
@@ -265,6 +265,7 @@ println!("{}", df);
 | `news_cctv` | `ak.news_cctv` | 央视新闻 |
 | `stock_news_em` | `ak.stock_news_em` | 东财个股新闻（在 stock 模块） |
 | `stock_news_main_cx` | `ak.stock_news_main_cx` | 财新网新闻（在 stock 模块） |
+| `stock_info_global_cls` | `ak.stock_info_global_cls` | 财联社电报滚动新闻（最近 20 条） |
 
 ### 财富榜单（fortune）
 

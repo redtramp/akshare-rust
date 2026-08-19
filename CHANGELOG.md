@@ -4,7 +4,21 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
-## [2026-08-18] 批次 76 · stock 东财港股指数日K线 1 个函数
+## [2026-08-19] 批次 79 · stock 东财人气榜飙升榜 1 个函数
+
+- **新增公开函数**：**820 → 821**（净 +1）。覆盖：**stock_hot_up_em**（东财个股人气榜飙升榜，`emappdata.eastmoney.com` + `push2.eastmoney.com` 双接口，7 列 `排名较昨日变动/当前排名/代码/股票名称/最新价/涨跌额/涨跌幅`）。
+- **实现覆盖率**：**≈ 72.5%**（821 / 1131 公开 API）；stock 大类 **80.0% → 80.3%**（328 → 329 / 410）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(244) 全绿。
+- **parity 验证**：**1 SKIP / 0 FAIL**。东财 `push2.eastmoney.com` 当前阻断（本机 nginx 封禁），Rust 与 akshare 均返回连接错误，环境恢复后补对账。
+
+## [2026-08-19] 批次 78 · news 财联社电报 1 个函数
+
+- **新增公开函数**：**819 → 820**（净 +1）。覆盖：**stock_info_global_cls**（财联社电报滚动新闻，`cls.cn` API，4 列 `标题/内容/发布日期/发布时间`，最近 20 条）。
+- **实现覆盖率**：**≈ 72.4%**（820 / 1131 公开 API）；stock 大类 **79.8% → 80.0%**（327 → 328 / 410）。
+- **质量门禁**：`cargo build` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(244) 全绿。
+- **parity 验证**：**1 PASS / 0 SKIP / 0 FAIL**。cls.cn 接口正常返回 20 条财联社电报。
+
+## [2026-08-18] 批次 77 · stock 乐咕A股市净率 1 个函数
 
 - **新增公开函数**：**816 → 817**（净 +1）。覆盖：**stock_hk_index_daily_em**（东财港股指数日K线，`push2his.eastmoney.com` API，5 列 `date/open/high/low/latest`）。
 - **实现覆盖率**：**≈ 72.2%**（817 / 1131 公开 API）；stock 大类 **79.2% → 79.4%**（324 → 325 / 409）。
