@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## Implemented Interfaces
 
-> As of now, a total of **865** data interfaces are implemented, covering **20 / 35** functional categories, with an overall coverage of **≈ 80.1%**
+> As of now, a total of **869** data interfaces are implemented, covering **20 / 35** functional categories, with an overall coverage of **≈ 80.5%**
 > (benchmarked against the **1080** identically-named public functions in akshare **1.18.83**; earlier docs used a 1131 baseline).
 > All interfaces align with the identically-named Python akshare functions (column names / column order / values verified differentially item by item).
 
@@ -51,7 +51,7 @@ println!("{}", df);
 | spot | 15 | 15 | 100.0% |
 | futures_derivative | 10 | 13 | 76.9% |
 | movie | 0 | 12 | 0.0% |
-| energy | 4 | 8 | 50.0% |
+| energy | 8 | 8 | 100.0% |
 | other | 0 | 8 | 0.0% |
 | qhkc_web | 0 | 8 | 0.0% |
 | air | 0 | 7 | 0.0% |
@@ -260,7 +260,7 @@ println!("{}", df);
 |---|---|---|
 | `energy_oil_hist` / `energy_oil_detail` | `ak.energy_oil_*` | Gas/diesel historical price adjustments / details |
 | `spot_symbol_table_sge` / `spot_golden_benchmark_sge` / `spot_silver_benchmark_sge` / `spot_hist_sge` / `spot_quotations_sge` | `ak.spot_*_sge` | Shanghai Gold Exchange quotes |
-| `energy_carbon_gz` / `energy_carbon_hb` | `ak.energy_carbon_*` | Guangzhou / Hubei carbon emission quotes |
+| `energy_carbon_gz` / `energy_carbon_hb` / `energy_carbon_domestic` / `energy_carbon_bj` / `energy_carbon_sz` / `energy_carbon_eu` | `ak.energy_carbon_*` | Guangzhou / Hubei / Tanjiaoyi (8 pilots) / Beijing / Shenzhen domestic / Shenzhen international carbon quotes |
 | `spot_hog_soozhu` / `spot_hog_year_trend_soozhu` / `spot_hog_lean_price_soozhu` / `spot_hog_three_way_soozhu` / `spot_hog_crossbred_soozhu` / `spot_corn_price_soozhu` / `spot_soybean_price_soozhu` / `spot_mixed_feed_soozhu` | `ak.spot_hog_*` | Hogs / corn / soybean meal / mixed feed (Soozhu) |
 
 ### News (news)

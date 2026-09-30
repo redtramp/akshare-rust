@@ -278,7 +278,8 @@ use akshare_rust::economic::{
     macro_usa_unemployment_rate,
 };
 use akshare_rust::energy::{
-    energy_carbon_gz, energy_carbon_hb, energy_oil_detail, energy_oil_hist,
+    energy_carbon_bj, energy_carbon_domestic, energy_carbon_eu, energy_carbon_gz, energy_carbon_hb,
+    energy_carbon_sz, energy_oil_detail, energy_oil_hist,
 };
 use akshare_rust::exchange::{stock_margin_detail_sse, stock_margin_sse, stock_margin_szse};
 use akshare_rust::forex::{forex_hist_em, forex_spot_em};
@@ -2809,6 +2810,13 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         // ---- energy (碳排放 / 油价) ----
         "energy_carbon_gz" => Ok(energy_carbon_gz()?),
         "energy_carbon_hb" => Ok(energy_carbon_hb()?),
+        "energy_carbon_domestic" => {
+            let [s] = take1(func, args)?;
+            Ok(energy_carbon_domestic(s)?)
+        }
+        "energy_carbon_bj" => Ok(energy_carbon_bj()?),
+        "energy_carbon_sz" => Ok(energy_carbon_sz()?),
+        "energy_carbon_eu" => Ok(energy_carbon_eu()?),
         "energy_oil_hist" => Ok(energy_oil_hist()?),
         "energy_oil_detail" => {
             let [s] = take1(func, args)?;

@@ -907,6 +907,9 @@ CASES: list[tuple[str, list[str], str, str]] = [
     # energy - 碳排放
     ("energy_carbon_gz", [], "loose", "广州碳排放行情"),
     ("energy_carbon_hb", [], "loose", "湖北碳排放每日概况"),
+    ("energy_carbon_domestic", ["湖北"], "loose", "碳交易网湖北行情"),
+    ("energy_carbon_bj", [], "loose", "北京碳排放公开行情(150页)"),
+    # energy_carbon_sz / energy_carbon_eu：上游 cerx.cn 本机连接超时（akshare 同样失败），不注册。
     # energy - 油价
     ("energy_oil_hist", [], "strict", "汽柴油历史调价"),
     ("energy_oil_detail", ["20240118"], "strict", "各地区汽柴油价格"),

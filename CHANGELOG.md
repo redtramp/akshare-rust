@@ -4,6 +4,19 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-09-30] 批次 90 · energy 碳排放 4 个函数（energy → 100%）
+
+- **新增公开函数**：**865 → 869**（净 +4）。补齐 akshare `energy/energy_carbon.py` 剩余 4 个函数：
+  - `energy_carbon_domestic`（碳交易网行情信息，`k.tanjiaoyi.com:8080`，参数 `湖北/上海/北京/重庆/广东/天津/深圳/福建`，5 列 `日期/成交价/成交量/成交额/地点`）
+  - `energy_carbon_bj`（北京碳排放权电子交易平台公开行情，首张表 `<script>` 解析总页数 + 150 页 HTML 表分页，5 列 `日期/成交量/成交均价/成交额/成交单位`，2236 行）
+  - `energy_carbon_sz` / `energy_carbon_eu`（深圳碳交易所国内/国际碳情，`div.pagebar` 解析总页数 + 分页 HTML 表，8 列 `交易日期/开盘价/最高价/最低价/成交均价/收盘价/成交量/成交额`）
+- **修正**：`src/sources/carbon.rs` 模块注释原称 `energy_carbon_domestic` 不可达，实测正常返回 1852 行；已更新说明。
+- **实现覆盖率**：**≈ 80.5%**（869 / 1080 公开 API）；energy 大类 **50.0% → 100.0%**（4 → 8 / 8）。
+- **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib` 全绿；新增 4 个离线纯函数单测。
+- **parity 验证**：`energy_carbon_domestic` **PASS**（5 列 × 1852 行）、`energy_carbon_bj` **PASS**（5 列 × 2236 行）；
+  `energy_carbon_sz` / `energy_carbon_eu` 上游 `cerx.cn` 本机连接超时（akshare 同样失败），已按 akshare 原逻辑实现、登记为不注册 parity。
+- **parity 注册**：4 个新函数已注册至 `src/bin/parity.rs`；`parity_runner.py` 注册 2 个可达用例。
+
 ## [2026-09-30] 批次 89 · index 期权波动率指数 QVIX 系列 16 个函数
 
 - **新增公开函数**：**849 → 865**（净 +16）。optbbs（`1.optbbs.com`）QVIX 波动率指数全家族落地

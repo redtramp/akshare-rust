@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 **865** 个数据接口，覆盖 **20 / 35** 个功能大类、整体覆盖率 **≈ 80.1%**
+> 截至当前共 **869** 个数据接口，覆盖 **20 / 35** 个功能大类、整体覆盖率 **≈ 80.5%**
 > （对标 akshare **1.18.83** 公开 API 共 **1080** 个同名函数；早期文档按 1131 口径统计）。
 > 全部接口与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
@@ -51,7 +51,7 @@ println!("{}", df);
 | spot | 15 | 15 | 100.0% |
 | futures_derivative | 10 | 13 | 76.9% |
 | movie | 0 | 12 | 0.0% |
-| energy | 4 | 8 | 50.0% |
+| energy | 8 | 8 | 100.0% |
 | other | 0 | 8 | 0.0% |
 | qhkc_web | 0 | 8 | 0.0% |
 | air | 0 | 7 | 0.0% |
@@ -269,7 +269,7 @@ println!("{}", df);
 |---|---|---|
 | `energy_oil_hist` / `energy_oil_detail` | `ak.energy_oil_*` | 汽柴油历史调价/详情 |
 | `spot_symbol_table_sge` / `spot_golden_benchmark_sge` / `spot_silver_benchmark_sge` / `spot_hist_sge` / `spot_quotations_sge` | `ak.spot_*_sge` | 上海黄金交易所行情 |
-| `energy_carbon_gz` / `energy_carbon_hb` | `ak.energy_carbon_*` | 广州/湖北碳排放行情 |
+| `energy_carbon_gz` / `energy_carbon_hb` / `energy_carbon_domestic` / `energy_carbon_bj` / `energy_carbon_sz` / `energy_carbon_eu` | `ak.energy_carbon_*` | 广州/湖北/碳交易网(8试点)/北京/深圳国内/深圳国际 碳排放行情 |
 | `spot_hog_soozhu` / `spot_hog_year_trend_soozhu` / `spot_hog_lean_price_soozhu` / `spot_hog_three_way_soozhu` / `spot_hog_crossbred_soozhu` / `spot_corn_price_soozhu` / `spot_soybean_price_soozhu` / `spot_mixed_feed_soozhu` | `ak.spot_hog_*` | 生猪/玉米/豆粕/混合饲料（搜猪） |
 
 ### 新闻（news）
