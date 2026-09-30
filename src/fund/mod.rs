@@ -3801,15 +3801,16 @@ fn fund_fhsp_base(
 /// # 返回列
 /// `序号, 股票代码, 股票名称, 本期累计买入金额, 占期初基金资产净值比例, 季度`
 pub fn fund_portfolio_change_em(symbol: &str, indicator: &str, date: &str) -> Result<Df> {
-    let indicator_map: &[(&str, &str)] = &[
-        ("累计买入", "1"),
-        ("累计卖出", "2"),
-    ];
+    let indicator_map: &[(&str, &str)] = &[("累计买入", "1"), ("累计卖出", "2")];
     let indicator_code = indicator_map
         .iter()
         .find(|(k, _)| *k == indicator)
         .map(|(_, v)| *v)
-        .ok_or_else(|| AkshareError::Param(format!("indicator 应为 累计买入/累计卖出，收到: {indicator}")))?;
+        .ok_or_else(|| {
+            AkshareError::Param(format!(
+                "indicator 应为 累计买入/累计卖出，收到: {indicator}"
+            ))
+        })?;
 
     // 实际接口：通过 fund_archives_data 获取
     let http = HttpClient::default();
@@ -3831,14 +3832,18 @@ pub fn fund_portfolio_change_em(symbol: &str, indicator: &str, date: &str) -> Re
 
     // 使用 scraper 解析 HTML 表格
     let doc = scraper::Html::parse_document(content);
-    let table_sel = scraper::Selector::parse("table").map_err(|e| AkshareError::js(format!("解析表格选择器失败: {e}")))?;
-    let tr_sel = scraper::Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析行选择器失败: {e}")))?;
-    let td_sel = scraper::Selector::parse("td").map_err(|e| AkshareError::js(format!("解析单元格选择器失败: {e}")))?;
+    let table_sel = scraper::Selector::parse("table")
+        .map_err(|e| AkshareError::js(format!("解析表格选择器失败: {e}")))?;
+    let tr_sel = scraper::Selector::parse("tr")
+        .map_err(|e| AkshareError::js(format!("解析行选择器失败: {e}")))?;
+    let td_sel = scraper::Selector::parse("td")
+        .map_err(|e| AkshareError::js(format!("解析单元格选择器失败: {e}")))?;
 
     let mut rows: Vec<Vec<Option<String>>> = Vec::new();
     let mut seq = 1u32;
     for table in doc.select(&table_sel) {
-        for tr in table.select(&tr_sel).skip(1) { // 跳过表头
+        for tr in table.select(&tr_sel).skip(1) {
+            // 跳过表头
             let cells: Vec<String> = tr
                 .select(&td_sel)
                 .map(|td| td.text().collect::<String>().trim().to_string())
@@ -3846,7 +3851,7 @@ pub fn fund_portfolio_change_em(symbol: &str, indicator: &str, date: &str) -> Re
             if cells.len() >= 5 {
                 rows.push(vec![
                     Some(seq.to_string()),
-                    Some(cells.get(0).cloned().unwrap_or_default()),
+                    Some(cells.first().cloned().unwrap_or_default()),
                     Some(cells.get(1).cloned().unwrap_or_default()),
                     Some(cells.get(2).cloned().unwrap_or_default()),
                     Some(cells.get(3).cloned().unwrap_or_default()),
@@ -3859,13 +3864,27 @@ pub fn fund_portfolio_change_em(symbol: &str, indicator: &str, date: &str) -> Re
 
     if rows.is_empty() {
         return Df::from_string_rows(
-            &["序号", "股票代码", "股票名称", "本期累计买入金额", "占期初基金资产净值比例", "季度"],
+            &[
+                "序号",
+                "股票代码",
+                "股票名称",
+                "本期累计买入金额",
+                "占期初基金资产净值比例",
+                "季度",
+            ],
             &[],
         );
     }
 
     let mut df = Df::from_string_rows(
-        &["序号", "股票代码", "股票名称", "本期累计买入金额", "占期初基金资产净值比例", "季度"],
+        &[
+            "序号",
+            "股票代码",
+            "股票名称",
+            "本期累计买入金额",
+            "占期初基金资产净值比例",
+            "季度",
+        ],
         &rows,
     )?;
     df.cast_numeric(&["序号", "本期累计买入金额"])?;
@@ -4044,8 +4063,14 @@ mod ths_tests {
             Ok(df) => {
                 let cols = df.column_names();
                 assert!(cols.contains(&"报告期".to_string()), "应包含 报告期 列");
-                assert!(cols.contains(&"基金覆盖家数".to_string()), "应包含 基金覆盖家数 列");
-                assert!(cols.contains(&"股票权益类占净资产比例".to_string()), "应包含 股票权益类占净资产比例 列");
+                assert!(
+                    cols.contains(&"基金覆盖家数".to_string()),
+                    "应包含 基金覆盖家数 列"
+                );
+                assert!(
+                    cols.contains(&"股票权益类占净资产比例".to_string()),
+                    "应包含 股票权益类占净资产比例 列"
+                );
             }
             Err(e) => {
                 eprintln!("fund_report_asset_allocation_cninfo 网络错误: {e}");

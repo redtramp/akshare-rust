@@ -2366,8 +2366,16 @@ macro_bank_fn!(macro_bank_euro_interest_rate, "欧洲央行决议报告", "21");
 macro_bank_fn!(macro_bank_japan_interest_rate, "日本央行决议报告", "22");
 macro_bank_fn!(macro_bank_english_interest_rate, "英国央行决议报告", "26");
 macro_bank_fn!(macro_bank_australia_interest_rate, "澳洲联储决议报告", "27");
-macro_bank_fn!(macro_bank_newzealand_interest_rate, "新西兰利率决议报告", "23");
-macro_bank_fn!(macro_bank_switzerland_interest_rate, "瑞士央行决议报告", "25");
+macro_bank_fn!(
+    macro_bank_newzealand_interest_rate,
+    "新西兰利率决议报告",
+    "23"
+);
+macro_bank_fn!(
+    macro_bank_switzerland_interest_rate,
+    "瑞士央行决议报告",
+    "25"
+);
 macro_bank_fn!(macro_bank_china_interest_rate, "中国央行决议报告", "91");
 macro_bank_fn!(macro_bank_russia_interest_rate, "俄罗斯央行决议报告", "64");
 macro_bank_fn!(macro_bank_india_interest_rate, "印度央行决议报告", "68");
@@ -2400,11 +2408,17 @@ fn macro_shipping_em(em_id: &str) -> Result<Df> {
     let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
     let ind_id = format!("\"{em_id}\"");
     let mut params = Map::new();
-    params.insert("sortColumns".into(), Value::String("REPORT_DATE".to_string()));
+    params.insert(
+        "sortColumns".into(),
+        Value::String("REPORT_DATE".to_string()),
+    );
     params.insert("sortTypes".into(), Value::String("-1".to_string()));
     params.insert("pageSize".into(), Value::String("500".to_string()));
     params.insert("pageNumber".into(), Value::String("1".to_string()));
-    params.insert("reportName".into(), Value::String("RPT_INDUSTRY_INDEX".to_string()));
+    params.insert(
+        "reportName".into(),
+        Value::String("RPT_INDUSTRY_INDEX".to_string()),
+    );
     params.insert(
         "columns".into(),
         Value::String(
@@ -2439,7 +2453,11 @@ fn macro_shipping_em(em_id: &str) -> Result<Df> {
     for page in 2..=total_page {
         params.insert("pageNumber".into(), Value::String(page.to_string()));
         let page_data: Value = http.get_json(url, &params, None)?;
-        if let Some(data) = page_data.get("result").and_then(|r| r.get("data")).and_then(Value::as_array) {
+        if let Some(data) = page_data
+            .get("result")
+            .and_then(|r| r.get("data"))
+            .and_then(Value::as_array)
+        {
             rows.extend(data.clone());
         }
     }
@@ -2459,12 +2477,23 @@ fn macro_shipping_em(em_id: &str) -> Result<Df> {
     });
 
     let cols = [
-        "日期", "最新值", "涨跌幅", "近3月涨跌幅", "近6月涨跌幅",
-        "近1年涨跌幅", "近2年涨跌幅", "近3年涨跌幅",
+        "日期",
+        "最新值",
+        "涨跌幅",
+        "近3月涨跌幅",
+        "近6月涨跌幅",
+        "近1年涨跌幅",
+        "近2年涨跌幅",
+        "近3年涨跌幅",
     ];
     let numeric = [
-        "最新值", "涨跌幅", "近3月涨跌幅", "近6月涨跌幅",
-        "近1年涨跌幅", "近2年涨跌幅", "近3年涨跌幅",
+        "最新值",
+        "涨跌幅",
+        "近3月涨跌幅",
+        "近6月涨跌幅",
+        "近1年涨跌幅",
+        "近2年涨跌幅",
+        "近3年涨跌幅",
     ];
     let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
     for row in rows {
@@ -2542,7 +2571,11 @@ macro_usa_fn!(macro_usa_building_permits, "美国新屋开工总数年化", "3")
 // attr_id=4
 macro_usa_fn!(macro_usa_business_inventories, "美国企业库存", "4");
 // attr_id=5
-macro_usa_fn!(macro_usa_cb_consumer_confidence, "美国谘商会消费者信心指数", "5");
+macro_usa_fn!(
+    macro_usa_cb_consumer_confidence,
+    "美国谘商会消费者信心指数",
+    "5"
+);
 // attr_id=6
 macro_usa_fn!(macro_usa_core_cpi_monthly, "美国核心CPI月率", "6");
 // attr_id=7
@@ -2572,13 +2605,21 @@ macro_usa_fn!(macro_usa_ism_pmi, "美国ISM制造业PMI", "28");
 // attr_id=29
 macro_usa_fn!(macro_usa_ism_non_pmi, "美国ISM非制造业PMI", "29");
 // attr_id=31
-macro_usa_fn!(macro_usa_nahb_house_market_index, "美国NAHB房屋市场指数", "31");
+macro_usa_fn!(
+    macro_usa_nahb_house_market_index,
+    "美国NAHB房屋市场指数",
+    "31"
+);
 // attr_id=32
 macro_usa_fn!(macro_usa_new_home_sales, "美国新屋销售总数年化", "32");
 // attr_id=33
 macro_usa_fn!(macro_usa_non_farm, "美国非农就业人数", "33");
 // attr_id=34
-macro_usa_fn!(macro_usa_pending_home_sales, "美国成屋签约销售指数月率", "34");
+macro_usa_fn!(
+    macro_usa_pending_home_sales,
+    "美国成屋签约销售指数月率",
+    "34"
+);
 // attr_id=35
 macro_usa_fn!(macro_usa_personal_spending, "美国个人支出月率", "35");
 // attr_id=37
@@ -2592,7 +2633,11 @@ macro_usa_fn!(macro_usa_initial_jobless, "美国初请失业金人数", "44");
 // attr_id=47
 macro_usa_fn!(macro_usa_unemployment_rate, "美国失业率", "47");
 // attr_id=50
-macro_usa_fn!(macro_usa_michigan_consumer_sentiment, "美国密歇根大学消费者信心指数", "50");
+macro_usa_fn!(
+    macro_usa_michigan_consumer_sentiment,
+    "美国密歇根大学消费者信心指数",
+    "50"
+);
 // attr_id=51
 macro_usa_fn!(macro_usa_house_price_index, "美国FHFA房价指数月率", "51");
 // attr_id=52
@@ -2602,7 +2647,11 @@ macro_usa_fn!(macro_usa_gdp_monthly, "美国GDP环比初值", "53");
 // attr_id=59
 macro_usa_fn!(macro_usa_m2_yearly, "中国M2货币供应年率", "59");
 // attr_id=63
-macro_usa_fn!(macro_usa_nfib_small_business, "美国NFIB小型企业信心指数", "63");
+macro_usa_fn!(
+    macro_usa_nfib_small_business,
+    "美国NFIB小型企业信心指数",
+    "63"
+);
 // attr_id=69
 macro_usa_fn!(macro_usa_api_crude_stock, "美国API原油库存", "69");
 // attr_id=74
@@ -2612,7 +2661,11 @@ macro_usa_fn!(macro_usa_job_cuts, "美国JobCuts", "78");
 // attr_id=79
 macro_usa_fn!(macro_usa_export_price, "美国出口价格指数月率", "79");
 // attr_id=81
-macro_usa_fn!(macro_usa_real_consumer_spending, "美国实际个人消费支出季率初值", "81");
+macro_usa_fn!(
+    macro_usa_real_consumer_spending,
+    "美国实际个人消费支出季率初值",
+    "81"
+);
 // attr_id=89
 macro_usa_fn!(macro_usa_services_pmi, "美国Markit服务业PMI终值", "89");
 // attr_id=93
@@ -2637,8 +2690,17 @@ pub fn macro_china_urban_unemployment() -> Result<Df> {
 /// 数据源 `114.115.232.154:8080` Excel 文件。
 pub fn macro_cnbs() -> Result<Df> {
     // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["年份", "居民部门", "非金融企业部门", "政府部门", "中央政府", "地方政府", 
-                   "实体经济部门", "金融部门资产方", "金融部门负债方"];
+    let cols = vec![
+        "年份",
+        "居民部门",
+        "非金融企业部门",
+        "政府部门",
+        "中央政府",
+        "地方政府",
+        "实体经济部门",
+        "金融部门资产方",
+        "金融部门负债方",
+    ];
     let data: Vec<Vec<Option<String>>> = Vec::new();
     let df = Df::from_string_rows(&cols, &data)?;
     Ok(df)

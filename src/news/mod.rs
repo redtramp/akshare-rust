@@ -8,13 +8,13 @@
 //!
 //! 列名与 akshare 逐字一致。
 
+pub use crate::news::stock_info_cls_cn::stock_info_global_cls;
 pub use crate::news::stock_news_em::stock_news_em;
 pub use crate::sources::news_baidu::{
     news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
     news_trade_notify_suspend_baidu,
 };
 pub use crate::sources::news_cctv::news_cctv;
-pub use crate::news::stock_info_cls_cn::stock_info_global_cls;
 
-mod stock_news_em;
 mod stock_info_cls_cn;
+mod stock_news_em;

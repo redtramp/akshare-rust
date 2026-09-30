@@ -217,9 +217,11 @@ pub fn stock_a_below_net_asset_statistics(symbol: &str) -> Result<Df> {
         .iter()
         .find(|(k, _)| *k == symbol)
         .map(|(_, v)| *v)
-        .ok_or_else(|| AkshareError::Param(format!(
-            "无效 symbol: {symbol}（应为 全部A股/沪深300/上证50/中证500）"
-        )))?;
+        .ok_or_else(|| {
+            AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 全部A股/沪深300/上证50/中证500）"
+            ))
+        })?;
     let http = HttpClient::default();
     let page_url = "https://www.legulegu.com/stockdata/below-net-asset-statistics";
     let url = format!(
@@ -229,7 +231,12 @@ pub fn stock_a_below_net_asset_statistics(symbol: &str) -> Result<Df> {
     let rows = data.as_array().cloned().unwrap_or_default();
     if rows.is_empty() {
         return Df::from_string_rows(
-            &["date", "below_net_asset", "total_company", "below_net_asset_ratio"],
+            &[
+                "date",
+                "below_net_asset",
+                "total_company",
+                "below_net_asset_ratio",
+            ],
             &[],
         );
     }
@@ -259,7 +266,12 @@ pub fn stock_a_below_net_asset_statistics(symbol: &str) -> Result<Df> {
         })
         .collect();
     out.with_column("below_net_asset_ratio", &ratio)?;
-    out = out.select(&["date", "below_net_asset", "total_company", "below_net_asset_ratio"])?;
+    out = out.select(&[
+        "date",
+        "below_net_asset",
+        "total_company",
+        "below_net_asset_ratio",
+    ])?;
     Ok(out)
 }
 
@@ -280,24 +292,30 @@ pub fn stock_a_high_low_statistics(symbol: &str) -> Result<Df> {
         .iter()
         .find(|(k, _)| *k == symbol)
         .map(|(_, v)| *v)
-        .ok_or_else(|| AkshareError::Param(format!(
-            "无效 symbol: {symbol}（应为 all/sz50/hs300/zz500）"
-        )))?;
+        .ok_or_else(|| {
+            AkshareError::Param(format!(
+                "无效 symbol: {symbol}（应为 all/sz50/hs300/zz500）"
+            ))
+        })?;
     let http = HttpClient::default();
     let page_url = "https://www.legulegu.com/stockdata/high-low-statistics";
-    let url = format!("https://www.legulegu.com/stockdata/member-ship/get-high-low-statistics/{code}");
+    let url =
+        format!("https://www.legulegu.com/stockdata/member-ship/get-high-low-statistics/{code}");
     let data = api_get(&http, page_url, &url)?;
     let rows = data.as_array().cloned().unwrap_or_default();
     let mut out = Df::from_json_rows(&rows)?;
     // 删除 indexCode 列（akshare 会删除）
-    out = out.select(&out
-        .column_names()
-        .iter()
-        .filter(|n| *n != "indexCode")
-        .map(|s| s.as_str())
-        .collect::<Vec<&str>>()[..])?;
+    out = out.select(
+        &out.column_names()
+            .iter()
+            .filter(|n| *n != "indexCode")
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>()[..],
+    )?;
     out.cast_date(&["date"])?;
-    out.cast_numeric(&["close", "high20", "low20", "high60", "low60", "high120", "low120"])?;
+    out.cast_numeric(&[
+        "close", "high20", "low20", "high60", "low60", "high120", "low120",
+    ])?;
     out = out.sort_by("date", true, false)?;
     Ok(out)
 }
@@ -663,9 +681,12 @@ pub fn stock_market_activity_legu() -> Result<Df> {
     let doc = Html::parse_document(&html);
 
     // 解析主表格（前三列两两一组）
-    let table_sel = Selector::parse("table").map_err(|e| AkshareError::js(format!("解析表格选择器失败: {e}")))?;
-    let tr_sel = Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析行选择器失败: {e}")))?;
-    let td_sel = Selector::parse("td").map_err(|e| AkshareError::js(format!("解析单元格选择器失败: {e}")))?;
+    let table_sel = Selector::parse("table")
+        .map_err(|e| AkshareError::js(format!("解析表格选择器失败: {e}")))?;
+    let tr_sel =
+        Selector::parse("tr").map_err(|e| AkshareError::js(format!("解析行选择器失败: {e}")))?;
+    let td_sel = Selector::parse("td")
+        .map_err(|e| AkshareError::js(format!("解析单元格选择器失败: {e}")))?;
 
     let mut rows: Vec<Vec<String>> = Vec::new();
     if let Some(table) = doc.select(&table_sel).next() {
@@ -697,7 +718,8 @@ pub fn stock_market_activity_legu() -> Result<Df> {
     }
 
     // 追加 metric-activity div 内容
-    let metric_sel = Selector::parse("div.metric-activity").map_err(|e| AkshareError::js(format!("解析 metric-activity 选择器失败: {e}")))?;
+    let metric_sel = Selector::parse("div.metric-activity")
+        .map_err(|e| AkshareError::js(format!("解析 metric-activity 选择器失败: {e}")))?;
     if let Some(div) = doc.select(&metric_sel).next() {
         let text = div.text().collect::<String>();
         let lines: Vec<&str> = text
@@ -715,7 +737,8 @@ pub fn stock_market_activity_legu() -> Result<Df> {
     }
 
     // 追加统计日期
-    let meta_sel = Selector::parse("div.market-activity-meta").map_err(|e| AkshareError::js(format!("解析 market-activity-meta 选择器失败: {e}")))?;
+    let meta_sel = Selector::parse("div.market-activity-meta")
+        .map_err(|e| AkshareError::js(format!("解析 market-activity-meta 选择器失败: {e}")))?;
     if let Some(div) = doc.select(&meta_sel).next() {
         let text = div.text().collect::<String>().trim().to_string();
         if !text.is_empty() {
@@ -794,10 +817,7 @@ mod tests {
                     .iter()
                     .filter_map(|s| s.map(|s| s.to_string()))
                     .collect();
-                assert!(
-                    items.contains(&"统计日期".to_string()),
-                    "应包含统计日期行"
-                );
+                assert!(items.contains(&"统计日期".to_string()), "应包含统计日期行");
             }
             Err(e) => {
                 // 网络不可达时（如 nginx 封禁）允许失败

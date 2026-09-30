@@ -52,10 +52,7 @@ pub fn stock_info_global_cls(_symbol: &str) -> Result<Df> {
 }
 
 fn str_of(v: &Value, key: &str) -> String {
-    v.get(key)
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string()
+    v.get(key).and_then(Value::as_str).unwrap_or("").to_string()
 }
 
 #[cfg(test)]

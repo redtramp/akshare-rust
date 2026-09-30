@@ -6096,9 +6096,7 @@ fn board_name_to_code(name_df: &Df, symbol: &str) -> Result<String> {
 /// `日期, 概念名称, 驱动事件, 龙头股, 成分股数量`
 pub fn stock_board_concept_summary_ths() -> Result<Df> {
     let url_for_page = |page: u32| {
-        format!(
-            "http://q.10jqka.com.cn/gn/index/field/addtime/order/desc/page/{page}/ajax/1/"
-        )
+        format!("http://q.10jqka.com.cn/gn/index/field/addtime/order/desc/page/{page}/ajax/1/")
     };
     let rows = crate::sources::ths::fetch_ths_table_pages(&url_for_page)?;
     if rows.is_empty() {
@@ -6140,16 +6138,24 @@ pub fn stock_board_concept_summary_ths() -> Result<Df> {
 /// `序号, 板块, 涨跌幅, 总成交量, 总成交额, 净流入, 上涨家数, 下跌家数, 均价, 领涨股, 领涨股-最新价, 领涨股-涨跌幅`
 pub fn stock_board_industry_summary_ths() -> Result<Df> {
     let url_for_page = |page: u32| {
-        format!(
-            "http://q.10jqka.com.cn/thshy/index/field/addtime/order/desc/page/{page}/ajax/1/"
-        )
+        format!("http://q.10jqka.com.cn/thshy/index/field/addtime/order/desc/page/{page}/ajax/1/")
     };
     let rows = crate::sources::ths::fetch_ths_table_pages(&url_for_page)?;
     if rows.is_empty() {
         return Df::from_string_rows(
             &[
-                "序号", "板块", "涨跌幅", "总成交量", "总成交额", "净流入", "上涨家数",
-                "下跌家数", "均价", "领涨股", "领涨股-最新价", "领涨股-涨跌幅",
+                "序号",
+                "板块",
+                "涨跌幅",
+                "总成交量",
+                "总成交额",
+                "净流入",
+                "上涨家数",
+                "下跌家数",
+                "均价",
+                "领涨股",
+                "领涨股-最新价",
+                "领涨股-涨跌幅",
             ],
             &[],
         );
@@ -6160,13 +6166,30 @@ pub fn stock_board_industry_summary_ths() -> Result<Df> {
         .collect();
     let mut df = Df::from_string_rows(
         &[
-            "序号", "板块", "涨跌幅", "总成交量", "总成交额", "净流入", "上涨家数",
-            "下跌家数", "均价", "领涨股", "领涨股-最新价", "领涨股-涨跌幅",
+            "序号",
+            "板块",
+            "涨跌幅",
+            "总成交量",
+            "总成交额",
+            "净流入",
+            "上涨家数",
+            "下跌家数",
+            "均价",
+            "领涨股",
+            "领涨股-最新价",
+            "领涨股-涨跌幅",
         ],
         &string_rows,
     )?;
     df.cast_numeric(&[
-        "序号", "总成交量", "总成交额", "净流入", "上涨家数", "下跌家数", "均价", "领涨股-最新价",
+        "序号",
+        "总成交量",
+        "总成交额",
+        "净流入",
+        "上涨家数",
+        "下跌家数",
+        "均价",
+        "领涨股-最新价",
     ])?;
     Ok(df)
 }
@@ -6233,7 +6256,15 @@ fn fetch_ths_board_index(bk_code: &str) -> Result<Df> {
         })
         .collect();
     let mut df = Df::from_string_rows(
-        &["日期", "开盘价", "最高价", "最低价", "收盘价", "成交量", "成交额"],
+        &[
+            "日期",
+            "开盘价",
+            "最高价",
+            "最低价",
+            "收盘价",
+            "成交量",
+            "成交额",
+        ],
         &rows,
     )?;
     df.cast_numeric(&["开盘价", "最高价", "最低价", "收盘价", "成交量", "成交额"])?;
@@ -9932,7 +9963,10 @@ mod tests {
                 assert!(cols.contains(&"概念名称".to_string()), "应包含 概念名称 列");
                 assert!(cols.contains(&"驱动事件".to_string()), "应包含 驱动事件 列");
                 assert!(cols.contains(&"龙头股".to_string()), "应包含 龙头股 列");
-                assert!(cols.contains(&"成分股数量".to_string()), "应包含 成分股数量 列");
+                assert!(
+                    cols.contains(&"成分股数量".to_string()),
+                    "应包含 成分股数量 列"
+                );
                 // 日期列应至少有一行
                 let dates = df.inner().column("日期").unwrap().str().unwrap();
                 assert!(

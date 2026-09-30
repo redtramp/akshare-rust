@@ -741,11 +741,12 @@ pub fn stock_board_change_em() -> Result<Df> {
         "dpt": "wzchanges",
         "pageindex": "0",
         "pagesize": "5000",
-    })).unwrap();
+    }))
+    .unwrap();
     let r = http.get_json(url, &params, None).unwrap();
-    let allbk = r["data"]["allbk"].as_array().ok_or_else(|| {
-        AkshareError::json(url, "allbk not array")
-    })?;
+    let allbk = r["data"]["allbk"]
+        .as_array()
+        .ok_or_else(|| AkshareError::json(url, "allbk not array"))?;
 
     let mut rows = Vec::new();
     for item in allbk {
@@ -835,17 +836,23 @@ pub fn stock_changes_em(symbol: &str) -> Result<Df> {
         "pagesize": "5000",
         "ut": "7eea3edcaed734bea9cbfc24409ed989",
         "dpt": "wzchanges",
-    })).unwrap();
+    }))
+    .unwrap();
     let r = http.get_json(url, &params, None).unwrap();
-    let stocks = r["data"]["allstock"].as_array().ok_or_else(|| {
-        AkshareError::json(url, "allstock not array")
-    })?;
+    let stocks = r["data"]["allstock"]
+        .as_array()
+        .ok_or_else(|| AkshareError::json(url, "allstock not array"))?;
 
     let mut rows = Vec::new();
     for item in stocks {
         let time_str = item["tm"].as_i64().unwrap_or(0).to_string();
         let time = if time_str.len() == 6 {
-            format!("{}:{}:{}", &time_str[0..2], &time_str[2..4], &time_str[4..6])
+            format!(
+                "{}:{}:{}",
+                &time_str[0..2],
+                &time_str[2..4],
+                &time_str[4..6]
+            )
         } else {
             time_str
         };
@@ -8681,8 +8688,7 @@ mod tests_e1 {
 ///
 /// 新浪财经 HTML 表格，5675 行。
 pub fn stock_history_dividend() -> Result<Df> {
-    let url =
-        "https://vip.stock.finance.sina.com.cn/q/go.php/vInvestConsult/kind/lsfh/index.phtml";
+    let url = "https://vip.stock.finance.sina.com.cn/q/go.php/vInvestConsult/kind/lsfh/index.phtml";
     let params = json!({"p": "1", "num": "50000"});
     let http = HttpClient::default();
     let text = http.get_text(url, &params.as_object().cloned().unwrap_or_default(), None)?;
@@ -8715,7 +8721,16 @@ pub fn stock_history_dividend() -> Result<Df> {
     }
 
     let mut df = Df::from_string_rows(
-        &["代码", "名称", "上市日期", "累计股息", "年均股息", "分红次数", "融资总额", "融资次数"],
+        &[
+            "代码",
+            "名称",
+            "上市日期",
+            "累计股息",
+            "年均股息",
+            "分红次数",
+            "融资总额",
+            "融资次数",
+        ],
         &rows,
     )?;
 
@@ -8751,12 +8766,22 @@ pub fn stock_hk_index_spot_em() -> Result<Df> {
 
     // 重命名列
     let old_names: Vec<&str> = vec![
-        "index", "f2", "f3", "f4", "f5", "f6", "f12", "f13", "f14",
-        "f15", "f16", "f17", "f18",
+        "index", "f2", "f3", "f4", "f5", "f6", "f12", "f13", "f14", "f15", "f16", "f17", "f18",
     ];
     let new_names: Vec<&str> = vec![
-        "序号", "最新价", "涨跌幅", "涨跌额", "成交量", "成交额",
-        "代码", "内部编号", "名称", "最高", "最低", "今开", "昨收",
+        "序号",
+        "最新价",
+        "涨跌幅",
+        "涨跌额",
+        "成交量",
+        "成交额",
+        "代码",
+        "内部编号",
+        "名称",
+        "最高",
+        "最低",
+        "今开",
+        "昨收",
     ];
     for (old, new) in old_names.iter().zip(new_names.iter()) {
         if df.column_names().contains(&old.to_string()) {
@@ -8768,15 +8793,33 @@ pub fn stock_hk_index_spot_em() -> Result<Df> {
 
     // 选列并按 akshare 顺序排列
     let select: Vec<&str> = vec![
-        "序号", "内部编号", "代码", "名称", "最新价", "涨跌额", "涨跌幅",
-        "今开", "最高", "最低", "昨收", "成交量", "成交额",
+        "序号",
+        "内部编号",
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "今开",
+        "最高",
+        "最低",
+        "昨收",
+        "成交量",
+        "成交额",
     ];
     df = df.select(&select)?;
 
     // 数值列
     let numeric: Vec<&str> = vec![
-        "最新价", "涨跌额", "涨跌幅", "今开", "最高", "最低", "昨收",
-        "成交量", "成交额",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "今开",
+        "最高",
+        "最低",
+        "昨收",
+        "成交量",
+        "成交额",
     ];
     df.cast_numeric(&numeric)?;
 
@@ -8820,7 +8863,17 @@ pub fn stock_hk_index_spot_sina() -> Result<Df> {
     }
 
     let mut df = Df::from_string_rows(
-        &["代码", "名称", "最新价", "涨跌额", "涨跌幅", "昨收", "今开", "最高", "最低"],
+        &[
+            "代码",
+            "名称",
+            "最新价",
+            "涨跌额",
+            "涨跌幅",
+            "昨收",
+            "今开",
+            "最高",
+            "最低",
+        ],
         &rows,
     )?;
 
@@ -9079,7 +9132,10 @@ pub fn stock_info_cjzc_em() -> Result<Df> {
             .and_then(Value::as_array)
         {
             for item in list {
-                let title = item.get("title").and_then(Value::as_str).map(|s| s.to_string());
+                let title = item
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .map(|s| s.to_string());
                 let summary = item
                     .get("summary")
                     .and_then(Value::as_str)
@@ -9182,10 +9238,8 @@ pub fn stock_hsgt_fund_min_em(symbol: &str) -> Result<Df> {
             }
         }
 
-        let mut df = Df::from_string_rows(
-            &["日期", "时间", "沪股通", "深股通", "北向资金"],
-            &rows,
-        )?;
+        let mut df =
+            Df::from_string_rows(&["日期", "时间", "沪股通", "深股通", "北向资金"], &rows)?;
         df.cast_numeric(&["沪股通", "深股通", "北向资金"])?;
         Ok(df)
     }
@@ -9287,14 +9341,8 @@ pub fn stock_hot_up_em() -> Result<Df> {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let rank = item
-            .get("rk")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
-        let change = item
-            .get("hrc")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        let rank = item.get("rk").and_then(|v| v.as_i64()).unwrap_or(0);
+        let change = item.get("hrc").and_then(|v| v.as_i64()).unwrap_or(0);
         let mark = if code.contains("SZ") {
             format!("0.{}", &code[2..])
         } else {
@@ -9398,13 +9446,7 @@ pub fn stock_hot_up_em() -> Result<Df> {
         ],
         &rows,
     )?;
-    df.cast_numeric(&[
-        "排名较昨日变动",
-        "当前排名",
-        "最新价",
-        "涨跌额",
-        "涨跌幅",
-    ])?;
+    df.cast_numeric(&["排名较昨日变动", "当前排名", "最新价", "涨跌额", "涨跌幅"])?;
     Ok(df)
 }
 
@@ -9442,21 +9484,15 @@ pub fn stock_history_dividend_detail(symbol: &str, indicator: &str, date: &str) 
                 .get("ANNOUNCE_DATE")
                 .and_then(Value::as_str)
                 .map(|s| s[..10].to_string());
-            let send_stock = item.get("SEND_STOCK").map(|v| {
-                v.as_f64()
-                    .map(|f| format!("{:.2}", f))
-                    .unwrap_or_default()
-            });
-            let transfer_stock = item.get("TRANSFER_STOCK").map(|v| {
-                v.as_f64()
-                    .map(|f| format!("{:.2}", f))
-                    .unwrap_or_default()
-            });
-            let dividend = item.get("DIVIDEND").map(|v| {
-                v.as_f64()
-                    .map(|f| format!("{:.2}", f))
-                    .unwrap_or_default()
-            });
+            let send_stock = item
+                .get("SEND_STOCK")
+                .map(|v| v.as_f64().map(|f| format!("{:.2}", f)).unwrap_or_default());
+            let transfer_stock = item
+                .get("TRANSFER_STOCK")
+                .map(|v| v.as_f64().map(|f| format!("{:.2}", f)).unwrap_or_default());
+            let dividend = item
+                .get("DIVIDEND")
+                .map(|v| v.as_f64().map(|f| format!("{:.2}", f)).unwrap_or_default());
             let progress = item
                 .get("PROGRESS")
                 .and_then(Value::as_str)
@@ -9508,10 +9544,7 @@ pub fn stock_history_dividend_detail(symbol: &str, indicator: &str, date: &str) 
 /// `序号, 股票代码, 股票简称, 一致行动人, 股东排名, 持股数量, 持股比例, 持股数量变动, 行业, 公告日期`
 pub fn stock_yzxdr_em(date: &str) -> Result<Df> {
     // 格式化日期：`20240930` → `2024-09-30`
-    let date_fmt = format!(
-        "{}-{}-{}",
-        &date[0..4], &date[4..6], &date[6..]
-    );
+    let date_fmt = format!("{}-{}-{}", &date[0..4], &date[4..6], &date[6..]);
     let url = "https://datacenter.eastmoney.com/api/data/get";
     let params = json!({
         "type": "RPTA_WEB_YZXDRINDEX",
