@@ -163,6 +163,13 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("index_option_1000index_min_qvix", [], "loose", "中证1000指数期权波动率指数-分时"),
     ("index_option_50index_qvix", [], "loose", "上证50指数期权波动率指数"),
     ("index_option_50index_min_qvix", [], "loose", "上证50指数期权波动率指数-分时"),
+    # 申万行业分类（乐咕乐股）：需带浏览器 UA（无 UA 会被 nginx 403）。
+    ("sw_index_first_info", [], "loose", "申万一级行业分类"),
+    ("sw_index_second_info", [], "loose", "申万二级行业分类"),
+    ("sw_index_third_info", [], "loose", "申万三级行业分类"),
+    # sw_index_third_cons：页面现有 20 列，akshare 硬编码 17 列重命名会抛 ValueError
+    # （上游 bug），Python 侧无法生成 golden；Rust 按 akshare 声明的 17 列契约实现（截断多余列），
+    # 故不注册 parity。
     ("fund_etf_spot_em", [], "loose", "ETF实时行情"),
     ("fund_etf_hist_min_em", ["159707", "1979-09-01 09:32:00", "2222-01-01 09:32:00", "5", ""], "loose", "ETF分钟行情"),
     ("fund_lof_hist_em", ["166009", "daily", "19700101", "20500101", ""], "loose", "LOF历史行情"),

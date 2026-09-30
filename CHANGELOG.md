@@ -4,6 +4,27 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-09-30] 批次 91 · index 申万行业分类 4 个函数
+
+- **新增公开函数**：**869 → 873**（净 +4）。乐咕乐股-申万行业分类（对应 akshare `index/index_sw.py`）：
+  - `sw_index_first_info`（申万一级，7 列，31 行）
+  - `sw_index_second_info`（申万二级，8 列，131 行）
+  - `sw_index_third_info`（申万三级，8 列，335 行）
+  - `sw_index_third_cons`（申万三级行业成份，17 列；`symbol` 如 `"801120.SI"`）
+- **实现要点**：`#level1/2/3Items` 容器分别取 `.lg-industries-item-chinese-title`（行业代码）、
+  `.lg-industries-item-number`（名称 + 成份个数 + 内层 span 的上级行业）、
+  `.lg-sw-industries-item-value` 内 4 个 `span.value`（静态/TTM 市盈率、市净率、静态股息率）。
+  上级行业对应 akshare `span文本.split("(")[0][1:-1]`（页面为 `[种植业]` → `种植业`），新增纯函数 `legu_parent` 复刻该语义。
+- **关键点**：乐咕乐股需带浏览器 UA，否则 nginx 返回 403（README 原「legulegu 403」结论只对无 UA 请求成立）；
+  本次实测带 UA 可正常访问，故已做真实 parity 对账。高频请求会被 429 限流（瞬态）。
+- **实现覆盖率**：**≈ 80.8%**（873 / 1080 公开 API）；index 大类 **78.7% → 83.0%**（74 → 78 / 94）。
+- **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib` 全绿；新增括号解析纯函数离线单测。
+- **parity 验证**：`sw_index_first_info` / `sw_index_second_info` 列名/行数/前两行值与 Python **逐项一致**；
+  `sw_index_third_info` **PASS**（8 列 × 335 行，高频请求下偶发 429）。
+  `sw_index_third_cons` 上游页面现有 20 列而 akshare 硬编码 17 列重命名会抛 `ValueError`（上游 bug），
+  Python 侧无法生成 golden；Rust 按 akshare 声明的 17 列契约实现（截断多余列），不注册 parity。
+- **parity 注册**：4 个新函数已注册至 `src/bin/parity.rs` 与 `tools/parity_runner.py`（三级成份仅登记不参与 golden）。
+
 ## [2026-09-30] 批次 90 · energy 碳排放 4 个函数（energy → 100%）
 
 - **新增公开函数**：**865 → 869**（净 +4）。补齐 akshare `energy/energy_carbon.py` 剩余 4 个函数：

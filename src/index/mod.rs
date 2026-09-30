@@ -10,6 +10,7 @@ use crate::sources::eastmoney::{
     fetch_clist, fetch_kline, fetch_kline_min, fetch_trends, json_value_to_string, kline_to_df,
     min_kline_to_df, push2_urls, KLINE_COLS,
 };
+use scraper::{Html, Selector};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -2383,6 +2384,248 @@ pub fn index_option_50index_min_qvix() -> Result<Df> {
     qvix_min_df("http://1.optbbs.com/d/csv/d/vix50index.csv")
 }
 
+// === BATCH91 乐咕乐股-申万行业分类（`index_sw.py`）===
+//
+// 对应 akshare `index/index_sw.py` 的 `sw_index_first_info` / `sw_index_second_info` /
+// `sw_index_third_info` / `sw_index_third_cons`。前三个解析 `sw-industry-overview`
+// 页面中 `#level{1,2,3}Items` 容器（行业代码/名称/成份个数/4 个估值 span）；最后
+// 一个解析 `index-composition` 页首张表（17 列）。
+//
+// 注：legulegu 当前对本机 IP 返回 403（nginx 封禁，与 README 已知限制一致），
+// 与 akshare 同样失败；已按 akshare 原逻辑实现，待环境恢复后可对账。
+
+const LEGU_UA: &[(&str, &str)] = &[(
+    "user-agent",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+)];
+const SW_OVERVIEW_URL: &str = "https://legulegu.com/stockdata/sw-industry-overview";
+
+/// 纯函数：取首个括号内的内容（兼容半角/全角括号）。
+fn paren_inner(s: &str) -> Option<String> {
+    let (i, ch) = s.char_indices().find(|(_, c)| *c == '(' || *c == '（')?;
+    let rest = &s[i + ch.len_utf8()..];
+    let end = rest.find([')', '）']).unwrap_or(rest.len());
+    let inner = rest[..end].trim();
+    if inner.is_empty() {
+        None
+    } else {
+        Some(inner.to_string())
+    }
+}
+
+/// 纯函数：取括号前的前缀。
+fn paren_prefix(s: &str) -> String {
+    match s.char_indices().find(|(_, c)| *c == '(' || *c == '（') {
+        Some((i, _)) => s[..i].trim().to_string(),
+        None => s.trim().to_string(),
+    }
+}
+
+/// 纯函数：解析申万分类「上级行业」。
+///
+/// 对应 akshare `item.find("span").get_text().split("(")[0][1:-1]`：
+/// 页面中 span 文本形如 `[种植业]`，先按 `(` 截断再丢弃首尾字符。
+fn legu_parent(raw: &str) -> Option<String> {
+    let head = raw.split('(').next().unwrap_or("").trim();
+    let chars: Vec<char> = head.chars().collect();
+    if chars.len() < 2 {
+        return None;
+    }
+    let inner: String = chars[1..chars.len() - 1].iter().collect();
+    let inner = inner.trim().to_string();
+    if inner.is_empty() {
+        None
+    } else {
+        Some(inner)
+    }
+}
+
+/// 选择器取文本列表。
+fn select_texts(doc: &Html, selector: &str) -> Result<Vec<String>> {
+    let sel = Selector::parse(selector)
+        .map_err(|e| AkshareError::Empty(format!("选择器解析失败（{selector}）: {e}")))?;
+    Ok(doc
+        .select(&sel)
+        .map(|n| n.text().collect::<String>().trim().to_string())
+        .collect())
+}
+
+/// 乐咕乐股-申万行业分类公共实现（`level1` / `level2` / `level3`）。
+fn sw_level_info(level_id: &str, with_parent: bool) -> Result<Df> {
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(SW_OVERVIEW_URL, &Map::new(), LEGU_UA, None)?;
+    let doc = Html::parse_document(&text);
+    let codes = select_texts(
+        &doc,
+        &format!("#{level_id} .lg-industries-item-chinese-title"),
+    )?;
+    let names_raw = select_texts(&doc, &format!("#{level_id} .lg-industries-item-number"))?;
+    let value_nodes = select_texts(&doc, &format!("#{level_id} .lg-sw-industries-item-value"))?;
+    // 每个 value 节点内含 4 个 span.value
+    let span_sel = Selector::parse("span.value")
+        .map_err(|e| AkshareError::Empty(format!("选择器解析失败: {e}")))?;
+    let value_sel = Selector::parse(&format!("#{level_id} .lg-sw-industries-item-value"))
+        .map_err(|e| AkshareError::Empty(format!("选择器解析失败: {e}")))?;
+    let values: Vec<Vec<String>> = doc
+        .select(&value_sel)
+        .map(|node| {
+            node.select(&span_sel)
+                .map(|s| s.text().collect::<String>().trim().to_string())
+                .collect()
+        })
+        .collect();
+    // 上级行业：取 number 节点内首个 span 文本
+    let parent_raw: Vec<String> = if with_parent {
+        let name_sel = Selector::parse(&format!("#{level_id} .lg-industries-item-number"))
+            .map_err(|e| AkshareError::Empty(format!("选择器解析失败: {e}")))?;
+        let inner_sel = Selector::parse("span")
+            .map_err(|e| AkshareError::Empty(format!("选择器解析失败: {e}")))?;
+        doc.select(&name_sel)
+            .map(|n| {
+                n.select(&inner_sel)
+                    .next()
+                    .map(|s| s.text().collect::<String>().trim().to_string())
+                    .unwrap_or_default()
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let _ = value_nodes;
+
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    let n = codes.len().max(names_raw.len());
+    for i in 0..n {
+        let name_full = names_raw.get(i).cloned().unwrap_or_default();
+        let vals = values.get(i).cloned().unwrap_or_default();
+        let g = |k: usize| vals.get(k).filter(|s| !s.is_empty()).cloned();
+        let mut row: Vec<Option<String>> = vec![
+            codes.get(i).cloned().filter(|s| !s.is_empty()),
+            Some(paren_prefix(&name_full)),
+        ];
+        if with_parent {
+            let raw = parent_raw.get(i).cloned().unwrap_or_default();
+            row.push(legu_parent(&raw));
+        }
+        row.push(paren_inner(&name_full));
+        row.push(g(0));
+        row.push(g(1));
+        row.push(g(2));
+        row.push(g(3));
+        rows.push(row);
+    }
+
+    let mut cols: Vec<&str> = vec!["行业代码", "行业名称"];
+    if with_parent {
+        cols.push("上级行业");
+    }
+    cols.extend([
+        "成份个数",
+        "静态市盈率",
+        "TTM(滚动)市盈率",
+        "市净率",
+        "静态股息率",
+    ]);
+    let mut df = Df::from_string_rows(&cols, &rows)?;
+    df.cast_numeric(&[
+        "成份个数",
+        "静态市盈率",
+        "TTM(滚动)市盈率",
+        "市净率",
+        "静态股息率",
+    ])?;
+    Ok(df)
+}
+
+/// 乐咕乐股-申万一级行业分类（对应 akshare [`akshare.sw_index_first_info`]）。
+///
+/// # 返回列
+/// `行业代码, 行业名称, 成份个数, 静态市盈率, TTM(滚动)市盈率, 市净率, 静态股息率`
+pub fn sw_index_first_info() -> Result<Df> {
+    sw_level_info("level1Items", false)
+}
+
+/// 乐咕乐股-申万二级行业分类（对应 akshare [`akshare.sw_index_second_info`]）。
+///
+/// # 返回列
+/// `行业代码, 行业名称, 上级行业, 成份个数, 静态市盈率, TTM(滚动)市盈率, 市净率, 静态股息率`
+pub fn sw_index_second_info() -> Result<Df> {
+    sw_level_info("level2Items", true)
+}
+
+/// 乐咕乐股-申万三级行业分类（对应 akshare [`akshare.sw_index_third_info`]）。
+///
+/// # 返回列
+/// `行业代码, 行业名称, 上级行业, 成份个数, 静态市盈率, TTM(滚动)市盈率, 市净率, 静态股息率`
+pub fn sw_index_third_info() -> Result<Df> {
+    sw_level_info("level3Items", true)
+}
+
+/// 乐咕乐股-申万三级行业成份（对应 akshare [`akshare.sw_index_third_cons`]）。
+///
+/// - `symbol`: 三级行业代码，如 `"801120.SI"`
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 纳入时间, 申万1级, 申万2级, 申万3级, 价格, 市盈率,
+/// 市盈率ttm, 市净率, 股息率, 市值, 归母净利润同比增长(09-30), 归母净利润同比增长(06-30),
+/// 营业收入同比增长(09-30), 营业收入同比增长(06-30)`
+pub fn sw_index_third_cons(symbol: &str) -> Result<Df> {
+    let url = format!("https://legulegu.com/stockdata/index-composition?industryCode={symbol}");
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(&url, &Map::new(), LEGU_UA, None)?;
+    let tables = crate::core::html::read_html_tables(&text)?;
+    let table = tables
+        .first()
+        .ok_or_else(|| AkshareError::Empty("申万行业成份页面缺少表格".into()))?;
+    let mut rows: Vec<Vec<Option<String>>> = table
+        .iter()
+        .skip(1)
+        .map(|r| r.iter().map(|c| Some(c.clone())).collect())
+        .collect();
+    let cols = [
+        "序号",
+        "股票代码",
+        "股票简称",
+        "纳入时间",
+        "申万1级",
+        "申万2级",
+        "申万3级",
+        "价格",
+        "市盈率",
+        "市盈率ttm",
+        "市净率",
+        "股息率",
+        "市值",
+        "归母净利润同比增长(09-30)",
+        "归母净利润同比增长(06-30)",
+        "营业收入同比增长(09-30)",
+        "营业收入同比增长(06-30)",
+    ];
+    // 补齐列数（缺失单元格以 None 填充）
+    for r in rows.iter_mut() {
+        r.resize(cols.len(), None);
+        r.truncate(cols.len());
+    }
+    let numeric = ["价格", "市盈率", "市盈率ttm", "市净率", "股息率", "市值"];
+    let pct = [
+        "股息率",
+        "归母净利润同比增长(09-30)",
+        "归母净利润同比增长(06-30)",
+        "营业收入同比增长(09-30)",
+        "营业收入同比增长(06-30)",
+    ];
+    let mut df = Df::from_string_rows(&cols, &rows)?;
+    df.strip_suffix(&pct, "%")?;
+    df.cast_numeric(&numeric)?;
+    df.cast_numeric(&[
+        "归母净利润同比增长(09-30)",
+        "归母净利润同比增长(06-30)",
+        "营业收入同比增长(09-30)",
+        "营业收入同比增长(06-30)",
+    ])?;
+    Ok(df)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2443,6 +2686,17 @@ mod tests {
                 eprintln!("index_option_100etf_min_qvix 网络错误: {e}");
             }
         }
+    }
+
+    #[test]
+    fn paren_helpers_handle_half_and_full_width() {
+        assert_eq!(paren_inner("银行(42)").as_deref(), Some("42"));
+        assert_eq!(paren_inner("银行（42）").as_deref(), Some("42"));
+        assert_eq!(paren_prefix("银行(42)"), "银行");
+        assert_eq!(paren_prefix("银行"), "银行");
+        assert_eq!(legu_parent("[种植业]").as_deref(), Some("种植业"));
+        assert_eq!(legu_parent("[种植业](x)").as_deref(), Some("种植业"));
+        assert_eq!(legu_parent("银"), None);
     }
 
     #[test]

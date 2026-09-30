@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## Implemented Interfaces
 
-> As of now, a total of **869** data interfaces are implemented, covering **20 / 35** functional categories, with an overall coverage of **≈ 80.5%**
+> As of now, a total of **873** data interfaces are implemented, covering **20 / 35** functional categories, with an overall coverage of **≈ 80.8%**
 > (benchmarked against the **1080** identically-named public functions in akshare **1.18.83**; earlier docs used a 1131 baseline).
 > All interfaces align with the identically-named Python akshare functions (column names / column order / values verified differentially item by item).
 
@@ -42,7 +42,7 @@ println!("{}", df);
 | economic | 222 | 225 | 98.7% |
 | stock_feature | 168 | 208 | 80.8% |
 | stock | 122 | 125 | 97.6% |
-| index | 74 | 94 | 78.7% |
+| index | 78 | 94 | 83.0% |
 | fund | 58 | 88 | 65.9% |
 | futures | 45 | 69 | 65.2% |
 | stock_fundamental | 43 | 57 | 75.4% |
@@ -118,6 +118,7 @@ println!("{}", df);
 | `index_zh_a_hist` / `index_zh_a_hist_min_em` / `index_code_id_map_em` | `ak.index_*` | A-share index K-line / minute line / code mapping |
 | `index_all_cni` / `index_hist_cni` / `index_detail_cni` / `index_detail_hist_cni` / `index_detail_hist_adjust_cni` | `ak.index_*_cni` | CSI index list / history / details |
 | `index_hist_sw` / `index_min_sw` / `index_realtime_sw` / `index_analysis_*_sw` / `index_component_sw` / `index_hist_fund_sw` | `ak.index_*_sw` | SW (Shenwan Hongyuan) index |
+| `sw_index_first_info` / `sw_index_second_info` / `sw_index_third_info` / `sw_index_third_cons` | `ak.sw_index_*` | Legulegu SW level-1/2/3 industry classification & constituents |
 | `index_pmi_*_cx` / `index_dei_cx` / `index_ii_cx` / `index_si_cx` etc. (19 total) | `ak.index_*_cx` | Caixin PMI / composite index (19 types) |
 | `index_price_cflp` / `index_volume_cflp` | `ak.index_price_*` / `ak.index_volume_*` | CFLP freight rate / volume index |
 | `index_sugar_msweet` / `index_inner_quote_sugar_msweet` / `index_outer_quote_sugar_msweet` | `ak.index_*_sugar_msweet` | MuTian sugar index |

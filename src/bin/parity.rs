@@ -392,6 +392,10 @@ use akshare_rust::index::{
     index_volume_cflp,
     index_zh_a_hist,
     index_zh_a_hist_min_em,
+    sw_index_first_info,
+    sw_index_second_info,
+    sw_index_third_cons,
+    sw_index_third_info,
 };
 use akshare_rust::interest_rate::rate_interbank;
 use akshare_rust::legu::{
@@ -960,6 +964,13 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "index_option_1000index_min_qvix" => Ok(index_option_1000index_min_qvix()?),
         "index_option_50index_qvix" => Ok(index_option_50index_qvix()?),
         "index_option_50index_min_qvix" => Ok(index_option_50index_min_qvix()?),
+        "sw_index_first_info" => Ok(sw_index_first_info()?),
+        "sw_index_second_info" => Ok(sw_index_second_info()?),
+        "sw_index_third_info" => Ok(sw_index_third_info()?),
+        "sw_index_third_cons" => {
+            let [s] = take1(func, args)?;
+            Ok(sw_index_third_cons(s)?)
+        }
         "index_all_cni" => Ok(index_all_cni()?),
         "index_hist_cni" => {
             let [s, d0, d1] = take3(func, args)?;

@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 **869** 个数据接口，覆盖 **20 / 35** 个功能大类、整体覆盖率 **≈ 80.5%**
+> 截至当前共 **873** 个数据接口，覆盖 **20 / 35** 个功能大类、整体覆盖率 **≈ 80.8%**
 > （对标 akshare **1.18.83** 公开 API 共 **1080** 个同名函数；早期文档按 1131 口径统计）。
 > 全部接口与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
@@ -42,7 +42,7 @@ println!("{}", df);
 | economic | 222 | 225 | 98.7% |
 | stock_feature | 168 | 208 | 80.8% |
 | stock | 122 | 125 | 97.6% |
-| index | 74 | 94 | 78.7% |
+| index | 78 | 94 | 83.0% |
 | fund | 58 | 88 | 65.9% |
 | futures | 45 | 69 | 65.2% |
 | stock_fundamental | 43 | 57 | 75.4% |
@@ -133,6 +133,7 @@ println!("{}", df);
 | `index_zh_a_hist` / `index_zh_a_hist_min_em` / `index_code_id_map_em` | `ak.index_*` | A 股指数 K 线/分钟线/代码映射 |
 | `index_all_cni` / `index_hist_cni` / `index_detail_cni` / `index_detail_hist_cni` / `index_detail_hist_adjust_cni` | `ak.index_*_cni` | 国证指数列表/历史/详情 |
 | `index_hist_sw` / `index_min_sw` / `index_realtime_sw` / `index_analysis_*_sw` / `index_component_sw` / `index_hist_fund_sw` | `ak.index_*_sw` | 申万宏源指数（实时/分钟/分析/成分/基金） |
+| `sw_index_first_info` / `sw_index_second_info` / `sw_index_third_info` / `sw_index_third_cons` | `ak.sw_index_*` | 乐咕-申万一/二/三级行业分类与成份 |
 | `index_pmi_*_cx` / `index_dei_cx` / `index_ii_cx` / `index_si_cx` 等 19 个 | `ak.index_*_cx` | 财新 PMI/综合指数（19 类） |
 | `index_price_cflp` / `index_volume_cflp` | `ak.index_price_*` / `ak.index_volume_*` | 公路物流运价/运量指数 |
 | `index_sugar_msweet` / `index_inner_quote_sugar_msweet` / `index_outer_quote_sugar_msweet` | `ak.index_*_sugar_msweet` | 沐甜食糖指数 |
