@@ -2104,7 +2104,9 @@ pub fn index_us_stock_sina(symbol: &str) -> Result<Df> {
         .iter()
         .find(|(k, _)| *k == symbol)
         .map(|(_, v)| *v)
-        .ok_or_else(|| AkshareError::Param(format!("symbol 应为 .IXIC/.DJI/.INX/.NDX，收到: {symbol}")))?;
+        .ok_or_else(|| {
+            AkshareError::Param(format!("symbol 应为 .IXIC/.DJI/.INX/.NDX，收到: {symbol}"))
+        })?;
 
     let url = format!("https://finance.sina.com.cn/staticdata/us/{code}");
     let http = HttpClient::default();
@@ -2158,23 +2160,52 @@ pub fn index_us_stock_sina(symbol: &str) -> Result<Df> {
     Ok(df)
 }
 
-/// 深证100ETF 期权波动率指数 QVIX（对应 akshare [`akshare.index_option_100etf_qvix`]）。
-///
-/// # 返回列
-/// `date, open, high, low, close`
-pub fn index_option_100etf_qvix() -> Result<Df> {
-    index_qvix_impl("100ETF")
+// === BATCH89 期权波动率指数 QVIX（optbbs `1.optbbs.com`）===
+//
+// 对应 akshare `index/index_option_qvix.py`。日线统一读取 `d/csv/d/k.csv`
+// （gbk；对应 `__get_optbbs_daily`，带 lru_cache），按列索引取
+// `date,open,high,low,close`；分时各自读取 `d/csv/d/vix*.csv` 前两列
+// （`time,qvix`）。原始文本解析抽为纯函数以便离线单测。
+
+/// QVIX 日线原始 CSV 文本缓存（对应 akshare `__get_optbbs_daily` 的 `lru_cache`）。
+static QVIX_DAILY_TEXT: OnceLock<String> = OnceLock::new();
+
+/// 读取 optbbs QVIX 日线原始数据（`k.csv`，gbk），进程内缓存一次。
+fn qvix_daily_text() -> Result<&'static str> {
+    if let Some(text) = QVIX_DAILY_TEXT.get() {
+        return Ok(text.as_str());
+    }
+    let http = HttpClient::default();
+    let text = http.get_text("http://1.optbbs.com/d/csv/d/k.csv", &Map::new(), None)?;
+    let _ = QVIX_DAILY_TEXT.set(text);
+    QVIX_DAILY_TEXT
+        .get()
+        .map(String::as_str)
+        .ok_or_else(|| AkshareError::empty("QVIX 日线缓存初始化失败"))
 }
 
-/// 深证100ETF 期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_100etf_min_qvix`]）。
+/// 纯函数：按 `cols`（`open/high/low/close` 在 `k.csv` 中的列索引）解析日线文本。
 ///
-/// # 返回列
-/// `time, qvix`
-pub fn index_option_100etf_min_qvix() -> Result<Df> {
-    let url = "http://1.optbbs.com/d/csv/d/vix100.csv";
-    let http = HttpClient::default();
-    let text = http.get_text(url, &Map::new(), None)?;
+/// 跳过表头；列数不足的行丢弃。返回每行 `[date, open, high, low, close]`。
+fn qvix_daily_rows(text: &str, cols: [usize; 4]) -> Vec<Vec<Option<String>>> {
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for line in text.lines().skip(1) {
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() > cols[3] {
+            rows.push(vec![
+                Some(parts[0].trim().to_string()),
+                Some(parts[cols[0]].trim().to_string()),
+                Some(parts[cols[1]].trim().to_string()),
+                Some(parts[cols[2]].trim().to_string()),
+                Some(parts[cols[3]].trim().to_string()),
+            ]);
+        }
+    }
+    rows
+}
 
+/// 纯函数：解析分时文本前两列为 `[time, qvix]`。
+fn qvix_min_rows(text: &str) -> Vec<Vec<Option<String>>> {
     let mut rows: Vec<Vec<Option<String>>> = Vec::new();
     for line in text.lines().skip(1) {
         let parts: Vec<&str> = line.split(',').collect();
@@ -2185,34 +2216,171 @@ pub fn index_option_100etf_min_qvix() -> Result<Df> {
             ]);
         }
     }
-
-    Df::from_string_rows(&["time", "qvix"], &rows)
+    rows
 }
 
-/// QVIX 指数公共实现（对应 akshare `__get_optbbs_daily`）。
-fn index_qvix_impl(symbol: &str) -> Result<Df> {
-    let csv_url = format!("http://1.optbbs.com/d/csv/d/vix_{symbol}.csv");
-    let http = HttpClient::default();
-    let text = http.get_text(&csv_url, &Map::new(), None)?;
-
-    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
-    for line in text.lines().skip(1) {
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() >= 5 {
-            rows.push(vec![
-                Some(parts[0].trim().to_string()),
-                Some(parts[75].trim().to_string()),
-                Some(parts[76].trim().to_string()),
-                Some(parts[77].trim().to_string()),
-                Some(parts[78].trim().to_string()),
-            ]);
-        }
-    }
-
+/// QVIX 日线公共实现（读取 `k.csv` 后按列索引取值并数值化 OHLC）。
+fn qvix_daily_df(cols: [usize; 4]) -> Result<Df> {
+    let text = qvix_daily_text()?;
+    let rows = qvix_daily_rows(text, cols);
     let mut df = Df::from_string_rows(&["date", "open", "high", "low", "close"], &rows)?;
     df.cast_date(&["date"])?;
     df.cast_numeric(&["open", "high", "low", "close"])?;
     Ok(df)
+}
+
+/// QVIX 分时公共实现（读取 `vix*.csv` 前两列并数值化 `qvix`）。
+fn qvix_min_df(url: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let text = http.get_text(url, &Map::new(), None)?;
+    let rows = qvix_min_rows(&text);
+    let mut df = Df::from_string_rows(&["time", "qvix"], &rows)?;
+    df.cast_numeric(&["qvix"])?;
+    Ok(df)
+}
+
+/// 50ETF 期权波动率指数 QVIX（对应 akshare [`akshare.index_option_50etf_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_50etf_qvix() -> Result<Df> {
+    qvix_daily_df([1, 2, 3, 4])
+}
+
+/// 300ETF 期权波动率指数 QVIX（对应 akshare [`akshare.index_option_300etf_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_300etf_qvix() -> Result<Df> {
+    qvix_daily_df([9, 10, 11, 12])
+}
+
+/// 500ETF 期权波动率指数 QVIX（对应 akshare [`akshare.index_option_500etf_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_500etf_qvix() -> Result<Df> {
+    qvix_daily_df([67, 68, 69, 70])
+}
+
+/// 创业板 ETF 期权波动率指数 QVIX（对应 akshare [`akshare.index_option_cyb_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_cyb_qvix() -> Result<Df> {
+    qvix_daily_df([71, 72, 73, 74])
+}
+
+/// 科创板 ETF 期权波动率指数 QVIX（对应 akshare [`akshare.index_option_kcb_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_kcb_qvix() -> Result<Df> {
+    qvix_daily_df([83, 84, 85, 86])
+}
+
+/// 深证100ETF 期权波动率指数 QVIX（对应 akshare [`akshare.index_option_100etf_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_100etf_qvix() -> Result<Df> {
+    qvix_daily_df([75, 76, 77, 78])
+}
+
+/// 沪深300指数期权波动率指数 QVIX（对应 akshare [`akshare.index_option_300index_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_300index_qvix() -> Result<Df> {
+    qvix_daily_df([17, 18, 19, 20])
+}
+
+/// 中证1000指数期权波动率指数 QVIX（对应 akshare [`akshare.index_option_1000index_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_1000index_qvix() -> Result<Df> {
+    qvix_daily_df([25, 26, 27, 28])
+}
+
+/// 上证50指数期权波动率指数 QVIX（对应 akshare [`akshare.index_option_50index_qvix`]）。
+///
+/// # 返回列
+/// `date, open, high, low, close`
+pub fn index_option_50index_qvix() -> Result<Df> {
+    qvix_daily_df([79, 80, 81, 82])
+}
+
+/// 50ETF 期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_50etf_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_50etf_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vix50.csv")
+}
+
+/// 300ETF 期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_300etf_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_300etf_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vix300.csv")
+}
+
+/// 500ETF 期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_500etf_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_500etf_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vix500.csv")
+}
+
+/// 创业板 ETF 期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_cyb_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_cyb_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vixcyb.csv")
+}
+
+/// 科创板 ETF 期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_kcb_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_kcb_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vixkcb.csv")
+}
+
+/// 深证100ETF 期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_100etf_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_100etf_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vix100.csv")
+}
+
+/// 沪深300指数期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_300index_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_300index_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vixindex.csv")
+}
+
+/// 中证1000指数期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_1000index_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_1000index_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vixindex1000.csv")
+}
+
+/// 上证50指数期权波动率指数 QVIX-分时（对应 akshare [`akshare.index_option_50index_min_qvix`]）。
+///
+/// # 返回列
+/// `time, qvix`
+pub fn index_option_50index_min_qvix() -> Result<Df> {
+    qvix_min_df("http://1.optbbs.com/d/csv/d/vix50index.csv")
 }
 
 #[cfg(test)]
@@ -2273,6 +2441,97 @@ mod tests {
             }
             Err(e) => {
                 eprintln!("index_option_100etf_min_qvix 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn qvix_daily_rows_maps_columns() {
+        // 离线单测：k.csv 列索引映射（date + open/high/low/close）
+        let text = "date,c1,c2,c3,c4,c5\n2024-01-02,a,b,c,d,e\n2024-01-03,1,2,3,4,5\n";
+        let rows = qvix_daily_rows(text, [1, 2, 3, 4]);
+        assert_eq!(rows.len(), 2, "应解析出 2 行");
+        assert_eq!(rows[0][0].as_deref(), Some("2024-01-02"));
+        assert_eq!(rows[0][1].as_deref(), Some("a"));
+        assert_eq!(rows[0][4].as_deref(), Some("d"));
+        // 偏移列映射（模拟 k.csv 中不同品种的列区间）
+        let rows2 = qvix_daily_rows(text, [2, 3, 4, 5]);
+        assert_eq!(rows2[0][1].as_deref(), Some("b"));
+        assert_eq!(rows2[0][4].as_deref(), Some("e"));
+    }
+
+    #[test]
+    fn qvix_daily_rows_skips_short_lines() {
+        // 离线单测：列数不足的行应被丢弃（避免越界）
+        let text = "date,c1,c2,c3,c4\n2024-01-02,1\n";
+        let rows = qvix_daily_rows(text, [1, 2, 3, 4]);
+        assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn qvix_min_rows_reads_first_two_cols() {
+        // 离线单测：分时文本取前两列为 time/qvix
+        let text = "time,qvix,extra\n09:30,15.12,x\n09:31,15.20,y\n";
+        let rows = qvix_min_rows(text);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0][0].as_deref(), Some("09:30"));
+        assert_eq!(rows[0][1].as_deref(), Some("15.12"));
+    }
+
+    #[test]
+    fn index_ai_cx_columns() {
+        // 离线单测：财新AI策略指数列契约
+        let df = index_ai_cx();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"日期".to_string()), "应包含 日期 列");
+                assert!(
+                    cols.contains(&"AI策略指数".to_string()),
+                    "应包含 AI策略指数 列"
+                );
+                assert!(cols.contains(&"变化幅度".to_string()), "应包含 变化幅度 列");
+            }
+            Err(e) => {
+                eprintln!("index_ai_cx 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn index_cci_cx_columns() {
+        // 离线单测：财新大宗商品指数列契约
+        let df = index_cci_cx();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"日期".to_string()), "应包含 日期 列");
+                assert!(
+                    cols.contains(&"大宗商品指数".to_string()),
+                    "应包含 大宗商品指数 列"
+                );
+            }
+            Err(e) => {
+                eprintln!("index_cci_cx 网络错误: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn index_ci_cx_columns() {
+        // 离线单测：财新资本投入指数列契约
+        let df = index_ci_cx();
+        match df {
+            Ok(df) => {
+                let cols = df.column_names();
+                assert!(cols.contains(&"日期".to_string()), "应包含 日期 列");
+                assert!(
+                    cols.contains(&"资本投入指数".to_string()),
+                    "应包含 资本投入指数 列"
+                );
+            }
+            Err(e) => {
+                eprintln!("index_ci_cx 网络错误: {e}");
             }
         }
     }

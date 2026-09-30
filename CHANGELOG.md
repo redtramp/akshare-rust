@@ -4,6 +4,34 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-09-30] 批次 89 · index 期权波动率指数 QVIX 系列 16 个函数
+
+- **新增公开函数**：**849 → 865**（净 +16）。optbbs（`1.optbbs.com`）QVIX 波动率指数全家族落地
+  （对应 akshare `index/index_option_qvix.py`）：
+  - **日线**（统一读取 `d/csv/d/k.csv`，按品种列区间取值）：`index_option_50etf_qvix`（列 1-4）、
+    `index_option_300etf_qvix`（9-12）、`index_option_500etf_qvix`（67-70）、`index_option_cyb_qvix`（71-74）、
+    `index_option_kcb_qvix`（83-86）、`index_option_100etf_qvix`（75-78）、`index_option_300index_qvix`（17-20）、
+    `index_option_1000index_qvix`（25-28）、`index_option_50index_qvix`（79-82）
+  - **分时**（各自读取 `d/csv/d/vix*.csv` 前两列 `time, qvix`）：`index_option_50etf_min_qvix`、
+    `index_option_300etf_min_qvix`、`index_option_500etf_min_qvix`、`index_option_cyb_min_qvix`、
+    `index_option_kcb_min_qvix`、`index_option_100etf_min_qvix`、`index_option_300index_min_qvix`、
+    `index_option_1000index_min_qvix`、`index_option_50index_min_qvix`
+- **修正**：`index_option_100etf_qvix` 原从 `vix_100ETF.csv`（不存在）取数，改为与 akshare 一致
+  从 `k.csv` 取 `[0,75,76,77,78]` 列；分时 `qvix` 列补 `cast_numeric`（对齐 akshare `pd.to_numeric`）。
+- **重构**：新增纯函数 `qvix_daily_rows` / `qvix_min_rows`（离线可测）与 `qvix_daily_text`
+  （`OnceLock` 进程内缓存，对应 akshare `__get_optbbs_daily` 的 `lru_cache`）。
+- **补充离线单测**：`index_ai_cx` / `index_cci_cx` / `index_ci_cx` 列契约测试（前次未提交）。
+- **实现覆盖率**：**≈ 80.1%**（865 / 1080 公开 API）。基准口径已校正为当前安装的 akshare
+  **1.18.83**（`dir(akshare)` 公开可调用函数 1080 个），README 大类表同步重建；index 大类
+  **61.7% → 78.7%**（58 → 74 / 94）。
+- **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(260) 全绿；
+  顺带修复 `src/fund/mod.rs` 遗留的 `clippy::get_first`。
+- **parity 验证**：17 个函数 **PASS / 0 FAIL**（日线 5 列 × 2822 行，分时 2 列 × 239 行）；
+  `index_option_50etf_min_qvix` 因上游 `vix50.csv` 返回 HTML（akshare 同样解析为脏数据）
+  无法生成可靠 golden，故不注册 parity。
+- **parity 注册**：16 个新函数已注册至 `src/bin/parity.rs` 与 `tools/parity_runner.py`；
+  新增 17 个 `tests/golden/index_option_*_qvix.json`。
+
 ## [2026-08-19] 批次 88 · index 模块 3 个函数
 
 - **新增公开函数**：**830 → 833**（净 +3）。覆盖：

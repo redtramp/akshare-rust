@@ -29,36 +29,56 @@ println!("{}", df);
 
 ## Implemented Interfaces
 
-> As of now, a total of **811** data interfaces are implemented, covering **17 / 35** functional categories, with an overall coverage of **≈ 71.7%**
-> (benchmarked against akshare's 1131 public APIs). All interfaces align with the identically-named Python akshare functions
-> (column names / column order / values verified differentially item by item).
+> As of now, a total of **865** data interfaces are implemented, covering **20 / 35** functional categories, with an overall coverage of **≈ 80.1%**
+> (benchmarked against the **1080** identically-named public functions in akshare **1.18.83**; earlier docs used a 1131 baseline).
+> All interfaces align with the identically-named Python akshare functions (column names / column order / values verified differentially item by item).
 
 **By category (implemented / akshare total / coverage):**
 
+> Categories follow akshare's source modules (public callables from `dir(akshare)` classified via `inspect.getmodule`).
+
 | Category | Implemented | akshare | Coverage |
 |---|---|---|---|
-| stock | 313 | 407 | 76.9% |
-| fund | 55 | 88 | 62.5% |
-| index | 50 | 95 | 52.6% |
-| economic | 208 | 226 | 92.0% |
-| futures | 55 | 70 | 78.6% |
-| option | 28 | 47 | 59.6% |
-| bond | 41 | 46 | 89.1% |
-| spot | 16 | ~dozens | long tail |
-| news | 5 | ~dozens | long tail |
-| energy | 4 | ~dozens | long tail |
-| currency | 2 | ~dozens | long tail |
+| economic | 222 | 225 | 98.7% |
+| stock_feature | 168 | 208 | 80.8% |
+| stock | 122 | 125 | 97.6% |
+| index | 74 | 94 | 78.7% |
+| fund | 58 | 88 | 65.9% |
+| futures | 45 | 69 | 65.2% |
+| stock_fundamental | 43 | 57 | 75.4% |
+| option | 44 | 44 | 100.0% |
+| bond | 39 | 42 | 92.9% |
+| spot | 15 | 15 | 100.0% |
+| futures_derivative | 10 | 13 | 76.9% |
+| movie | 0 | 12 | 0.0% |
+| energy | 4 | 8 | 50.0% |
+| other | 0 | 8 | 0.0% |
+| qhkc_web | 0 | 8 | 0.0% |
+| air | 0 | 7 | 0.0% |
+| article | 0 | 7 | 0.0% |
+| currency | 2 | 7 | 28.6% |
 | fx | 5 | 6 | 83.3% |
-| forex | 2 | 2 | 100.0% |
+| news | 6 | 6 | 100.0% |
+| fortune | 1 | 5 | 20.0% |
+| cal | 0 | 3 | 0.0% |
+| qdii | 0 | 3 | 0.0% |
 | reits | 3 | 3 | 100.0% |
-| cninfo | 45 | — | CNINFO family |
-| legu | 14 | — | Legulegu family |
-| xueqiu | 6 | — | Xueqiu family |
-| exchange | 3 | — | Exchange family |
-| sina | 4 | — | Sina family |
-| ths | 15 | — | THS family |
-| interest_rate | 1 | 2 | 50.0% |
-| fortune | 1 | ~10 | long tail |
+| crypto | 0 | 2 | 0.0% |
+| event | 0 | 2 | 0.0% |
+| forex | 2 | 2 | 100.0% |
+| nlp | 0 | 2 | 0.0% |
+| rate | 0 | 2 | 0.0% |
+| utils | 0 | 2 | 0.0% |
+| bank | 0 | 1 | 0.0% |
+| hf | 0 | 1 | 0.0% |
+| interest_rate | 1 | 1 | 100.0% |
+| pro | 0 | 1 | 0.0% |
+| tool | 1 | 1 | 100.0% |
+
+> Note: project groupings such as `cninfo` / `legu` / `xueqiu` / `exchange` / `sina` / `ths`
+> are counted inside the matching akshare module above (e.g. CNINFO functions land in
+> `stock`/`bond`; THS technical screening lands in `stock_feature`). `stock` (125) +
+> `stock_feature` (208) + `stock_fundamental` (57) together form the former "stock" super-category.
 
 > The interfaces below are listed by data source; the full function list for each category is in the corresponding `src/` module.
 
