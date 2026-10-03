@@ -430,6 +430,32 @@ impl Df {
         Ok(self)
     }
 
+    /// 指定列转 Int64（对应 pandas `pd.to_numeric` 对全整数值列得到 `int64`）。
+    ///
+    /// 与 [`Df::cast_numeric`]（→ Float64）相对：用于 akshare 中由 `pd.to_numeric`
+    /// 推断为 int64 的计数/序号列。无法解析为整数的单元格 → 空值。
+    pub fn cast_integer(&mut self, cols: &[&str]) -> Result<&mut Self> {
+        for c in cols {
+            let series = match self.inner.column(c) {
+                Ok(s) => s.clone(),
+                Err(_) => continue,
+            };
+            // 仅处理字符串列；已是数值列时保持原样（避免误造长度不符的列）
+            let ca = match series.str() {
+                Ok(ca) => ca,
+                Err(_) => continue,
+            };
+            let values: Vec<Option<i64>> = (0..ca.len())
+                .map(|i| ca.get(i).and_then(|v| v.trim().parse::<i64>().ok()))
+                .collect();
+            let chunked =
+                Int64Chunked::from_iter_options(PlSmallStr::from_str(c), values.into_iter());
+            let col: Column = chunked.into_series().into();
+            let _ = self.inner.replace(c, col);
+        }
+        Ok(self)
+    }
+
     /// 按列自动推断数值类型（对应 pandas `read_html` / `read_csv` 的 `dtype` 推断）。
     ///
     /// 对每列字符串：若其**全部**非空单元格都能解析为浮点数，则整体转 `Float64`；
@@ -740,5 +766,24 @@ mod tests {
         assert_eq!(codes.get(0), Some("b"));
         assert_eq!(codes.get(1), Some("c"));
         assert_eq!(codes.get(2), Some("a"));
+    }
+
+    #[test]
+    fn cast_integer_yields_int64() {
+        let rows = vec![
+            json!({"seq": "1", "cnt": "3723", "bad": "1.5"}),
+            json!({"seq": "2", "cnt": "1929150", "bad": "x"}),
+        ];
+        let mut df = Df::from_json_rows(&rows).unwrap();
+        df.cast_integer(&["seq", "cnt", "bad"]).unwrap();
+        assert_eq!(df.inner().column("seq").unwrap().dtype(), &DataType::Int64);
+        assert_eq!(df.inner().column("cnt").unwrap().dtype(), &DataType::Int64);
+        let seq = df.inner().column("seq").unwrap().i64().unwrap();
+        assert_eq!(seq.get(0), Some(1));
+        let cnt = df.inner().column("cnt").unwrap().i64().unwrap();
+        assert_eq!(cnt.get(1), Some(1929150));
+        // 无法解析为整数的值 → 空值
+        let bad = df.inner().column("bad").unwrap().i64().unwrap();
+        assert_eq!(bad.get(0), None);
     }
 }

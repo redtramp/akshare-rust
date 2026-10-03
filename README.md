@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## 已实现接口
 
-> 截至当前共 **873** 个数据接口，覆盖 **20 / 35** 个功能大类、整体覆盖率 **≈ 80.8%**
+> 截至当前共 **883** 个数据接口，覆盖 **20 / 35** 个功能大类、整体覆盖率 **≈ 81.8%**
 > （对标 akshare **1.18.83** 公开 API 共 **1080** 个同名函数；早期文档按 1131 口径统计）。
 > 全部接口与 Python akshare 同名函数对齐（列名/列序/值逐项差分验证）。
 
@@ -43,7 +43,7 @@ println!("{}", df);
 | stock_feature | 168 | 208 | 80.8% |
 | stock | 122 | 125 | 97.6% |
 | index | 78 | 94 | 83.0% |
-| fund | 58 | 88 | 65.9% |
+| fund | 68 | 88 | 77.3% |
 | futures | 45 | 69 | 65.2% |
 | stock_fundamental | 43 | 57 | 75.4% |
 | option | 44 | 44 | 100.0% |
@@ -126,7 +126,7 @@ println!("{}", df);
 
 ### 指数 / 基金
 
-> 指数共 50 个，基金共 55 个。
+> 指数共 78 个，基金共 68 个。
 
 | 函数 | 对应 akshare | 说明 |
 |---|---|---|
@@ -162,6 +162,8 @@ println!("{}", df);
 | `fund_value_estimation_em` | `ak.fund_value_estimation_em` | 基金净值估算 |
 | `fund_name_em` | `ak.fund_name_em` | 基金名称列表 |
 | `fund_hk_rank_em` / `fund_hk_fund_hist_em` | `ak.fund_hk_*` | 香港基金排行/历史净值 |
+| `fund_manager_em` / `fund_overview_em` / `fund_info_ths` / `fund_fee_em` / `fund_info_index_em` | `ak.fund_*` | 基金经理大全/基金档案概况/同花顺信息/购买信息/指数型基金 |
+| `fund_report_stock_cninfo` / `fund_etf_fund_daily_em` / `fund_graded_fund_daily_em` / `fund_financial_fund_info_em` / `fund_etf_dividend_sina` | `ak.fund_*` | 巨潮基金重仓股/场内基金净值/分级基金净值/理财型基金净值/ETF累计分红 |
 
 ### 巨潮资讯（cninfo）
 

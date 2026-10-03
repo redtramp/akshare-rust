@@ -287,19 +287,21 @@ use akshare_rust::fortune::hurun_rank;
 use akshare_rust::fund::{
     fund_announcement_dividend_em, fund_announcement_personnel_em, fund_announcement_report_em,
     fund_aum_em, fund_aum_hist_em, fund_aum_trend_em, fund_cf_em, fund_etf_category_sina,
-    fund_etf_category_ths, fund_etf_fund_info_em, fund_etf_hist_min_em, fund_etf_hist_sina,
-    fund_etf_scale_sse, fund_etf_scale_szse, fund_etf_spot_em, fund_etf_spot_ths,
-    fund_exchange_rank_em, fund_fh_em, fund_fh_rank_em, fund_financial_fund_daily_em,
-    fund_graded_fund_info_em, fund_hk_fund_hist_em, fund_hk_rank_em, fund_hold_structure_em,
-    fund_lcx_rank_em, fund_lof_hist_em, fund_lof_hist_min_em, fund_lof_spot_em,
-    fund_money_fund_daily_em, fund_money_fund_info_em, fund_money_rank_em, fund_name_em,
-    fund_new_found_em, fund_new_found_ths, fund_open_fund_daily_em, fund_open_fund_info_em,
-    fund_open_fund_rank_em, fund_portfolio_bond_hold_em, fund_portfolio_change_em,
+    fund_etf_category_ths, fund_etf_dividend_sina, fund_etf_fund_daily_em, fund_etf_fund_info_em,
+    fund_etf_hist_min_em, fund_etf_hist_sina, fund_etf_scale_sse, fund_etf_scale_szse,
+    fund_etf_spot_em, fund_etf_spot_ths, fund_exchange_rank_em, fund_fee_em, fund_fh_em,
+    fund_fh_rank_em, fund_financial_fund_daily_em, fund_financial_fund_info_em,
+    fund_graded_fund_daily_em, fund_graded_fund_info_em, fund_hk_fund_hist_em, fund_hk_rank_em,
+    fund_hold_structure_em, fund_info_index_em, fund_info_ths, fund_lcx_rank_em, fund_lof_hist_em,
+    fund_lof_hist_min_em, fund_lof_spot_em, fund_manager_em, fund_money_fund_daily_em,
+    fund_money_fund_info_em, fund_money_rank_em, fund_name_em, fund_new_found_em,
+    fund_new_found_ths, fund_open_fund_daily_em, fund_open_fund_info_em, fund_open_fund_rank_em,
+    fund_overview_em, fund_portfolio_bond_hold_em, fund_portfolio_change_em,
     fund_portfolio_hold_em, fund_portfolio_industry_allocation_em, fund_purchase_em,
     fund_rating_all, fund_rating_ja, fund_rating_sh, fund_rating_zs,
     fund_report_asset_allocation_cninfo, fund_report_industry_allocation_cninfo,
-    fund_scale_change_em, fund_scale_close_sina, fund_scale_daily_szse, fund_scale_open_sina,
-    fund_scale_structured_sina, fund_value_estimation_em,
+    fund_report_stock_cninfo, fund_scale_change_em, fund_scale_close_sina, fund_scale_daily_szse,
+    fund_scale_open_sina, fund_scale_structured_sina, fund_value_estimation_em,
 };
 use akshare_rust::futures::{
     futures_comex_inventory, futures_comm_info, futures_comm_js, futures_contract_detail,
@@ -1121,6 +1123,38 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         }
         "fund_report_asset_allocation_cninfo" => Ok(fund_report_asset_allocation_cninfo()?),
         "fund_report_industry_allocation_cninfo" => Ok(fund_report_industry_allocation_cninfo()?),
+        // === BATCH92 天天基金网 / 同花顺 / 新浪 / 巨潮 ===
+        "fund_manager_em" => Ok(fund_manager_em()?),
+        "fund_overview_em" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_overview_em(s)?)
+        }
+        "fund_info_ths" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_info_ths(s)?)
+        }
+        "fund_report_stock_cninfo" => {
+            let [d] = take1(func, args)?;
+            Ok(fund_report_stock_cninfo(d)?)
+        }
+        "fund_etf_fund_daily_em" => Ok(fund_etf_fund_daily_em()?),
+        "fund_graded_fund_daily_em" => Ok(fund_graded_fund_daily_em()?),
+        "fund_financial_fund_info_em" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_financial_fund_info_em(s)?)
+        }
+        "fund_etf_dividend_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(fund_etf_dividend_sina(s)?)
+        }
+        "fund_info_index_em" => {
+            let [s, ind] = take2(func, args)?;
+            Ok(fund_info_index_em(s, ind)?)
+        }
+        "fund_fee_em" => {
+            let [s, ind] = take2(func, args)?;
+            Ok(fund_fee_em(s, ind)?)
+        }
         "fund_new_found_em" => Ok(fund_new_found_em()?),
         "fund_new_found_ths" => {
             let [s] = take1(func, args)?;

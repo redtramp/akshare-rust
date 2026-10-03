@@ -1017,13 +1017,62 @@ pub fn fund_open_fund_daily_em() -> Result<Df> {
     fund_jjz_daily("1", "1")
 }
 
-/// 东财-货币型基金净值（对应 akshare [`akshare.fund_money_fund_daily_em`]）。
+/// 东财-货币型基金收益（对应 akshare [`akshare.fund_money_fund_daily_em`]）。
+///
+/// 数据源为 `HBJJ_pjsyl.html`（GB2312）第二张表：表头两列日期各自 `colspan=3`
+/// （pandas 展开为 [d0×3, d1×3]），本工程不展开 colspan，原始表头第 5/6 个单元格
+/// 即 d0/d1。
 ///
 /// # 返回列
-/// `基金代码, 基金简称, {今日}-每万份收益, {今日}-7日年化, {昨日}-每万份收益,
-/// {昨日}-7日年化, 申购状态, 赎回状态, 手续费`
+/// `基金代码, 基金简称, {今日}-万份收益, {今日}-7日年化%, {今日}-单位净值,
+/// {昨日}-万份收益, {昨日}-7日年化%, {昨日}-单位净值, 日涨幅, 成立日期, 基金经理,
+/// 手续费, 可购全部`
 pub fn fund_money_fund_daily_em() -> Result<Df> {
-    fund_jjz_daily("2", "2")
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        "https://fund.eastmoney.com/HBJJ_pjsyl.html",
+        &Map::new(),
+        &[("User-Agent", FUND92_UA)],
+        None,
+    )?;
+    let tables = crate::core::html::read_html_tables(&text)?;
+    let t = tables
+        .get(1)
+        .ok_or_else(|| AkshareError::Empty("货币型基金页面缺少表 1".into()))?;
+    if t.len() < 3 {
+        return Err(AkshareError::Empty("货币型基金表结构异常".into()));
+    }
+    let hdr = t.first().cloned().unwrap_or_default();
+    let d0 = hdr.get(5).cloned().unwrap_or_default();
+    let d1 = hdr.get(6).cloned().unwrap_or_default();
+    let cols = [
+        "基金代码".to_string(),
+        "基金简称".to_string(),
+        format!("{d0}-万份收益"),
+        format!("{d0}-7日年化%"),
+        format!("{d0}-单位净值"),
+        format!("{d1}-万份收益"),
+        format!("{d1}-7日年化%"),
+        format!("{d1}-单位净值"),
+        "日涨幅".to_string(),
+        "成立日期".to_string(),
+        "基金经理".to_string(),
+        "手续费".to_string(),
+        "可购全部".to_string(),
+    ];
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for r in t.iter().skip(2) {
+        let mut cells: Vec<Option<String>> = r.iter().skip(3).cloned().map(Some).collect();
+        cells.resize(cols.len(), None);
+        cells.truncate(cols.len());
+        if let Some(Some(s)) = cells.get_mut(1) {
+            // 对应 akshare `str.strip("基金吧档案")`（字符集剥离）
+            *s = s.trim_matches(|c| "基金吧档案".contains(c)).to_string();
+        }
+        out.push(cells);
+    }
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    Df::from_string_rows(&col_refs, &out)
 }
 
 /// 东财-净值列表公共实现（Data/Fund_JJJZ_Data.aspx）。
@@ -1051,12 +1100,8 @@ fn fund_jjz_daily(t: &str, lx: &str) -> Result<Df> {
         ],
         None,
     )?;
-    let body = text
-        .trim()
-        .strip_prefix("var db=")
-        .ok_or_else(|| AkshareError::Empty("基金净值响应缺少 var db= 前缀".into()))?;
-    let value: Value = serde_json::from_str(body)
-        .map_err(|e| AkshareError::json("fund_jjz_daily", e.to_string()))?;
+    // 响应为 JS 对象字面量（未加引号键），用宽松解析（对应 akshare `demjson.decode`）
+    let value = fund_js_object(&text)?;
     let datas = value
         .get("datas")
         .and_then(Value::as_array)
@@ -1118,10 +1163,9 @@ fn fund_jjz_daily(t: &str, lx: &str) -> Result<Df> {
         "赎回状态",
         "手续费",
     ];
+    // akshare `fund_open_fund_daily_em` 不数值化，净值列保持字符串
     let col_refs: Vec<&str> = cols.to_vec();
-    let mut df = Df::from_string_rows(&col_refs, &out)?;
-    df.cast_numeric(&[cols[2], cols[3], cols[4], cols[5], "日增长值", "日增长率"])?;
-    Ok(df)
+    Df::from_string_rows(&col_refs, &out)
 }
 
 /// 东财-理财型基金收益（对应 akshare [`akshare.fund_financial_fund_daily_em`]）。
@@ -4092,5 +4136,1026 @@ mod ths_tests {
                 eprintln!("fund_report_industry_allocation_cninfo 网络错误: {e}");
             }
         }
+    }
+}
+
+// === BATCH92 天天基金网 / 同花顺 / 新浪 / 巨潮：10 个缺口函数 ===
+
+const FUND92_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
+
+/// 空 DataFrame（对应 akshare `pd.DataFrame([])`）。
+fn fund_empty_df() -> Result<Df> {
+    Ok(Df::from_inner(polars::prelude::DataFrame::empty()))
+}
+
+/// 从 `var xxx={...}` 文本中提取首个 JSON 对象。
+///
+/// 东财 `FundDataPortfolio_Interface` / `Fund_JJJZ_Data` 等接口返回的是
+/// JavaScript 对象字面量（未加引号的键），需先用内置 JS 引擎按 `demjson` 语义
+/// 宽松求值再解析为 JSON（对应 akshare `demjson.decode`）。
+fn fund_js_object(text: &str) -> Result<Value> {
+    let start = text
+        .find('{')
+        .ok_or_else(|| AkshareError::Empty("响应缺少 JSON 对象".into()))?;
+    let end = text.rfind('}').unwrap_or(text.len()).saturating_add(1);
+    let json_text = crate::core::js_engine::js_literal_to_json(&text[start..end])?;
+    serde_json::from_str(&json_text)
+        .map_err(|e| AkshareError::json("fund_js_object", e.to_string()))
+}
+
+/// JSON 标量 → 字符串。
+fn fund_scalar(v: &Value) -> Option<String> {
+    match v {
+        Value::Null => None,
+        Value::String(s) => Some(s.clone()),
+        other => Some(other.to_string()),
+    }
+}
+
+/// 去除 HTML 标签（对应 bs4 `get_text()`）。
+fn fund_strip_tags(s: &str) -> String {
+    let mut out = String::new();
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out.trim().to_string()
+}
+
+/// 提取 `h4.t` 小节：返回 `(标题, 该小节内的 table 片段)`。
+fn fund_h4_sections(html: &str) -> Vec<(String, Vec<String>)> {
+    let mut marks: Vec<(usize, String, usize)> = Vec::new();
+    let mut idx = 0usize;
+    while let Some(rel) = html[idx..].find("<h4") {
+        let start = idx + rel;
+        let tag_end = html[start..]
+            .find('>')
+            .map(|k| start + k + 1)
+            .unwrap_or(start);
+        let open_tag = &html[start..tag_end];
+        let close = html[tag_end..]
+            .find("</h4>")
+            .map(|k| tag_end + k)
+            .unwrap_or(tag_end);
+        let title = fund_strip_tags(&html[tag_end..close]);
+        idx = close + 5;
+        if open_tag.contains("class=\"t\"") || open_tag.contains("class='t'") {
+            marks.push((start, title, idx));
+        }
+    }
+    let mut out = Vec::new();
+    for (i, (_s, title, body_start)) in marks.iter().enumerate() {
+        let body_end = marks.get(i + 1).map(|m| m.0).unwrap_or(html.len());
+        let body = &html[*body_start..body_end];
+        let mut tabs = Vec::new();
+        let mut p = 0usize;
+        while let Some(rel) = body[p..].find("<table") {
+            let ts = p + rel;
+            let te = body[ts..]
+                .find("</table>")
+                .map(|k| ts + k + 8)
+                .unwrap_or(body.len());
+            tabs.push(body[ts..te].to_string());
+            p = te;
+        }
+        out.push((title.clone(), tabs));
+    }
+    out
+}
+
+/// HTML 表格解析结果：`(表头, 数据行)`。
+type FundTable = (Vec<String>, Vec<Vec<Option<String>>>);
+
+/// 按 `</tr>` 切分表格 HTML，仅保留含 `<tr>` 的行段并重新拼接。
+///
+/// 复刻 lxml/pandas 对畸形 HTML 的容错：缺少 `<tr>` 包裹的孤立单元格行
+/// （如东财 `jbgk` 页的「最高申购费率」行）会被丢弃。
+fn fund_keep_tr_rows(table_html: &str) -> String {
+    let mut cleaned = String::new();
+    for seg in table_html.split("</tr>") {
+        if let Some(p) = seg.find("<tr") {
+            cleaned.push_str(&seg[p..]);
+            cleaned.push_str("</tr>");
+        }
+    }
+    cleaned
+}
+
+/// 判断表格片段是否含真正的 `<th>` 单元格（排除 `<thead>` 容器）。
+///
+/// pandas `read_html` 仅把含 `<th>` 的表当有表头；`<thead>` 本身不含单元格。
+fn fund_fragment_has_th(frag: &str) -> bool {
+    let l = frag.to_ascii_lowercase();
+    l.contains("<th>") || l.contains("<th ") || l.contains("<th\t")
+}
+
+/// 解析 table 片段为 `(表头, 数据行)`（对应 `pd.read_html(table_html)[0]`）。
+///
+/// 复刻 pandas 的表头判定：仅当表内含 `<th>` 时才把首行当表头；否则（如东财
+/// `jjfl` 页的「交易状态/运作费用」表）列名取整数序 `0..n`，全部行均为数据。
+fn fund_parse_table(frag: &str) -> Result<FundTable> {
+    let doc = format!("<html><body>{frag}</body></html>");
+    let tables = crate::core::html::read_html_tables(&doc)?;
+    let t = tables.first().cloned().unwrap_or_default();
+    if t.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let width = t.iter().map(|r| r.len()).max().unwrap_or(0);
+    let to_rows = |rows: Vec<Vec<String>>| -> Vec<Vec<Option<String>>> {
+        rows.into_iter()
+            .map(|r| {
+                let mut v: Vec<Option<String>> = r.into_iter().map(Some).collect();
+                v.resize(width, None);
+                v
+            })
+            .collect()
+    };
+    if fund_fragment_has_th(frag) {
+        let header = t.first().cloned().unwrap_or_default();
+        Ok((header, to_rows(t.into_iter().skip(1).collect())))
+    } else {
+        let header: Vec<String> = (0..width).map(|i| i.to_string()).collect();
+        Ok((header, to_rows(t)))
+    }
+}
+
+/// 天天基金网-基金经理大全（对应 akshare [`akshare.fund_manager_em`]）。
+///
+/// # 返回列
+/// `序号, 姓名, 所属公司, 现任基金代码, 现任基金, 累计从业时间, 现任基金资产总规模, 现任基金最佳回报`
+pub fn fund_manager_em() -> Result<Df> {
+    const URL: &str = "https://fund.eastmoney.com/Data/FundDataPortfolio_Interface.aspx";
+    let http = HttpClient::default();
+    let mut params: Map<String, Value> = json!({
+        "dt": "14",
+        "mc": "returnjson",
+        "ft": "all",
+        "pn": "500",
+        "pi": "1",
+        "sc": "abbname",
+        "st": "asc",
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let first = fund_js_object(&http.get_text(URL, &params, None)?)?;
+    let total_page = first
+        .get("pages")
+        .and_then(|v| {
+            v.as_i64()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        })
+        .unwrap_or(1)
+        .max(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v.get("data").and_then(Value::as_array) {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=total_page {
+        params.insert("pi".into(), Value::String(page.to_string()));
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_text(URL, &params, None) {
+            Ok(t) => match fund_js_object(&t) {
+                Ok(v) => append(&v, &mut rows),
+                Err(_) => break,
+            },
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for (i, r) in rows.iter().enumerate() {
+        let row = r.as_array().cloned().unwrap_or_default();
+        let get = |k: usize| row.get(k).and_then(fund_scalar);
+        let codes: Vec<String> = get(4)
+            .unwrap_or_default()
+            .split(',')
+            .map(str::to_string)
+            .collect();
+        let names: Vec<String> = get(5)
+            .unwrap_or_default()
+            .split(',')
+            .map(str::to_string)
+            .collect();
+        let best = get(7).map(|s| s.split('%').next().unwrap_or("").to_string());
+        let scale = get(10).map(|s| s.split("亿元").next().unwrap_or("").to_string());
+        let n = codes.len().max(names.len());
+        for j in 0..n {
+            out.push(vec![
+                Some((i + 1).to_string()),
+                get(1),
+                get(3),
+                Some(codes.get(j).cloned().unwrap_or_default()),
+                Some(names.get(j).cloned().unwrap_or_default()),
+                get(6),
+                scale.clone(),
+                best.clone(),
+            ]);
+        }
+    }
+    let mut df = Df::from_string_rows(
+        &[
+            "序号",
+            "姓名",
+            "所属公司",
+            "现任基金代码",
+            "现任基金",
+            "累计从业时间",
+            "现任基金资产总规模",
+            "现任基金最佳回报",
+        ],
+        &out,
+    )?;
+    // 对应 pandas：序号/累计从业时间为 int64，规模/最佳回报为 float64
+    df.cast_integer(&["序号", "累计从业时间"])?;
+    df.cast_numeric(&["现任基金资产总规模", "现任基金最佳回报"])?;
+    Ok(df)
+}
+
+/// 天天基金-基金档案-基本概况（对应 akshare [`akshare.fund_overview_em`]）。
+///
+/// - `symbol`: 基金代码，如 `"015641"`
+///
+/// # 返回列
+/// 末张表的 Key-Value（如 `基金全称, 基金简称, 基金代码, ...`），单行
+pub fn fund_overview_em(symbol: &str) -> Result<Df> {
+    let url = format!("https://fundf10.eastmoney.com/jbgk_{symbol}.html");
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", FUND92_UA)], None)?;
+    // 东财 jbgk 页存在缺少 `<tr>` 的孤立单元格行（畸形 HTML，如「最高申购费率」行）；
+    // lxml/pandas 会将这类越界单元格丢弃。这里按 `</tr>` 切分并仅保留含 `<tr>` 的行段，
+    // 复刻同样的容错，避免多出 akshare 不包含的列。
+    let start = match text.rfind("<table") {
+        Some(i) => i,
+        None => return fund_empty_df(),
+    };
+    let end = text[start..]
+        .find("</table>")
+        .map(|k| start + k + "</table>".len())
+        .unwrap_or(text.len());
+    let cleaned = fund_keep_tr_rows(&text[start..end]);
+    let doc = format!("<table>{cleaned}</table>");
+    let tables = crate::core::html::read_html_tables(&doc)?;
+    let table = match tables.last() {
+        Some(t) => t,
+        None => return fund_empty_df(),
+    };
+    let mut order: Vec<String> = Vec::new();
+    let mut values: Vec<Option<String>> = Vec::new();
+    for r in table {
+        for (kc, vc) in [(0usize, 1usize), (2, 3)] {
+            if r.len() > vc {
+                let key = r[kc].trim().to_string();
+                if key.is_empty() {
+                    continue;
+                }
+                if let Some(pos) = order.iter().position(|k| k == &key) {
+                    values[pos] = Some(r[vc].clone());
+                } else {
+                    order.push(key);
+                    values.push(Some(r[vc].clone()));
+                }
+            }
+        }
+    }
+    if order.is_empty() {
+        return fund_empty_df();
+    }
+    let col_refs: Vec<&str> = order.iter().map(String::as_str).collect();
+    Df::from_string_rows(&col_refs, &[values])
+}
+
+/// 同花顺-基金基本信息（对应 akshare [`akshare.fund_info_ths`]）。
+///
+/// - `symbol`: 基金代码，如 `"161130"`
+///
+/// # 返回列
+/// `字段, 值`
+pub fn fund_info_ths(symbol: &str) -> Result<Df> {
+    use scraper::{Html, Selector};
+    let url = format!("https://fund.10jqka.com.cn/{symbol}/interduce.html");
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", FUND92_UA)], None)?;
+    let doc = Html::parse_document(&text);
+    let sel = |s: &str| {
+        Selector::parse(s).map_err(|e| AkshareError::Empty(format!("选择器解析失败（{s}）: {e}")))
+    };
+    let li_sel = sel("ul.g-dialog li")?;
+    let key_sel = sel("span.key")?;
+    let val_sel = sel("span.value")?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for li in doc.select(&li_sel) {
+        let k = li
+            .select(&key_sel)
+            .next()
+            .map(|n| n.text().collect::<String>().trim().to_string());
+        let v = li
+            .select(&val_sel)
+            .next()
+            .map(|n| n.text().collect::<String>().trim().to_string());
+        if let (Some(k), Some(v)) = (k, v) {
+            if !k.is_empty() {
+                rows.push(vec![Some(k), Some(v)]);
+            }
+        }
+    }
+    if rows.is_empty() {
+        return Err(AkshareError::Empty(
+            "未找到基金信息，可能网页结构已变化".into(),
+        ));
+    }
+    Df::from_string_rows(&["字段", "值"], &rows)
+}
+
+/// 巨潮资讯-基金报表-基金重仓股（对应 akshare [`akshare.fund_report_stock_cninfo`]）。
+///
+/// - `date`: 报告期，如 `"20210630"`
+///
+/// # 返回列
+/// `序号, 股票代码, 股票简称, 报告期, 基金覆盖家数, 持股总数, 持股总市值`
+pub fn fund_report_stock_cninfo(date: &str) -> Result<Df> {
+    let token = crate::core::js_engine::cninfo_get_res_code()?;
+    let http = HttpClient::default();
+    let url = "https://webapi.cninfo.com.cn/api/sysapi/p_sysapi1112";
+    let rdate = if date.len() >= 8 {
+        format!("{}-{}-{}", &date[..4], &date[4..6], &date[6..8])
+    } else {
+        date.to_string()
+    };
+    let mut params = Map::new();
+    params.insert("rdate".into(), Value::String(rdate));
+    let headers: Vec<(&str, &str)> = vec![
+        ("Accept", "*/*"),
+        ("Accept-Enckey", &token),
+        ("Content-Type", "application/json"),
+        ("User-Agent", FUND92_UA),
+        ("Referer", "https://webapi.cninfo.com.cn/"),
+    ];
+    let data = http.post_json(url, &params, &headers)?;
+    let records = data
+        .get("records")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for (i, rec) in records.iter().enumerate() {
+        let f = |k: &str| rec.get(k).and_then(fund_scalar);
+        rows.push(vec![
+            Some((i + 1).to_string()),
+            f("SECCODE"),
+            f("SECNAME"),
+            f("ENDDATE"),
+            f("F001N"),
+            f("F002N"),
+            f("F003N"),
+        ]);
+    }
+    let mut df = Df::from_string_rows(
+        &[
+            "序号",
+            "股票代码",
+            "股票简称",
+            "报告期",
+            "基金覆盖家数",
+            "持股总数",
+            "持股总市值",
+        ],
+        &rows,
+    )?;
+    df.cast_date(&["报告期"])?;
+    // 对应 pandas：序号/计数列为 int64，市值为 float64
+    df.cast_integer(&["序号", "基金覆盖家数", "持股总数"])?;
+    df.cast_numeric(&["持股总市值"])?;
+    Ok(df)
+}
+
+/// 天天基金网-场内交易基金净值（对应 akshare [`akshare.fund_etf_fund_daily_em`]）。
+///
+/// # 返回列
+/// `基金代码, 基金简称, 类型, {今日}-单位净值, {今日}-累计净值,
+/// {前日}-单位净值, {前日}-累计净值, 增长值, 增长率, 市价, 折价率`
+pub fn fund_etf_fund_daily_em() -> Result<Df> {
+    const URL: &str = "https://fund.eastmoney.com/cnjy_dwjz.html";
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(URL, &Map::new(), &[("User-Agent", FUND92_UA)], None)?;
+    let tables = crate::core::html::read_html_tables(&text)?;
+    let t = tables
+        .get(1)
+        .ok_or_else(|| AkshareError::Empty("场内交易基金页面缺少表 1".into()))?;
+    if t.len() < 3 {
+        return Err(AkshareError::Empty("场内交易基金表结构异常".into()));
+    }
+    // 表头中两列日期各自 `colspan=2`（pandas 展开后 showday=[d0,d0,d1,d1]，取 [d0] 与 [d2]=d1）；
+    // 本工程 `read_html_tables` 不展开 colspan，故原始表头第 6/7 个单元格即 d0/d1。
+    let hdr = t.first().cloned().unwrap_or_default();
+    let sd0 = hdr.get(6).cloned().unwrap_or_default();
+    let sd2 = hdr.get(7).cloned().unwrap_or_default();
+    let cols = [
+        "基金代码".to_string(),
+        "基金简称".to_string(),
+        "类型".to_string(),
+        format!("{sd0}-单位净值"),
+        format!("{sd0}-累计净值"),
+        format!("{sd2}-单位净值"),
+        format!("{sd2}-累计净值"),
+        "增长值".to_string(),
+        "增长率".to_string(),
+        "市价".to_string(),
+        "折价率".to_string(),
+    ];
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for r in t.iter().skip(2) {
+        if r.len() <= 3 {
+            continue;
+        }
+        let mut cells: Vec<String> = r.iter().skip(3).cloned().collect();
+        cells.resize(cols.len(), String::new());
+        cells.truncate(cols.len());
+        if let Some(s) = cells.get_mut(1) {
+            *s = s.replace("行情吧档案", "");
+        }
+        out.push(cells.into_iter().map(Some).collect());
+    }
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    Df::from_string_rows(&col_refs, &out)
+}
+
+/// 天天基金网-分级基金净值（对应 akshare [`akshare.fund_graded_fund_daily_em`]）。
+///
+/// # 返回列
+/// `基金代码, 基金简称, {今日}-单位净值, {今日}-累计净值, {昨日}-单位净值,
+/// {昨日}-累计净值, 日增长值, 日增长率, 市价, 折价率, 手续费`
+pub fn fund_graded_fund_daily_em() -> Result<Df> {
+    const URL: &str = "https://fund.eastmoney.com/Data/Fund_JJJZ_Data.aspx";
+    let params: Map<String, Value> = json!({
+        "t": "1",
+        "lx": "9",
+        "letter": "",
+        "gsid": "0",
+        "text": "",
+        "sort": "zdf,desc",
+        "page": "1,10000",
+        "dt": "1580914040623",
+        "atfc": "",
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(
+        URL,
+        &params,
+        &[
+            ("User-Agent", FUND92_UA),
+            ("Referer", "https://fund.eastmoney.com/fjjj.html"),
+        ],
+        None,
+    )?;
+    let value = fund_js_object(&text)?;
+    let datas = value
+        .get("datas")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let show_day: Vec<String> = value
+        .get("showday")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let d0 = show_day.first().cloned().unwrap_or_default();
+    let d1 = show_day.get(1).cloned().unwrap_or_default();
+    let cols = [
+        "基金代码".to_string(),
+        "基金简称".to_string(),
+        format!("{d0}-单位净值"),
+        format!("{d0}-累计净值"),
+        format!("{d1}--单位净值"),
+        format!("{d1}--累计净值"),
+        "日增长值".to_string(),
+        "日增长率".to_string(),
+        "市价".to_string(),
+        "折价率".to_string(),
+        "手续费".to_string(),
+    ];
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(datas.len());
+    for d in &datas {
+        let row = d.as_array().cloned().unwrap_or_default();
+        let g = |k: usize| row.get(k).and_then(fund_scalar);
+        out.push(vec![
+            g(0),
+            g(1),
+            g(3),
+            g(4),
+            g(5),
+            g(6),
+            g(7),
+            g(8),
+            g(9),
+            g(10),
+            g(19),
+        ]);
+    }
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    Df::from_string_rows(&col_refs, &out)
+}
+
+/// 东财-理财型基金历史净值明细（对应 akshare [`akshare.fund_financial_fund_info_em`]）。
+///
+/// - `symbol`: 理财型基金代码
+///
+/// # 返回列
+/// `净值日期, 单位净值, 累计净值, 日增长率, 申购状态, 赎回状态, 分红送配`
+pub fn fund_financial_fund_info_em(symbol: &str) -> Result<Df> {
+    const URL: &str = "https://api.fund.eastmoney.com/f10/lsjz";
+    let http = HttpClient::default();
+    let make = |page: i64| -> Map<String, Value> {
+        json!({
+            "fundCode": symbol,
+            "pageIndex": page.to_string(),
+            "pageSize": "20",
+            "startDate": "",
+            "endDate": "",
+            "_": chrono::Utc::now().timestamp_millis().to_string(),
+        })
+        .as_object()
+        .cloned()
+        .unwrap_or_default()
+    };
+    let headers: Vec<(&str, &str)> = vec![
+        ("User-Agent", FUND92_UA),
+        ("Referer", "https://fundf10.eastmoney.com/"),
+        ("Host", "api.fund.eastmoney.com"),
+    ];
+    let first = http.get_json_with_headers(URL, &make(1), &headers, None)?;
+    let total: i64 = first
+        .get("TotalCount")
+        .and_then(|v| {
+            v.as_i64()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        })
+        .unwrap_or(0);
+    let total_page = ((total + 19) / 20).max(1);
+    let mut rows: Vec<Value> = Vec::new();
+    let append = |v: &Value, rows: &mut Vec<Value>| {
+        if let Some(arr) = v
+            .get("Data")
+            .and_then(|d| d.get("LSJZList"))
+            .and_then(Value::as_array)
+        {
+            rows.extend(arr.iter().cloned());
+        }
+    };
+    append(&first, &mut rows);
+    for page in 2..=total_page {
+        let delay: f64 = rand::random_range(0.5..1.5);
+        std::thread::sleep(std::time::Duration::from_secs_f64(delay));
+        match http.get_json_with_headers(URL, &make(page), &headers, None) {
+            Ok(v) => append(&v, &mut rows),
+            Err(_) => break,
+        }
+    }
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("FSRQ"),
+            f("DWJZ"),
+            f("LJJZ"),
+            f("JZZZL"),
+            f("SGZT"),
+            f("SHZT"),
+            f("FHSP"),
+        ]);
+    }
+    let mut df = Df::from_string_rows(
+        &[
+            "净值日期",
+            "单位净值",
+            "累计净值",
+            "日增长率",
+            "申购状态",
+            "赎回状态",
+            "分红送配",
+        ],
+        &out,
+    )?;
+    df.cast_date(&["净值日期"])?;
+    df.cast_numeric(&["单位净值", "累计净值", "日增长率"])?;
+    df.sort_by("净值日期", true, false)
+}
+
+/// 新浪财经-ETF 累计分红（对应 akshare [`akshare.fund_etf_dividend_sina`]）。
+///
+/// - `symbol`: 基金代码，如 `"sh510050"`
+///
+/// # 返回列
+/// `日期, 累计分红`
+pub fn fund_etf_dividend_sina(symbol: &str) -> Result<Df> {
+    let url = format!("https://finance.sina.com.cn/realstock/company/{symbol}/hfq.js");
+    let http = HttpClient::default();
+    let text = http.get_text(&url, &Map::new(), None)?;
+    if !text.trim_start().starts_with("var") {
+        return fund_empty_df();
+    }
+    let value = fund_js_object(&text)?;
+    let data = match value.get("data").and_then(Value::as_array) {
+        Some(a) => a.clone(),
+        None => return fund_empty_df(),
+    };
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for d in &data {
+        let date = d.get("d").and_then(Value::as_str).unwrap_or("");
+        if date == "1900-01-01" || date.is_empty() {
+            continue;
+        }
+        out.push(vec![
+            Some(date.to_string()),
+            d.get("u").and_then(fund_scalar),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&["日期", "累计分红"], &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&["累计分红"])?;
+    df.sort_by("日期", true, false)
+}
+
+/// 天天基金网-指数型基金信息（对应 akshare [`akshare.fund_info_index_em`]）。
+///
+/// - `symbol`: `全部` / `沪深指数` / `行业主题` / `大盘指数` / `中盘指数` / `小盘指数` / `股票指数` / `债券指数`
+/// - `indicator`: `全部` / `被动指数型` / `增强指数型`
+///
+/// # 返回列
+/// `基金代码, 基金名称, 单位净值, 日期, 日增长率, 近1周, 近1月, 近3月, 近6月, 近1年,
+/// 近2年, 近3年, 今年来, 成立来, 手续费, 起购金额, 跟踪标的, 跟踪方式`
+pub fn fund_info_index_em(symbol: &str, indicator: &str) -> Result<Df> {
+    const SYMBOLS: [(&str, &str, &str); 8] = [
+        ("全部", "", ""),
+        ("沪深指数", "053", ""),
+        ("行业主题", "054", ""),
+        ("大盘指数", "01", ""),
+        ("中盘指数", "02", ""),
+        ("小盘指数", "03", ""),
+        ("股票指数", "050", "001"),
+        ("债券指数", "050", "003"),
+    ];
+    const INDICATORS: [(&str, &str); 3] =
+        [("全部", ""), ("被动指数型", "051"), ("增强指数型", "052")];
+    let (fr, ftype) = SYMBOLS
+        .iter()
+        .find(|(k, _, _)| *k == symbol)
+        .map(|(_, a, b)| (*a, *b))
+        .ok_or_else(|| AkshareError::Param(format!("无效 symbol: {symbol}")))?;
+    let fr1 = INDICATORS
+        .iter()
+        .find(|(k, _)| *k == indicator)
+        .map(|(_, v)| *v)
+        .ok_or_else(|| AkshareError::Param(format!("无效 indicator: {indicator}")))?;
+    let url = "https://api.fund.eastmoney.com/FundTradeRank/GetRankList";
+    let params: Map<String, Value> = json!({
+        "ft": "zs",
+        "sc": "1n",
+        "st": "desc",
+        "pi": "1",
+        "pn": "10000",
+        "cp": "",
+        "ct": "",
+        "cd": "",
+        "ms": "",
+        "fr": fr,
+        "plevel": "",
+        "fst": "",
+        "ftype": ftype,
+        "fr1": fr1,
+        "fl": "0",
+        "isab": "1",
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let http = HttpClient::default();
+    let headers: Vec<(&str, &str)> = vec![
+        ("Accept", "*/*"),
+        ("Referer", "https://fund.eastmoney.com/"),
+        ("Host", "api.fund.eastmoney.com"),
+        ("User-Agent", FUND92_UA),
+    ];
+    let root = http.get_json_with_headers(url, &params, &headers, None)?;
+    let inner_str = root.get("Data").and_then(Value::as_str).unwrap_or("");
+    let inner: Value =
+        serde_json::from_str(inner_str).map_err(|e| AkshareError::json(url, e.to_string()))?;
+    let datas = inner
+        .get("datas")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for d in &datas {
+        let s = d.as_str().unwrap_or("");
+        let parts: Vec<&str> = s.split('|').collect();
+        let g = |k: usize| parts.get(k).map(|x| (*x).to_string());
+        rows.push(vec![
+            g(0),
+            g(1),
+            g(4),
+            g(3),
+            g(5),
+            g(6),
+            g(7),
+            g(8),
+            g(9),
+            g(10),
+            g(11),
+            g(12),
+            g(13),
+            g(14),
+            g(18),
+            g(24),
+            Some(symbol.to_string()),
+            Some(indicator.to_string()),
+        ]);
+    }
+    let cols = [
+        "基金代码",
+        "基金名称",
+        "单位净值",
+        "日期",
+        "日增长率",
+        "近1周",
+        "近1月",
+        "近3月",
+        "近6月",
+        "近1年",
+        "近2年",
+        "近3年",
+        "今年来",
+        "成立来",
+        "手续费",
+        "起购金额",
+        "跟踪标的",
+        "跟踪方式",
+    ];
+    let mut df = Df::from_string_rows(&cols, &rows)?;
+    df.cast_numeric(&[
+        "单位净值",
+        "日增长率",
+        "近1周",
+        "近1月",
+        "近3月",
+        "近6月",
+        "近1年",
+        "近2年",
+        "近3年",
+        "今年来",
+        "成立来",
+        "手续费",
+    ])?;
+    Ok(df)
+}
+
+/// 天天基金-基金档案-购买信息（对应 akshare [`akshare.fund_fee_em`]）。
+///
+/// - `symbol`: 基金代码
+/// - `indicator`: `交易状态` / `申购与赎回金额` / `交易确认日` / `运作费用` /
+///   `认购费率（前端）` / `认购费率（后端）` / `申购费率（前端）` / `赎回费率`
+///
+/// # 返回列
+/// 对应小节表格的原始列（部分指标会拆分「原费率|天天基金优惠费率」）
+pub fn fund_fee_em(symbol: &str, indicator: &str) -> Result<Df> {
+    let url = format!("https://fundf10.eastmoney.com/jjfl_{symbol}.html");
+    let http = HttpClient::default();
+    let text = http.get_text_with_headers(&url, &Map::new(), &[("User-Agent", FUND92_UA)], None)?;
+    let sections = fund_h4_sections(&text);
+    let tabs = match sections.iter().find(|(t, _)| t == indicator) {
+        Some((_, tabs)) if !tabs.is_empty() => tabs,
+        _ => return fund_empty_df(),
+    };
+    let (mut header, mut rows) = fund_parse_table(&tabs[0])?;
+    if indicator == "申购与赎回金额" {
+        if let Some(second) = tabs.get(1) {
+            if let Ok((_h2, mut r2)) = fund_parse_table(second) {
+                for r in r2.iter_mut() {
+                    r.resize(header.len(), None);
+                    r.truncate(header.len());
+                }
+                rows.extend(r2);
+            }
+        }
+    }
+    // 拆分「原费率|天天基金优惠费率」列
+    let split_col = |header: &mut Vec<String>,
+                     rows: &mut Vec<Vec<Option<String>>>,
+                     col: &str,
+                     new_names: &[&str],
+                     drop_src: bool|
+     -> bool {
+        let idx = match header.iter().position(|h| h == col) {
+            Some(i) => i,
+            None => return false,
+        };
+        for name in new_names {
+            if !header.iter().any(|h| h == name) {
+                header.push((*name).to_string());
+                for r in rows.iter_mut() {
+                    r.push(None);
+                }
+            }
+        }
+        let new_idx: Vec<usize> = new_names
+            .iter()
+            .map(|n| header.iter().position(|h| h == n).unwrap_or(0))
+            .collect();
+        for r in rows.iter_mut() {
+            let val = r.get(idx).cloned().flatten().unwrap_or_default();
+            let parts: Vec<&str> = val.split('|').collect();
+            if parts.len() == new_names.len() {
+                for (j, ni) in new_idx.iter().enumerate() {
+                    r[*ni] = Some(parts[j].trim().to_string());
+                }
+            } else {
+                for ni in &new_idx {
+                    r[*ni] = Some(val.trim().to_string());
+                }
+            }
+        }
+        if drop_src {
+            header.remove(idx);
+            for r in rows.iter_mut() {
+                r.remove(idx);
+            }
+        }
+        true
+    };
+    match indicator {
+        "认购费率（前端）" => {
+            if split_col(
+                &mut header,
+                &mut rows,
+                "原费率|天天基金优惠费率",
+                &["原费率", "天天基金优惠费率"],
+                true,
+            ) {
+                if let (Some(oi), Some(vi)) = (
+                    header.iter().position(|h| h == "原费率"),
+                    header.iter().position(|h| h == "天天基金优惠费率"),
+                ) {
+                    if let Some(r) = rows.get_mut(3) {
+                        r[vi] = r[oi].clone();
+                    }
+                }
+            }
+        }
+        "申购费率（前端）" => {
+            const SPECIAL: &str = "原费率|天天基金优惠费率 银行卡购买|活期宝购买";
+            if header.iter().any(|h| h == SPECIAL) {
+                let idx = header.iter().position(|h| h == SPECIAL).unwrap_or(0);
+                let names = [
+                    "原费率",
+                    "天天基金优惠费率-银行卡购买",
+                    "天天基金优惠费率-活期宝购买",
+                ];
+                let single = rows.iter().all(|r| {
+                    r.get(idx)
+                        .and_then(|v| v.as_ref())
+                        .map(|s| !s.contains('|'))
+                        .unwrap_or(true)
+                });
+                if single {
+                    let vals: Vec<Option<String>> =
+                        rows.iter().map(|r| r.get(idx).cloned().flatten()).collect();
+                    header[idx] = names[0].to_string();
+                    for name in [names[1], names[2]] {
+                        header.push(name.to_string());
+                        for (ri, r) in rows.iter_mut().enumerate() {
+                            r.push(vals.get(ri).cloned().flatten());
+                        }
+                    }
+                } else {
+                    for name in names {
+                        if !header.iter().any(|h| h == name) {
+                            header.push(name.to_string());
+                            for r in rows.iter_mut() {
+                                r.push(None);
+                            }
+                        }
+                    }
+                    let new_idx: Vec<usize> = names
+                        .iter()
+                        .map(|n| header.iter().position(|h| h == n).unwrap_or(0))
+                        .collect();
+                    for r in rows.iter_mut() {
+                        let val = r.get(idx).cloned().flatten().unwrap_or_default();
+                        let parts: Vec<&str> = val.split('|').collect();
+                        let fallback = parts.first().map(|s| s.trim().to_string());
+                        for (j, ni) in new_idx.iter().enumerate() {
+                            let v = parts
+                                .get(j)
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .or_else(|| fallback.clone());
+                            r[*ni] = v;
+                        }
+                    }
+                    header.remove(idx);
+                    for r in rows.iter_mut() {
+                        r.remove(idx);
+                    }
+                }
+            }
+        }
+        "赎回费率" | "赎回费率（前端）" | "赎回费率（后端）" => {
+            split_col(
+                &mut header,
+                &mut rows,
+                "原费率|天天基金优惠费率",
+                &["原费率", "天天基金优惠费率"],
+                true,
+            );
+        }
+        _ => {}
+    }
+    let col_refs: Vec<&str> = header.iter().map(String::as_str).collect();
+    Df::from_string_rows(&col_refs, &rows)
+}
+
+#[cfg(test)]
+mod batch92_tests {
+    use super::*;
+
+    #[test]
+    fn fund_strip_tags_removes_markup() {
+        assert_eq!(fund_strip_tags("<b>交易状态</b>"), "交易状态");
+        assert_eq!(fund_strip_tags("  <span>运营费用</span> "), "运营费用");
+    }
+
+    #[test]
+    fn fund_h4_sections_keeps_only_class_t() {
+        let html = "<h4 class=\"t\">A</h4><table><tr><th>x</th></tr><tr><td>1</td></tr></table>\
+                    <h4>B</h4><h4 class='t'>C</h4><table><tr><th>y</th></tr></table>";
+        let s = fund_h4_sections(html);
+        assert_eq!(s.len(), 2);
+        assert_eq!(s[0].0, "A");
+        assert_eq!(s[0].1.len(), 1);
+        assert_eq!(s[1].0, "C");
+    }
+
+    #[test]
+    fn fund_js_object_extracts_first_object() {
+        let v = fund_js_object("var db={\"pages\":\"3\",\"data\":[]}").unwrap();
+        assert_eq!(v.get("pages").and_then(Value::as_str), Some("3"));
+    }
+
+    #[test]
+    fn fund_js_object_accepts_unquoted_keys() {
+        // demjson 风格：未加引号的键（东财 Fund_JJJZ / FundDataPortfolio 响应）
+        let v = fund_js_object("var db={pages:3,data:[[\"a\",\"b\"]]}").unwrap();
+        assert_eq!(v.get("pages").and_then(Value::as_i64), Some(3));
+        assert_eq!(
+            v.get("data").and_then(Value::as_array).map(|a| a.len()),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn fund_keep_tr_rows_drops_orphan_cells() {
+        let html = "<tr><td>a</td><td>b</td></tr><th>orphan</th><td>x</td></tr><tr><td>c</td></tr>";
+        let cleaned = fund_keep_tr_rows(html);
+        assert!(cleaned.contains('a') && cleaned.contains('c'));
+        assert!(!cleaned.contains("orphan"));
+    }
+
+    #[test]
+    fn fund_parse_table_header_semantics() {
+        // 无 <th>：列名取整数序，首行也是数据（对应 pandas read_html）
+        let (h, rows) = fund_parse_table(
+            "<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>",
+        )
+        .unwrap();
+        assert_eq!(h, vec!["0", "1"]);
+        assert_eq!(rows.len(), 2);
+        // 有 <th>：首行为表头
+        let (h2, rows2) = fund_parse_table(
+            "<table><tr><th>x</th><th>y</th></tr><tr><td>1</td><td>2</td></tr></table>",
+        )
+        .unwrap();
+        assert_eq!(h2, vec!["x", "y"]);
+        assert_eq!(rows2.len(), 1);
+        // `<thead>` 不是单元格，不应被误判为有表头
+        assert!(!fund_fragment_has_th(
+            "<table><thead><tr><td>x</td></tr></thead></table>"
+        ));
+        assert!(fund_fragment_has_th("<table><tr><th>x</th></tr></table>"));
     }
 }

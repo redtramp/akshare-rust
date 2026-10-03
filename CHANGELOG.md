@@ -4,6 +4,41 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-10-03] 批次 92 · fund 天天基金/同花顺/新浪/巨潮 10 个缺口函数（含 3 处修复）
+
+- **新增公开函数**：**873 → 883**（净 +10）。补齐 akshare `fund/` 模块 10 个缺口：
+  - `fund_manager_em`（天天基金网-基金经理大全，`FundDataPortfolio_Interface` JS 对象字面量分页，8 列 × 36421 行）
+  - `fund_overview_em`（基金档案-基本概况，末张 key-value 表，18 列 × 1 行）
+  - `fund_info_ths`（同花顺基金基本信息，`ul.g-dialog` 的 key/value，2 列）
+  - `fund_report_stock_cninfo`（巨潮基金重仓股，cninfo JS 加密 + 报表，7 列 × 3956 行）
+  - `fund_etf_fund_daily_em`（场内交易基金净值，`cnjy_dwjz.html`，11 列）
+  - `fund_graded_fund_daily_em`（分级基金净值，`Fund_JJJZ_Data`，11 列）
+  - `fund_financial_fund_info_em`（理财型基金历史净值，`f10/lsjz` 分页，7 列）
+  - `fund_etf_dividend_sina`（新浪 ETF 累计分红，`hfq.js`，2 列）
+  - `fund_info_index_em`（指数型基金信息，`FundTradeRank/GetRankList`，18 列）
+  - `fund_fee_em`（基金购买信息，`jjfl_*.html` 的 `h4.t` 小节，含费率列拆分逻辑）
+- **关键修复（差分对账发现并纠正）**：
+  1. `fund_js_object` 改用内置 JS 引擎按 `demjson` 语义宽松解析（原用 `serde_json` 直接解析
+     JS 对象字面量会因未加引号键报错）→ 修复 `fund_manager_em` / `fund_graded_fund_daily_em`。
+  2. `fund_overview_em` 复刻 lxml/pandas 对畸形 HTML 的容错：丢弃缺少 `<tr>` 包裹的孤立
+     单元格行（东财 jbgk 页「最高申购费率」行），列数 20 → 18 与 akshare 一致。
+  3. `fund_report_stock_cninfo` / `fund_manager_em` 新增 `Df::cast_integer`，使序号/计数/从业
+     时间列为 int64（对齐 pandas `pd.to_numeric`），规模/收益列保持 float64。
+  4. `fund_etf_fund_daily_em` 表头日期列 `colspan=2`：改用原始表头第 6/7 单元格取当日/前日。
+  5. `fund_fee_em` 表头判定对齐 pandas：仅含 `<th>` 的表格取首行为表头，否则列名取整数序
+     `0..n` 且首行仍为数据（「交易状态/运作费用」等表）。
+- **顺带修复（同源问题）**：
+  - `fund_open_fund_daily_em`：改用宽松解析（原 `serde_json` 解析同一 JS 响应失败），
+    并去掉 akshare 未做的数值化（净值列保持字符串）→ 现 parity PASS（11 列 × 24216 行）。
+  - `fund_money_fund_daily_em`：原错误复用 `Fund_JJJZ_Data`（始终报错）；按 akshare 改从
+    `HBJJ_pjsyl.html` 解析，13 列 × 544 行 → parity PASS。
+- **实现覆盖率**：**≈ 81.8%**（883 / 1080 公开 API）；fund 大类 **65.9% → 77.3%**（58 → 68 / 88）。
+- **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`(272) 全绿；
+  新增 `cast_integer`、`fund_parse_table` 表头语义、`fund_keep_tr_rows`、宽松 JS 解析等离线单测。
+- **parity 验证**：10 个新函数 + 2 个修复函数全部 **PASS / 0 FAIL / 0 SKIP**（golden 已落盘）。
+- **parity 注册**：10 个新函数已注册至 `src/bin/parity.rs`（import + dispatch）与
+  `tools/parity_runner.py`；新增 12 个 `tests/golden/fund_*.json`。
+
 ## [2026-09-30] 批次 91 · index 申万行业分类 4 个函数
 
 - **新增公开函数**：**869 → 873**（净 +4）。乐咕乐股-申万行业分类（对应 akshare `index/index_sw.py`）：

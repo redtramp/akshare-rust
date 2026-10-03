@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## Implemented Interfaces
 
-> As of now, a total of **873** data interfaces are implemented, covering **20 / 35** functional categories, with an overall coverage of **≈ 80.8%**
+> As of now, a total of **883** data interfaces are implemented, covering **20 / 35** functional categories, with an overall coverage of **≈ 81.8%**
 > (benchmarked against the **1080** identically-named public functions in akshare **1.18.83**; earlier docs used a 1131 baseline).
 > All interfaces align with the identically-named Python akshare functions (column names / column order / values verified differentially item by item).
 
@@ -43,7 +43,7 @@ println!("{}", df);
 | stock_feature | 168 | 208 | 80.8% |
 | stock | 122 | 125 | 97.6% |
 | index | 78 | 94 | 83.0% |
-| fund | 58 | 88 | 65.9% |
+| fund | 68 | 88 | 77.3% |
 | futures | 45 | 69 | 65.2% |
 | stock_fundamental | 43 | 57 | 75.4% |
 | option | 44 | 44 | 100.0% |
@@ -147,6 +147,8 @@ println!("{}", df);
 | `fund_value_estimation_em` | `ak.fund_value_estimation_em` | Fund NAV estimation |
 | `fund_name_em` | `ak.fund_name_em` | Fund name list |
 | `fund_hk_rank_em` / `fund_hk_fund_hist_em` | `ak.fund_hk_*` | HK fund ranking / historical NAV |
+| `fund_manager_em` / `fund_overview_em` / `fund_info_ths` / `fund_fee_em` / `fund_info_index_em` | `ak.fund_*` | Manager list / fund profile / THS info / purchase fee / index funds |
+| `fund_report_stock_cninfo` / `fund_etf_fund_daily_em` / `fund_graded_fund_daily_em` / `fund_financial_fund_info_em` / `fund_etf_dividend_sina` | `ak.fund_*` | CNINFO heavy holdings / exchange NAV / graded NAV / financial-fund NAV / ETF dividend |
 
 | Function | Corresponding akshare | Description |
 |---|---|---|
