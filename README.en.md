@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## Implemented Interfaces
 
-> As of now, a total of **883** data interfaces are implemented, covering **20 / 35** functional categories, with an overall coverage of **≈ 81.8%**
+> As of now, a total of **893** data interfaces are implemented, covering **21 / 35** functional categories, with an overall coverage of **≈ 82.7%**
 > (benchmarked against the **1080** identically-named public functions in akshare **1.18.83**; earlier docs used a 1131 baseline).
 > All interfaces align with the identically-named Python akshare functions (column names / column order / values verified differentially item by item).
 
@@ -39,7 +39,7 @@ println!("{}", df);
 
 | Category | Implemented | akshare | Coverage |
 |---|---|---|---|
-| economic | 222 | 225 | 98.7% |
+| economic | 224 | 225 | 99.6% |
 | stock_feature | 168 | 208 | 80.8% |
 | stock | 122 | 125 | 97.6% |
 | index | 78 | 94 | 83.0% |
@@ -50,7 +50,7 @@ println!("{}", df);
 | bond | 39 | 42 | 92.9% |
 | spot | 15 | 15 | 100.0% |
 | futures_derivative | 10 | 13 | 76.9% |
-| movie | 0 | 12 | 0.0% |
+| movie | 8 | 12 | 66.7% |
 | energy | 8 | 8 | 100.0% |
 | other | 0 | 8 | 0.0% |
 | qhkc_web | 0 | 8 | 0.0% |

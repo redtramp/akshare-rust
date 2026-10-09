@@ -3423,6 +3423,676 @@ pub fn macro_usa_rig_count() -> Result<Df> {
     build_jin10_table(&values, &items, &["钻井数", "变化"], "_")
 }
 
+// === BATCH94 国家统计局新站（data.stats.gov.cn）索引型宽表（2 个）===
+//
+// 链路：queryIndexTreeAsync（目录树，按 `path` 逐级下钻）→ queryIndicatorsByCid
+// （目录指标列表）→ stream/esData（POST，宽表数据）。
+// 输出契约：akshare 返回的 pandas 宽表 index 无名（`index.name=None`），parity 侧
+// runner 对这两个函数先 `reset_index()` 再比对，故 Rust 首列固定为 `index`
+// （指标名/地区名），其余列为周期名（数据返回序），全空周期列删除
+// （对应 `dropna(axis=1, how="all")`）。
+
+const NBS_TREE_URL: &str =
+    "https://data.stats.gov.cn/dg/website/publicrelease/web/external/new/queryIndexTreeAsync";
+const NBS_INDICATORS_URL: &str =
+    "https://data.stats.gov.cn/dg/website/publicrelease/web/external/new/queryIndicatorsByCid";
+const NBS_DA_CATALOGS_URL: &str =
+    "https://data.stats.gov.cn/dg/website/publicrelease/web/external/getDaCatalogTreeByIndicatorCid";
+const NBS_DA_MEMBERS_URL: &str =
+    "https://data.stats.gov.cn/dg/website/publicrelease/web/external/getDasByDaCatalogId";
+const NBS_ESDATA_URL: &str =
+    "https://data.stats.gov.cn/dg/website/publicrelease/web/external/stream/esData";
+
+/// `kind` → 数据类别编码（对应 akshare `_KIND_CONFIG`）。
+fn nbs_kind_code(kind: &str) -> Result<i32> {
+    Ok(match kind {
+        "月度数据" => 1,
+        "季度数据" => 2,
+        "年度数据" => 3,
+        "分省月度数据" => 4,
+        "分省季度数据" => 5,
+        "分省年度数据" => 6,
+        "主要城市月度价格" => 7,
+        "主要城市年度数据" => 8,
+        "港澳台月度数据" => 9,
+        "港澳台年度数据" => 10,
+        _ => return Err(AkshareError::Param(format!("未知 NBS 数据类别: {kind}"))),
+    })
+}
+
+/// NBS 请求头（对应 akshare `_get_nbs_headers`，与 route 无关）。
+fn nbs_headers() -> [(&'static str, &'static str); 4] {
+    [
+        ("Accept", "application/json, text/plain, */*"),
+        ("Origin", "https://data.stats.gov.cn"),
+        (
+            "Referer",
+            "https://data.stats.gov.cn/dg/website/page.html#/pc/national/monthData",
+        ),
+        (
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+             (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+        ),
+    ]
+}
+
+/// `kind` → 时间粒度（对应 akshare `_get_nbs_granularity`）。
+fn nbs_granularity(kind: &str) -> &'static str {
+    if kind.contains("月度") {
+        "month"
+    } else if kind.contains("季度") {
+        "quarter"
+    } else {
+        "year"
+    }
+}
+
+/// 文本规范化：去除全部空白（对应 akshare `_normalize_nbs_text`）。
+fn nbs_norm(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+fn nbs_get_list(http: &HttpClient, url: &str, params: &Map<String, Value>) -> Result<Vec<Value>> {
+    let v = http.get_json_with_headers(url, params, &nbs_headers(), None)?;
+    Ok(v.get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default())
+}
+
+/// 目录树子节点（`pid` 为空时返回根节点列表）。
+fn nbs_tree(http: &HttpClient, pid: &str, code: i32) -> Result<Vec<Value>> {
+    let params = json!({ "pid": pid, "code": code })
+        .as_object()
+        .unwrap()
+        .clone();
+    nbs_get_list(http, NBS_TREE_URL, &params)
+}
+
+/// 某类数据的根节点 ID（对应 akshare `_get_nbs_root_id`）。
+fn nbs_root_id(http: &HttpClient, code: i32) -> Result<String> {
+    let roots = nbs_tree(http, "", code)?;
+    roots
+        .first()
+        .and_then(|r| r.get("_id").and_then(Value::as_str))
+        .map(|s| s.to_string())
+        .ok_or_else(|| AkshareError::Empty("NBS 根目录加载失败".into()))
+}
+
+/// 目录下的可选指标列表（对应 akshare `_get_nbs_indicators`）。
+fn nbs_indicators(http: &HttpClient, cid: &str) -> Result<Vec<Value>> {
+    let params = json!({ "cid": cid, "dt": "", "name": "" })
+        .as_object()
+        .unwrap()
+        .clone();
+    let v = http.get_json_with_headers(NBS_INDICATORS_URL, &params, &nbs_headers(), None)?;
+    Ok(v.get("data")
+        .and_then(|d| d.get("list"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default())
+}
+
+/// 目录的地区维度分组（对应 akshare `_get_nbs_da_catalogs`）。
+fn nbs_da_catalogs(http: &HttpClient, cid: &str) -> Result<Vec<Value>> {
+    let params = json!({ "indicatorCid": cid }).as_object().unwrap().clone();
+    nbs_get_list(http, NBS_DA_CATALOGS_URL, &params)
+}
+
+/// 地区分组下的地区成员（对应 akshare `_get_nbs_da_members`）。
+fn nbs_da_members(http: &HttpClient, da_cid: &str) -> Result<Vec<Value>> {
+    let params = json!({ "daCid": da_cid }).as_object().unwrap().clone();
+    nbs_get_list(http, NBS_DA_MEMBERS_URL, &params)
+}
+
+/// 按名称查找目录节点（对应 akshare `_find_nbs_node_by_name`）。
+fn nbs_find_node<'a>(nodes: &'a [Value], name: &str) -> Result<&'a Value> {
+    let target = nbs_norm(name);
+    for item in nodes {
+        let n = item
+            .get("name")
+            .and_then(Value::as_str)
+            .or_else(|| item.get("_name").and_then(Value::as_str))
+            .unwrap_or("");
+        if nbs_norm(n) == target {
+            return Ok(item);
+        }
+    }
+    Err(AkshareError::Param("请检查数据路径或指标是否正确".into()))
+}
+
+/// 目录路径解析（对应 akshare `_resolve_nbs_catalog`）：逐级下钻到叶子 cid。
+fn nbs_resolve_catalog(http: &HttpClient, kind: &str, path: &str) -> Result<(String, String)> {
+    let code = nbs_kind_code(kind)?;
+    let root_id = nbs_root_id(http, code)?;
+    let mut node_id = root_id.clone();
+    for part in path.split('>') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let nodes = nbs_tree(http, &node_id, code)?;
+        let target = nbs_find_node(&nodes, part)?;
+        node_id = target
+            .get("_id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+    }
+    Ok((node_id, root_id))
+}
+
+/// 指标名格式化（对应 akshare `_format_nbs_indicator_name`）：
+/// `前缀+后缀(+单位)` → `前缀_后缀(单位)`，后缀取最早出现且后接空或单位括号者。
+fn nbs_format_indicator_name(item: &Value) -> String {
+    let label = || {
+        let l = nbs_norm(item.get("i_showname").and_then(Value::as_str).unwrap_or(""));
+        if !l.is_empty() {
+            return l;
+        }
+        let l = nbs_norm(item.get("ek_dp_name").and_then(Value::as_str).unwrap_or(""));
+        if !l.is_empty() {
+            return l;
+        }
+        nbs_norm(item.get("_name").and_then(Value::as_str).unwrap_or(""))
+    };
+    let label = label();
+    const SUFFIXES: [&str; 9] = [
+        "累计值",
+        "当期值",
+        "本期值",
+        "期末值",
+        "平均值",
+        "同比增长率",
+        "同比增长",
+        "增长率",
+        "增速",
+    ];
+    let mut best: Option<(usize, &str)> = None; // (后缀结束字节位置, 后缀)
+    for suf in SUFFIXES {
+        if let Some(idx) = label.find(suf) {
+            let end = idx + suf.len();
+            let rest = &label[end..];
+            // 单位部分：空或形如 `(xxx)`（括号内无 `)`）
+            let unit_ok = rest.is_empty()
+                || (rest.starts_with('(')
+                    && rest.ends_with(')')
+                    && rest.rfind(')') == Some(rest.len() - 1)
+                    && rest.find(')') == Some(rest.len() - 1));
+            if unit_ok {
+                match best {
+                    None => best = Some((end, suf)),
+                    Some((be, _)) if end < be => best = Some((end, suf)),
+                    _ => {}
+                }
+            }
+        }
+    }
+    match best {
+        Some((end, suf)) => format!("{}_{}{}", &label[..end - suf.len()], suf, &label[end..]),
+        None => label,
+    }
+}
+
+/// 按名称查找具体指标（对应 akshare `_find_nbs_indicator`，去下划线精确匹配）。
+fn nbs_find_indicator<'a>(indicators: &'a [Value], name: &str) -> Result<&'a Value> {
+    let target = nbs_norm(name).replace('_', "");
+    for item in indicators {
+        let candidates = [
+            nbs_norm(item.get("i_showname").and_then(Value::as_str).unwrap_or("")),
+            nbs_format_indicator_name(item),
+            nbs_norm(item.get("ek_dp_name").and_then(Value::as_str).unwrap_or("")),
+            nbs_norm(item.get("_name").and_then(Value::as_str).unwrap_or("")),
+        ];
+        if candidates.iter().any(|c| c.replace('_', "") == target) {
+            return Ok(item);
+        }
+    }
+    Err(AkshareError::Param("请检查数据路径或指标是否正确".into()))
+}
+
+/// 旧接口时间片段 → 新站 dts 编码（对应 akshare `_encode_nbs_period_token`）。
+fn nbs_encode_token(token: &str, granularity: &str) -> Result<String> {
+    let token = token.trim().to_uppercase();
+    let all_digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let err = || AkshareError::Param("请检查 period 参数是否正确".into());
+    match granularity {
+        "year" => {
+            if token.len() == 4 && all_digits(&token) {
+                Ok(format!("{token}YY"))
+            } else if token.len() == 6 && all_digits(&token[..4]) && token.ends_with("YY") {
+                Ok(token)
+            } else {
+                Err(err())
+            }
+        }
+        "month" => {
+            if token.len() == 6 && all_digits(&token) {
+                Ok(format!("{token}MM"))
+            } else if token.len() == 8 && all_digits(&token[..6]) && token.ends_with("MM") {
+                Ok(token)
+            } else {
+                Err(err())
+            }
+        }
+        _ => {
+            if token.len() == 8 && all_digits(&token[..6]) && token.ends_with("SS") {
+                Ok(token)
+            } else if token.len() == 5 && all_digits(&token[..4]) {
+                match token.as_bytes()[4] {
+                    b'A' => Ok(format!("{}01SS", &token[..4])),
+                    b'B' => Ok(format!("{}02SS", &token[..4])),
+                    b'C' => Ok(format!("{}03SS", &token[..4])),
+                    b'D' => Ok(format!("{}04SS", &token[..4])),
+                    b'1' | b'2' | b'3' | b'4' => Ok(format!("{}0{}SS", &token[..4], &token[4..5])),
+                    _ => Err(err()),
+                }
+            } else {
+                Err(err())
+            }
+        }
+    }
+}
+
+/// 最近一个完整统计周期编码（对应 akshare `_get_last_completed_period`）。
+fn nbs_last_completed_period(granularity: &str) -> String {
+    use chrono::Datelike;
+    let today = chrono::Local::now().date_naive();
+    match granularity {
+        "month" => {
+            let (y, m) = (today.year(), today.month() as i32);
+            let (ly, lm) = if m == 1 { (y - 1, 12) } else { (y, m - 1) };
+            format!("{ly:04}{lm:02}MM")
+        }
+        "quarter" => {
+            let q = (today.month() as i32 - 1) / 3 + 1;
+            let (y, q) = if q == 1 {
+                (today.year() - 1, 4)
+            } else {
+                (today.year(), q - 1)
+            };
+            format!("{y:04}0{q}SS")
+        }
+        _ => format!("{}YY", today.year() - 1),
+    }
+}
+
+/// 周期编码偏移（对应 akshare `_shift_nbs_period`；Python divmod 语义用 euclid）。
+fn nbs_shift_period(code: &str, granularity: &str, offset: i64) -> String {
+    let seg = |s: &str| -> i64 { s.parse().unwrap_or(0) };
+    match granularity {
+        "month" => {
+            let year = seg(&code[0..4]);
+            let month = seg(&code[4..6]);
+            let total = year * 12 + (month - 1) + offset;
+            let (y, m) = (total.div_euclid(12), total.rem_euclid(12));
+            format!("{y}{:02}MM", m + 1)
+        }
+        "quarter" => {
+            let year = seg(&code[0..4]);
+            let q = seg(&code[4..6]);
+            let total = year * 4 + (q - 1) + offset;
+            let (y, q) = (total.div_euclid(4), total.rem_euclid(4));
+            format!("{y}0{q}SS", q = q + 1)
+        }
+        _ => format!("{}YY", seg(&code[0..4]) + offset),
+    }
+}
+
+/// 构造 dts 参数（对应 akshare `_build_nbs_dts`）。
+fn nbs_build_dts(period: &str, granularity: &str) -> Result<Vec<String>> {
+    let period = period.trim();
+    if period.is_empty() {
+        return Ok(Vec::new());
+    }
+    let is_year4 = |s: &str| s.len() == 4 && s.bytes().all(|b| b.is_ascii_digit());
+    if period.to_lowercase().starts_with("last") {
+        let count: i64 = period[4..]
+            .parse()
+            .map_err(|_| AkshareError::Param("请检查 period 参数是否正确".into()))?;
+        let end = nbs_last_completed_period(granularity);
+        let start = nbs_shift_period(&end, granularity, -(count - 1));
+        return Ok(vec![format!("{start}-{end}")]);
+    }
+    if let Some((start_text, end_text)) = period.split_once('-') {
+        let mut start = start_text.trim().to_string();
+        let mut end = end_text.trim().to_string();
+        if granularity != "year" && is_year4(&start) {
+            start = if granularity == "month" {
+                format!("{start}01")
+            } else {
+                format!("{start}A")
+            };
+        }
+        let start_code = nbs_encode_token(&start, granularity)?;
+        let end_code = if end.is_empty() {
+            nbs_last_completed_period(granularity)
+        } else {
+            if granularity == "month" && is_year4(&end) {
+                end = format!("{end}12");
+            } else if granularity == "quarter" && is_year4(&end) {
+                end = format!("{end}D");
+            }
+            nbs_encode_token(&end, granularity)?
+        };
+        return Ok(vec![format!("{start_code}-{end_code}")]);
+    }
+    let tokens: Vec<&str> = period
+        .split(',')
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .collect();
+    let expand = |t: &str, out: &mut Vec<String>| -> Result<()> {
+        if is_year4(t) {
+            if granularity == "month" {
+                out.extend([format!("{t}01MM"), format!("{t}12MM")]);
+            } else if granularity == "quarter" {
+                out.extend([format!("{t}01SS"), format!("{t}04SS")]);
+            } else {
+                out.push(nbs_encode_token(t, granularity)?);
+            }
+        } else {
+            out.push(nbs_encode_token(t, granularity)?);
+        }
+        Ok(())
+    };
+    if tokens.len() == 1 {
+        let mut out = Vec::new();
+        expand(tokens[0], &mut out)?;
+        return Ok(out);
+    }
+    let mut out = Vec::new();
+    for t in tokens {
+        expand(t, &mut out)?;
+    }
+    Ok(out)
+}
+
+/// 数值转换（对应 akshare `_convert_nbs_value`，非数值 → None）。
+fn nbs_convert_value(v: &Value) -> Option<f64> {
+    match v {
+        Value::Null => None,
+        Value::Number(n) => n.as_f64(),
+        Value::String(s) => {
+            let s = s.trim();
+            if s.is_empty() {
+                None
+            } else {
+                s.parse::<f64>().ok()
+            }
+        }
+        _ => None,
+    }
+}
+
+/// 宽表网格：行序（指标/地区首现序）× 周期序（数据返回序）。
+struct NbsGrid {
+    row_order: Vec<String>,
+    period_names: Vec<String>,
+    /// `row_order.len() * period_names.len()`，行主序。
+    values: Vec<Option<f64>>,
+}
+
+/// 组装宽表网格（对应 akshare 的 `data_dict` + `reindex` 逻辑）。
+fn nbs_build_grid(data_list: &[Value], row_key: &dyn Fn(&Value) -> Option<String>) -> NbsGrid {
+    let mut period_names: Vec<String> = Vec::new();
+    let mut row_order: Vec<String> = Vec::new();
+    let mut map: std::collections::HashMap<(String, String), Option<f64>> =
+        std::collections::HashMap::new();
+    for period_item in data_list {
+        let Some(raw) = period_item.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        let pname = nbs_norm(raw);
+        period_names.push(pname.clone());
+        let Some(vals) = period_item.get("values").and_then(Value::as_array) else {
+            continue;
+        };
+        for vi in vals {
+            let Some(rname) = row_key(vi) else {
+                continue;
+            };
+            if !row_order.contains(&rname) {
+                row_order.push(rname.clone());
+            }
+            map.insert(
+                (rname, pname.clone()),
+                nbs_convert_value(vi.get("value").unwrap_or(&Value::Null)),
+            );
+        }
+    }
+    let mut values: Vec<Option<f64>> = Vec::with_capacity(row_order.len() * period_names.len());
+    for r in &row_order {
+        for p in &period_names {
+            values.push(map.get(&(r.clone(), p.clone())).copied().flatten());
+        }
+    }
+    NbsGrid {
+        row_order,
+        period_names,
+        values,
+    }
+}
+
+/// 空表契约（对应 akshare `pd.DataFrame().reset_index()`：1 列 `index`/int64/0 行）。
+fn nbs_empty_df() -> Result<Df> {
+    let mut df = Df::from_string_rows(&["index"], &[])?;
+    df.cast_integer(&["index"])?;
+    Ok(df)
+}
+
+/// 网格 → Df：首列 `index`（无名 index 的 reset_index 列名），其余列为周期名；
+/// 删除全空周期列（对应 `dropna(axis=1, how="all")`）。
+fn nbs_to_df(grid: NbsGrid) -> Result<Df> {
+    let ncol = grid.period_names.len();
+    if ncol == 0 || grid.row_order.is_empty() {
+        return nbs_empty_df();
+    }
+    let keep: Vec<usize> = (0..ncol)
+        .filter(|&j| (0..grid.row_order.len()).any(|i| grid.values[i * ncol + j].is_some()))
+        .collect();
+    let col_names: Vec<String> = std::iter::once("index".to_string())
+        .chain(keep.iter().map(|&j| grid.period_names[j].clone()))
+        .collect();
+    let rows: Vec<Vec<Option<String>>> = grid
+        .row_order
+        .iter()
+        .enumerate()
+        .map(|(i, rname)| {
+            let mut row = vec![Some(rname.clone())];
+            for &j in &keep {
+                row.push(grid.values[i * ncol + j].map(nbs_format_f64));
+            }
+            row
+        })
+        .collect();
+    let cols: Vec<&str> = col_names.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&cols, &rows)?;
+    let period_cols: Vec<&str> = keep
+        .iter()
+        .map(|&j| grid.period_names[j].as_str())
+        .collect();
+    df.cast_numeric(&period_cols)?;
+    Ok(df)
+}
+
+/// 浮点字符串化：与 pandas `str()` 对齐（整数时省略小数部分）。
+fn nbs_format_f64(v: f64) -> String {
+    if v.fract() == 0.0 && v.abs() < 1e15 {
+        format!("{}", v as i64)
+    } else {
+        format!("{v}")
+    }
+}
+
+/// esData 数据流请求（对应 akshare `_post_nbs_es_data`）。
+fn nbs_es_data(
+    http: &HttpClient,
+    cid: &str,
+    root_id: &str,
+    indicator_ids: &[String],
+    das: &[Value],
+    // 展示类型（akshare showType 逐字对齐：nation/单地区为字符串 "1"，全地区分支为整数 3）
+    show_type: &Value,
+    dts: &[String],
+) -> Result<Vec<Value>> {
+    let mut body = json!({
+        "cid": cid,
+        "indicatorIds": indicator_ids,
+        "daCatalogId": "",
+        "das": das,
+        "showType": show_type,
+        "rootId": root_id,
+    });
+    if !dts.is_empty() {
+        body.as_object_mut()
+            .expect("body 必须是对象")
+            .insert("dts".into(), json!(dts));
+    }
+    let resp = http.post_json_body(NBS_ESDATA_URL, &body, &nbs_headers())?;
+    Ok(resp
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default())
+}
+
+/// 国家统计局-全国数据（对应 akshare [`akshare.macro_china_nbs_nation`]）。
+///
+/// 新站 `data.stats.gov.cn` 三步链路（目录树 → 指标列表 → esData，`showType="1"`、
+/// 地区固定全国）。宽表行 = 目录下全部指标（`_format_nbs_indicator_name` 命名），
+/// 列 = 周期名（数据返回序，全空列删除）。
+///
+/// # 返回列
+/// `index, <周期名>...`（`index` = 指标名；周期列数值化）
+pub fn macro_china_nbs_nation(kind: &str, path: &str, period: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let (cid, root_id) = nbs_resolve_catalog(&http, kind, path)?;
+    let indicators = nbs_indicators(&http, &cid)?;
+    let ids: Vec<String> = indicators
+        .iter()
+        .filter_map(|i| i.get("_id").and_then(Value::as_str).map(String::from))
+        .collect();
+    let dts = nbs_build_dts(period, nbs_granularity(kind))?;
+    let das = vec![json!({ "text": "全国", "value": "000000000000" })];
+    let data_list = nbs_es_data(&http, &cid, &root_id, &ids, &das, &json!("1"), &dts)?;
+    if data_list.is_empty() {
+        return nbs_empty_df();
+    }
+    let grid = nbs_build_grid(&data_list, &|vi| Some(nbs_format_indicator_name(vi)));
+    nbs_to_df(grid)
+}
+
+/// 国家统计局-地区数据（对应 akshare [`akshare.macro_china_nbs_region`]）。
+///
+/// `indicator` 与 `region` 不能同时为空。
+/// - `region=None`：单指标 × 全部地区（esData `showType=3`，行 = 地区名取 `area`）；
+/// - `region=Some`：单地区 × 全部（或指定）指标（esData `showType="1"`，行 = 指标名）。
+///
+/// # 返回列
+/// `index, <周期名>...`（`index` = 地区名或指标名；周期列数值化）
+pub fn macro_china_nbs_region(
+    kind: &str,
+    path: &str,
+    indicator: Option<&str>,
+    region: Option<&str>,
+    period: &str,
+) -> Result<Df> {
+    if indicator.is_none() && region.is_none() {
+        return Err(AkshareError::Param(
+            "indicator 与 region 不能同时为空".into(),
+        ));
+    }
+    let http = HttpClient::default();
+    let (cid, root_id) = nbs_resolve_catalog(&http, kind, path)?;
+    let indicators = nbs_indicators(&http, &cid)?;
+    let da_catalogs = nbs_da_catalogs(&http, &cid)?;
+    let default_catalog = da_catalogs
+        .iter()
+        .find(|c| {
+            let n = c
+                .get("name")
+                .and_then(Value::as_str)
+                .or_else(|| c.get("_name").and_then(Value::as_str))
+                .unwrap_or("");
+            nbs_norm(n) == "全部地区"
+        })
+        .or_else(|| da_catalogs.first())
+        .ok_or_else(|| AkshareError::Empty("NBS 地区目录为空".into()))?;
+    let da_cid = default_catalog
+        .get("_id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let da_members = nbs_da_members(&http, &da_cid)?;
+    let dts = nbs_build_dts(period, nbs_granularity(kind))?;
+
+    if region.is_none() {
+        // 分支1：指定指标 × 全部地区
+        let target = nbs_find_indicator(&indicators, indicator.unwrap_or(""))?;
+        let ids = vec![target
+            .get("_id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string()];
+        let das: Vec<Value> = da_members
+            .iter()
+            .map(|m| {
+                json!({
+                    "text": m.get("show_name").and_then(Value::as_str).unwrap_or(""),
+                    "value": m.get("name_value").and_then(Value::as_str).unwrap_or(""),
+                })
+            })
+            .collect();
+        let data_list = nbs_es_data(&http, &cid, &root_id, &ids, &das, &json!(3), &dts)?;
+        if data_list.is_empty() {
+            return nbs_empty_df();
+        }
+        let grid = nbs_build_grid(&data_list, &|vi| {
+            Some(
+                vi.get("area")
+                    .and_then(Value::as_str)
+                    .or_else(|| vi.get("da_name").and_then(Value::as_str))
+                    .unwrap_or("")
+                    .to_string(),
+            )
+        });
+        nbs_to_df(grid)
+    } else {
+        // 分支2：指定地区 × 全部/指定指标
+        let region_norm = nbs_norm(region.unwrap_or(""));
+        let region_item = da_members
+            .iter()
+            .find(|m| {
+                nbs_norm(m.get("show_name").and_then(Value::as_str).unwrap_or("")) == region_norm
+            })
+            .ok_or_else(|| AkshareError::Param("请检查数据路径或指标是否正确".into()))?;
+        let mut ids: Vec<String> = indicators
+            .iter()
+            .filter_map(|i| i.get("_id").and_then(Value::as_str).map(String::from))
+            .collect();
+        if let Some(ind) = indicator {
+            let target = nbs_find_indicator(&indicators, ind)?;
+            ids = vec![target
+                .get("_id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string()];
+        }
+        let das = vec![json!({
+            "text": region_item.get("show_name").and_then(Value::as_str).unwrap_or(""),
+            "value": region_item.get("name_value").and_then(Value::as_str).unwrap_or(""),
+        })];
+        let data_list = nbs_es_data(&http, &cid, &root_id, &ids, &das, &json!("1"), &dts)?;
+        if data_list.is_empty() {
+            return nbs_empty_df();
+        }
+        let grid = nbs_build_grid(&data_list, &|vi| Some(nbs_format_indicator_name(vi)));
+        nbs_to_df(grid)
+    }
+}
+
 #[cfg(test)]
 mod batch93_tests {
     use super::*;

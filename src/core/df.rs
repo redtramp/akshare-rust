@@ -279,6 +279,22 @@ impl Df {
         Ok(Self { inner })
     }
 
+    /// 按已为数值类型的列直接排序（对应 akshare 对 int64 列的 `sort_values`）。
+    ///
+    /// 与 [`Df::sort_by`]（`try_numeric=true`）不同：本方法**不改变列 dtype**
+    /// （pandas `sort_values` 对整数列排序后仍是 `int64`），null 排末尾。
+    pub fn sort_by_existing(&self, col: &str, ascending: bool) -> Result<Self> {
+        let opts = SortMultipleOptions::default()
+            .with_order_descending(!ascending)
+            .with_nulls_last(true);
+        let inner = self
+            .inner
+            .clone()
+            .sort([col], opts)
+            .map_err(|e| AkshareError::Empty(format!("排序失败: {e}")))?;
+        Ok(Self { inner })
+    }
+
     /// 指定列转日期字符串（对应 akshare `pd.to_datetime(errors="coerce").dt.date`）。
     ///
     /// 有效日期归一化为 `YYYY-MM-DD`；无法解析的值 → `None`（对应 `NaT`）。

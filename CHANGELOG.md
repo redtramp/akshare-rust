@@ -4,6 +4,46 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-10-09] 批次 94 · movie 电影票房 8 个 + 国家统计局新站 2 个（同名函数 883 → 893）
+
+- **新增 movie 分类 8 个**（`src/movie/mod.rs`，akshare `movie_yien.py` 全量落地，movie 大类
+  **0 → 8 / 12（66.7%）**，剩余 4 个为 artist/video 非票房接口）：
+  - `movie_boxoffice_realtime`（艺恩 `ys.endata.cn/enlib-api` form-POST，当日实时票房 6 列 97 行）
+  - `movie_boxoffice_daily`（单日票房 9 列，含全空 `口碑指数` 占位列，`排序` 升序）
+  - `movie_boxoffice_monthly`（单月票房 9 列，`month_id` 基准 2026-01=241，月末算法与 akshare
+    逐字一致：28 号 +4 天越月 → 下月 1 号回退 1 天）
+  - `movie_boxoffice_yearly` / `movie_boxoffice_yearly_first_week`（年度票房 8 列 / 首周票房 9 列，
+    首周天数 = `7 - weekday`（周一=7…周日=1），`国家及地区` 去空格）
+  - `movie_boxoffice_cinema_daily`（影院日票房排行 7 列，只取第一页 `pagesize=100`，akshare
+    同源行为）
+  - `movie_boxoffice_weekly` / `movie_boxoffice_cinema_weekly`：akshare 上游公开周榜接口需权限，
+    其源码直接抛 `APIError` 且不发起请求——Rust 对齐该行为（`AkshareError::Param` 同文案，不发
+    HTTP），故无 golden
+  - 公共实现：`post_endata`（`status==1` 校验）+ `fetch_endata_list`（`table2[0].TotalPage`
+    翻页拼接 `table1`）；两接口 Referer 不同（电影 `/BoxOffice/Movie`、影院 `/BoxOffice/Org`）
+- **新增 economic 2 个**（国家统计局新站 `data.stats.gov.cn` 宽表，`macro_*` 大类至此
+  **226/226（100%）**）：
+  - `macro_china_nbs_nation`（全国数据：目录树 `queryIndexTreeAsync` 按 `path` 逐级下钻 →
+    `queryIndicatorsByCid` 指标列表 → `stream/esData` POST，行=指标名、列=周期名、全空周期列删除）
+  - `macro_china_nbs_region`（地区数据双分支：`region=None` 单指标×全部地区（`showType=3`、行=
+    地区名）、`region=Some` 单地区×全部/指定指标（`showType="1"`、行=指标名）；两参同空 →
+    `Param` 错误对齐 akshare `AssertionError`）
+  - `kind` → code（1-10）/粒度映射、`period` 编码（`LASTn`/区间/年份展开 → dts token）、指标名
+    格式化（后缀+单位 → `_` 连接）与 akshare `macro_china_nbs.py` 逐字对齐；空表契约
+    `1 列 index/int64/0 行`
+- **parity 基建**：runner 对 NBS 2 函数 `reset_index()` 后比对（akshare 宽表 index 无名）；
+  `norm_val` 增加 `"<NA>"` → null 归一（pandas 可空标量的 `str()` 字面表示）；`pandas_dtype`
+  int 分支改大小写不敏感（pandas 可空 `Int64` → `int64`）；新增 `Df::sort_by_existing`
+  （对已数值化列排序且**不改 dtype**，pandas `sort_values` 对 int64 列排序后仍 int64，
+  `sort_by` 的 `try_numeric` 分支会误转 float64）
+- **实现覆盖率**：**≈ 82.7%**（893 / 1080 公开 API）；同名 `pub fn` 同口径实测 896 → 906（+10）。
+- **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`
+  （**277 passed**）全绿；9 个新函数全部注册 `src/bin/parity.rs` + `tools/parity_runner.py` 并
+  生成 golden，parity **9/9 PASS**（movie 6 + NBS 3，strict/loose 混合）。
+- **回归观察（非本批缺陷）**：全量 `--check` 时 `stock_zt_pool_*` 6 例与
+  `fund_open/money_fund_daily_em` 失败均为陈旧 golden 数据漂移（8 月涨停池 golden 74 行 vs
+  上游现返回 0 行，Python 侧同样 0 行；fund 净值日期列滚动），`stock_zh_a_hist` 为东财限流。
+
 ## [2026-10-09] 批次 93 · economic 17 个占位函数真实实现（含 1 处去重修复）
 
 - **占位 → 真实实现**：17 个（同名 `pub fn` 计数 **883 不变**，因这 17 个此前已是返回空数据框的

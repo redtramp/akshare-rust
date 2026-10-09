@@ -126,13 +126,20 @@
 
 > **2026-10-09 批次 93 刷新**：将 economic 模块 17 个**原空数据框占位函数**全部替换为真实 HTTP/JS 实现（对应 akshare 同名 `pub fn` 计数**不变**，仍为 **883**，但有效可用覆盖 +17；economic 大类 `macro_*` 达 **224/226 ≈ 99.1%**）。17 个：`macro_china_urban_unemployment`（stats.gov.cn `esData` POST JSON 筛选 `_name=="城镇调查失业率"`）、`macro_cnbs`（`114.115.232.154:8080` xlsx，calamine `Data` 表跳过表头 2 行、`Period`→`YYYY-MM`）、`macro_fx_sentiment`（`datacenter-api.jin10.com/sentiment/datas`，上游仅允许最近一月、超期 403）、`macro_global_sox_index`（东财 `RPT_INDUSTRY_INDEX` 复用 `macro_china_industry_index`）、`macro_info_ws`（wallstreetcn `apiv1/finance/macrodatas`，`public_date` 秒→Asia/Shanghai）、`macro_rmb_deposit`/`macro_rmb_loan`/`macro_stock_finance`（同花顺 `data.10jqka.com.cn/macro/{rmb,loan,finance}` HTML 首表，公共 `ths_macro_rows`）、`macro_usa_cftc_{c,merchant_currency,merchant_goods,nc}_holding`（金十 cdn `cftc_{2,3,1,4}.json` 宽表，公共 `build_jin10_table`/`macro_cftc_wide`）、`macro_usa_cme_merchant_goods_holding`（`cme_3.json` 日期→记录数组展开 3 列）、`macro_usa_cpi_yoy`/`macro_usa_phs`（东财 `RPT_ECONOMICVALUE_USA` `INDICATOR_ID` 过滤）、`macro_usa_crude_inner`（`usa_oil.json` 3 品种×产量/变化）、`macro_usa_rig_count`（`baker.json` 4 品种×钻井数/变化）。**关键修复**：`macro_china_industry_index` 原请求 `columns=ALL`（17 字段），费城半导体等**全球指数**会被 `RPT_INDUSTRY_INDEX` 与多只国内板块/概念标签交叉连接，同一 `REPORT_DATE` 重复 2 行（8 个输出列相同、仅 `CONCEPT_CODE/NAME` 不同）导致整行去重失效、行数翻倍（SOX 16194 vs akshare 8097）；改为与 akshare 一致仅请求 8 个输出列后重复行整行相同，`drop_duplicates` 对齐（SOX 修复后 8097 行），国内行业指数与板块 1:1 映射无重复、行为不变（已复核 15 个同族函数行数均在数据漂移范围内）。质量门禁：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`（**277 passed**）全绿；17 个新函数全部注册 `src/bin/parity.rs` + `tools/parity_runner.py`（loose）并生成 golden，parity **17/17 PASS**（`macro_usa_cme_merchant_goods_holding` 30086 行、`macro_usa_crude_inner` 2280 行与 golden 的 ±1 行差异为金十 cdn 上游周度数据漂移，非实现缺陷）。
 
+> **2026-10-09 批次 94 刷新**：新增 **10 个** akshare 同名 `pub fn`（**883 → 893，≈82.7%**；同口径实测 896→906），覆盖 **movie 电影票房分类 8 个**（`movie_yien.py` 全量：`movie_boxoffice_realtime` / `movie_boxoffice_daily` / `movie_boxoffice_weekly` / `movie_boxoffice_monthly` / `movie_boxoffice_yearly` / `movie_boxoffice_yearly_first_week` / `movie_boxoffice_cinema_daily` / `movie_boxoffice_cinema_weekly`）+ **economic 国家统计局新站 2 个**（`macro_china_nbs_nation` / `macro_china_nbs_region`）。
+> - **movie（`src/movie/mod.rs`）**：6 个列表接口走 `ys.endata.cn/enlib-api` 单一 form-POST 模板（`_post_endata_json` 语义：`status==1` 校验 + `table2[0].TotalPage` 翻页拼接 `table1`，公共 `post_endata`/`fetch_endata_list`），无 JS 解密。两接口 Referer 不同：电影 `/BoxOffice/Movie`、影院 `/BoxOffice/Org`（`MOVIE_HEADERS`/`CINEMA_HEADERS` 两组常量）。列名/列序/单位换算与 akshare 逐字一致（票房列万元 ×10000、`排序` 整数、`上映日期` 日期列、`国家及地区` 去空格、`口碑指数` 全空列占位）。**周榜 2 个**（`movie_boxoffice_weekly` / `movie_boxoffice_cinema_weekly`）：akshare 上游公开周榜接口需权限，其源码直接抛 `APIError` 且不发起请求——Rust 对齐该行为（`AkshareError::Param` 同文案，不发 HTTP），故无 golden。**首周天数**：`7 - weekday`（周一=7…周日=1，上映日期缺失/非法 → 空值），与 akshare `_calc_first_week_days` 逐字一致。cinema_daily 只取第一页（akshare 同源行为，`pagesize=100` 上限）。
+> - **economic NBS 新站（`src/economic/mod.rs`）**：`data.stats.gov.cn` 三步链路（`queryIndexTreeAsync` 目录树按 `path` 逐级下钻 → `queryIndicatorsByCid` 指标列表 → `stream/esData` POST 宽表）。`kind` → code（1-10）/粒度（month/quarter/year）映射、`period` 编码（`LASTn`/区间/年份展开 → `YYYYMM`/`YYYY0NSS` 等 dts token）、指标名格式化（后缀+单位 → `_` 连接）、`showType`（nation/单地区 `"1"`、全地区整数 `3`）全部与 akshare `macro_china_nbs.py` 逐字对齐。输出宽表：行 = 指标名/地区名（首现序），列 = 周期名（数据返回序），全空周期列删除（对应 `dropna(axis=1, how="all")`），空表契约 `1 列 index/int64/0 行`。`macro_china_nbs_region` 双分支：`region=None` 单指标×全部地区（`area` 为行）、`region=Some` 单地区×全部/指定指标；两参同空 → `Param` 错误（akshare `AssertionError` 语义对齐）。**至此 `macro_*` 大类 226/226 全实现（100%）**。
+> - **parity 基建**：runner 对 NBS 2 函数 `reset_index()` 后比对（akshare 宽表 index 无名，Rust 首列固定 `index`）；`norm_val` 增加 `"<NA>"` → null 归一（pandas 可空标量经 `str()` 的字面表示，与 `NaT`/`nan` 同语义）；`pandas_dtype` 的 int 分支改大小写不敏感（pandas 可空 `Int64` → `int64`，旧 golden 无 `Int64` 命中、无影响）。`Df::sort_by_existing`（`src/core/df.rs`）：对已数值化列排序且**不改 dtype**（pandas `sort_values` 对 int64 列排序后仍 int64；`sort_by` 的 `try_numeric` 分支会把 int64 转 float64，与 Python 契约不符）。
+> - **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`（**277 passed**）全绿；9 个新函数全部注册 `src/bin/parity.rs` + `tools/parity_runner.py` 并生成 golden，parity **9/9 PASS**（movie 6：realtime loose 97 行 / daily strict 103 行 / monthly strict 289 行 / yearly strict 1105 行 / first_week strict 1105 行 / cinema_daily strict 100 行；NBS 3：nation strict 4 行 / region 两分支 strict 31 行与 3 行）。
+> - **回归观察（非本批缺陷）**：全量 `--check` 时 `stock_zt_pool_*` 6 例与 `fund_open/money_fund_daily_em` 失败均为**陈旧 golden 数据漂移**（8 月 golden 的涨停池 74 行 vs 上游现返回 0 行，Python 侧同样 0 行；fund 净值日期列滚动），`stock_zh_a_hist` 为东财限流；与 movie/NBS/runner 改动无关。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **883**（2026-10-09 批次 93 后实测，含 198 个宏生成函数；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（883 / 1080 校正口径） | **≈ 81.8%** |
-| golden 差分验证覆盖 | **524 fixture 文件**（2026-10-09 批次 93 后实测，含 17 个 economic 占位函数首次真实 golden）|
-| 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **893**（2026-10-09 批次 94 后实测，含 198 个宏生成函数；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（893 / 1080 校正口径） | **≈ 82.7%** |
+| golden 差分验证覆盖 | **533 fixture 文件**（2026-10-09 批次 94 后实测，含 movie 6 个 + NBS 3 个首次真实 golden）|
+| 已触及功能大类 | **21 / 35**（2026-10-09 批次 94 后，按下方子模块表"已实现>0"计；option/interest_rate/spot/news/reits 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
 **按 akshare 子模块分组的实现进度（2026-08-16 校正，差距降序）：**
@@ -153,7 +160,7 @@
 | energy | 4 | 8 | 50.0% |
 | currency | 2 | 7 | 28.6% |
 | fortune | 1 | 5 | 20.0% |
-| movie | 0 | 12 | 0.0% |
+| movie | 8 | 12 | 66.7%（2026-10-09 批次 94 后）|
 | other | 0 | 8 | 0.0% |
 | qhkc_web | 0 | 8 | 0.0% |
 | air | 0 | 7 | 0.0% |

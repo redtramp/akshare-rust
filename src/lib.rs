@@ -33,6 +33,7 @@ pub mod fx;
 pub mod index;
 pub mod interest_rate;
 pub mod legu;
+pub mod movie;
 pub mod news;
 pub mod option;
 pub mod reits;

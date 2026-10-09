@@ -43,6 +43,10 @@ HEAD_N = 5
 # 噪声当成差异。按有效位数归一可吸收浮点噪声，同时保留足够业务精度。
 SIGFIGS = 9
 
+# NBS 系列：akshare 返回「无名字符串 index（指标名/地区名）+ 周期列」宽表，
+# Rust 侧以首列 `index` 对齐，runner 侧对这两函数执行 reset_index() 后比对。
+NBS_RESET_INDEX = {"macro_china_nbs_nation", "macro_china_nbs_region"}
+
 # 用例注册表：函数名 → (参数, 对比模式, 说明)
 # 参数与 Rust parity bin / Python akshare 同名函数的参数一致（全字符串）。
 CASES: list[tuple[str, list[str], str, str]] = [
@@ -963,13 +967,28 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("hurun_rank", ["胡润百富榜", "2023"], "loose", "胡润百富榜"),
     # stock_new_gh_cninfo: akshare 在空数据时 pd.DataFrame([]) 设置列名报
     # Length mismatch（上游 bug），无法生成 golden；Rust 侧已离线验证空表列契约
+    # === BATCH94 NBS（data.stats.gov.cn 新站；可选参数空串 = None，与 parity bin 约定一致） ===
+    ("macro_china_nbs_nation", ["月度数据", "工业 > 工业分大类行业出口交货值(2018-至今) > 废弃资源综合利用业", "LAST5"], "strict", "国家统计局全国数据"),
+    ("macro_china_nbs_region", ["分省季度数据", "国民经济核算 > 地区生产总值", "地区生产总值_累计值(亿元)", "", "2018-2022"], "strict", "国家统计局地区数据(指标×全部地区)"),
+    ("macro_china_nbs_region", ["分省季度数据", "人民生活 > 居民人均可支配收入", "", "北京市", "2018-2022"], "strict", "国家统计局地区数据(全部指标×地区)"),
+    # === BATCH94 movie（艺恩电影票房 ys.endata.cn form-POST 模板） ===
+    # movie_boxoffice_weekly / movie_boxoffice_cinema_weekly：akshare 上游对这两个
+    # 周榜接口直接抛 APIError（公开接口需权限，匿名返回系统错误），Python 侧无法
+    # 生成 golden；Rust 侧已按 akshare 行为对齐（不发请求、直接返回权限错误）。
+    ("movie_boxoffice_realtime", [], "loose", "电影票房-实时票房"),
+    ("movie_boxoffice_daily", ["20261008"], "strict", "电影票房-单日票房"),
+    ("movie_boxoffice_monthly", ["20260930"], "strict", "电影票房-单月票房"),
+    ("movie_boxoffice_yearly", ["20251231"], "strict", "电影票房-年度票房"),
+    ("movie_boxoffice_yearly_first_week", ["20251231"], "strict", "电影票房-年度首周票房"),
+    ("movie_boxoffice_cinema_daily", ["20261008"], "strict", "电影票房-影院日票房排行"),
 ]
 
 
 def pandas_dtype(dtype) -> str:
     """pandas dtype → 简化五类（与 Rust export_parity 对齐）。"""
     name = str(dtype)
-    if name.startswith("int"):
+    # int64 与 pandas 可空整数 Int64 都归为 int64（比较时再按 num 类归一）
+    if name[:3].lower() == "int":
         return "int64"
     if name.startswith("float"):
         return "float64"
@@ -985,7 +1004,14 @@ def py_contract(func: str, args: list[str]) -> dict:
     import akshare as ak
 
     fn = getattr(ak, func)
+    if func == "macro_china_nbs_region":
+        # 可选参数位置（indicator/region）：空串代表 None（与 parity bin 约定一致）
+        args = [None if a == "" else a for a in args]
     df = fn(*args)
+    if func in NBS_RESET_INDEX:
+        # akshare 宽表的无名字符串 index（指标名/地区名）→ 首列 `index`，
+        # 与 Rust 侧首列约定对齐（空表亦对齐：1 列 index/int64/0 行）
+        df = df.reset_index()
     columns = [
         {"name": str(c), "dtype": pandas_dtype(df[c].dtype)} for c in df.columns
     ]
@@ -1063,7 +1089,8 @@ def norm_val(v) -> str | None:
     if v is None:
         return None
     s = str(v).strip()
-    if s in ("nan", "None", "NaT", ""):
+    # "<NA>"：pandas 可空标量（如 pd.NA 列）经 str() 的字面表示，语义等同空值
+    if s in ("nan", "None", "NaT", "<NA>", ""):
         return None
     try:
         f = float(s)

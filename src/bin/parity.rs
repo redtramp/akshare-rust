@@ -128,6 +128,8 @@ use akshare_rust::economic::{
     macro_china_mobile_number,
     macro_china_money_supply,
     macro_china_national_tax_receipts,
+    macro_china_nbs_nation,
+    macro_china_nbs_region,
     macro_china_new_financial_credit,
     macro_china_new_house_price,
     macro_china_non_man_pmi,
@@ -406,6 +408,11 @@ use akshare_rust::legu::{
     stock_a_ttm_lyr, stock_buffett_index_lg, stock_ebs_lg, stock_hk_gxl_lg, stock_index_pb_lg,
     stock_index_pe_lg, stock_market_activity_legu, stock_market_pb_lg, stock_market_pe_lg,
 };
+use akshare_rust::movie::{
+    movie_boxoffice_cinema_daily, movie_boxoffice_cinema_weekly, movie_boxoffice_daily,
+    movie_boxoffice_monthly, movie_boxoffice_realtime, movie_boxoffice_weekly,
+    movie_boxoffice_yearly, movie_boxoffice_yearly_first_week,
+};
 use akshare_rust::news::{
     news_cctv, news_economic_baidu, news_report_time_baidu, news_trade_notify_dividend_baidu,
     news_trade_notify_suspend_baidu, stock_info_global_cls, stock_news_em,
@@ -645,7 +652,17 @@ fn main() {
             "--func" => func = it.next().unwrap_or_default(),
             "--args" => {
                 if let Some(raw) = it.next() {
-                    args = serde_json::from_str(&raw).unwrap_or_default();
+                    // null → 空串（NBS region 等可选参数：空串代表 None，见 dispatch）
+                    if let Ok(vals) = serde_json::from_str::<Vec<serde_json::Value>>(&raw) {
+                        args = vals
+                            .into_iter()
+                            .map(|v| match v {
+                                serde_json::Value::String(s) => s,
+                                serde_json::Value::Null => String::new(),
+                                other => other.to_string(),
+                            })
+                            .collect();
+                    }
                 }
             }
             "--head" => {
@@ -2647,6 +2664,21 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "macro_china_market_margin_sh" => Ok(macro_china_market_margin_sh()?),
         "macro_china_market_margin_sz" => Ok(macro_china_market_margin_sz()?),
         "macro_china_daily_energy" => Ok(macro_china_daily_energy()?),
+        // === BATCH94 NBS（国家统计局新站 data.stats.gov.cn，akshare index 作首列 index） ===
+        "macro_china_nbs_nation" => {
+            let [a, b, c] = take3(func, args)?;
+            Ok(macro_china_nbs_nation(a, b, c)?)
+        }
+        "macro_china_nbs_region" => {
+            let [a, b, c, d, e] = take5(func, args)?;
+            Ok(macro_china_nbs_region(
+                a,
+                b,
+                (!c.is_empty()).then_some(c),
+                (!d.is_empty()).then_some(d),
+                e,
+            )?)
+        }
         // === BATCH3 STOCK_FUNDAMENTAL REMAINING (ths/sina/em) ===
         "stock_dzjy_hygtj" => {
             let [s] = take1(func, args)?;
@@ -2898,6 +2930,36 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "hurun_rank" => {
             let [a, b] = take2(func, args)?;
             Ok(hurun_rank(a, b)?)
+        }
+        // ---- movie (艺恩电影票房) ----
+        "movie_boxoffice_realtime" => Ok(movie_boxoffice_realtime()?),
+        "movie_boxoffice_daily" => {
+            let [d] = take1(func, args)?;
+            Ok(movie_boxoffice_daily(d)?)
+        }
+        "movie_boxoffice_weekly" => {
+            let [d] = take1(func, args)?;
+            Ok(movie_boxoffice_weekly(d)?)
+        }
+        "movie_boxoffice_monthly" => {
+            let [d] = take1(func, args)?;
+            Ok(movie_boxoffice_monthly(d)?)
+        }
+        "movie_boxoffice_yearly" => {
+            let [d] = take1(func, args)?;
+            Ok(movie_boxoffice_yearly(d)?)
+        }
+        "movie_boxoffice_yearly_first_week" => {
+            let [d] = take1(func, args)?;
+            Ok(movie_boxoffice_yearly_first_week(d)?)
+        }
+        "movie_boxoffice_cinema_daily" => {
+            let [d] = take1(func, args)?;
+            Ok(movie_boxoffice_cinema_daily(d)?)
+        }
+        "movie_boxoffice_cinema_weekly" => {
+            let [d] = take1(func, args)?;
+            Ok(movie_boxoffice_cinema_weekly(d)?)
         }
         _ => Err(format!("未知函数: {func}").into()),
     }
