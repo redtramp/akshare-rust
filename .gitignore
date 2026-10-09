@@ -1,6 +1,8 @@
 /target
 *.pyc
 __pycache__/
+# golden_probe 中可再生的下载缓存（如 cnbs xlsx），不入库
+tests/golden_probe/*.bin
 .idea/
 .vscode/
 *.swp

@@ -1,0 +1,90 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "日期",
+      "dtype": "str"
+    },
+    {
+      "name": "最新值",
+      "dtype": "float64"
+    },
+    {
+      "name": "涨跌幅",
+      "dtype": "float64"
+    },
+    {
+      "name": "近3月涨跌幅",
+      "dtype": "float64"
+    },
+    {
+      "name": "近6月涨跌幅",
+      "dtype": "float64"
+    },
+    {
+      "name": "近1年涨跌幅",
+      "dtype": "float64"
+    },
+    {
+      "name": "近2年涨跌幅",
+      "dtype": "float64"
+    },
+    {
+      "name": "近3年涨跌幅",
+      "dtype": "float64"
+    }
+  ],
+  "height": 8093,
+  "head": [
+    [
+      "1994-05-04",
+      "119.0",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "1994-05-05",
+      "118.3",
+      "-0.58823529",
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "1994-05-06",
+      "117.7",
+      "-0.50718512",
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "1994-05-09",
+      "115.6",
+      "-1.78419711",
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "1994-05-10",
+      "117.4",
+      "1.55709343",
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ]
+}

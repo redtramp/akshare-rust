@@ -124,12 +124,14 @@
 
 > **2026-08-18 批次 63 刷新**：批量实现 fund 新浪分级子基金规模 1 个（`fund_scale_structured_sina`，`NetValueReturn_Service.NetValueReturnCX` jsonp 复用 [`fund_scale_sina_base`]，callback=cRrwseM7NWX68rDa/num=1000/type2=空），akshare 同名 `pub fn` 达 **751** 个（实测 `dir(akshare)` 可调用 1099），覆盖率 **≈ 68.3%**。
 
+> **2026-10-09 批次 93 刷新**：将 economic 模块 17 个**原空数据框占位函数**全部替换为真实 HTTP/JS 实现（对应 akshare 同名 `pub fn` 计数**不变**，仍为 **883**，但有效可用覆盖 +17；economic 大类 `macro_*` 达 **224/226 ≈ 99.1%**）。17 个：`macro_china_urban_unemployment`（stats.gov.cn `esData` POST JSON 筛选 `_name=="城镇调查失业率"`）、`macro_cnbs`（`114.115.232.154:8080` xlsx，calamine `Data` 表跳过表头 2 行、`Period`→`YYYY-MM`）、`macro_fx_sentiment`（`datacenter-api.jin10.com/sentiment/datas`，上游仅允许最近一月、超期 403）、`macro_global_sox_index`（东财 `RPT_INDUSTRY_INDEX` 复用 `macro_china_industry_index`）、`macro_info_ws`（wallstreetcn `apiv1/finance/macrodatas`，`public_date` 秒→Asia/Shanghai）、`macro_rmb_deposit`/`macro_rmb_loan`/`macro_stock_finance`（同花顺 `data.10jqka.com.cn/macro/{rmb,loan,finance}` HTML 首表，公共 `ths_macro_rows`）、`macro_usa_cftc_{c,merchant_currency,merchant_goods,nc}_holding`（金十 cdn `cftc_{2,3,1,4}.json` 宽表，公共 `build_jin10_table`/`macro_cftc_wide`）、`macro_usa_cme_merchant_goods_holding`（`cme_3.json` 日期→记录数组展开 3 列）、`macro_usa_cpi_yoy`/`macro_usa_phs`（东财 `RPT_ECONOMICVALUE_USA` `INDICATOR_ID` 过滤）、`macro_usa_crude_inner`（`usa_oil.json` 3 品种×产量/变化）、`macro_usa_rig_count`（`baker.json` 4 品种×钻井数/变化）。**关键修复**：`macro_china_industry_index` 原请求 `columns=ALL`（17 字段），费城半导体等**全球指数**会被 `RPT_INDUSTRY_INDEX` 与多只国内板块/概念标签交叉连接，同一 `REPORT_DATE` 重复 2 行（8 个输出列相同、仅 `CONCEPT_CODE/NAME` 不同）导致整行去重失效、行数翻倍（SOX 16194 vs akshare 8097）；改为与 akshare 一致仅请求 8 个输出列后重复行整行相同，`drop_duplicates` 对齐（SOX 修复后 8097 行），国内行业指数与板块 1:1 映射无重复、行为不变（已复核 15 个同族函数行数均在数据漂移范围内）。质量门禁：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`（**277 passed**）全绿；17 个新函数全部注册 `src/bin/parity.rs` + `tools/parity_runner.py`（loose）并生成 golden，parity **17/17 PASS**（`macro_usa_cme_merchant_goods_holding` 30086 行、`macro_usa_crude_inner` 2280 行与 golden 的 ±1 行差异为金十 cdn 上游周度数据漂移，非实现缺陷）。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **751**（2026-08-18 批次 63 后实测；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（751 / 1099 实测口径） | **≈ 68.3%** |
-| golden 差分验证覆盖 | **473 fixture 文件 / 453 去重函数 ≈ 41.9%**（parity 注册用例 504 / 492 唯一函数；52 个已注册用例暂无 golden，多为实时/网络/源受限端点，见 §1.2.1）|
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **883**（2026-10-09 批次 93 后实测，含 198 个宏生成函数；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（883 / 1080 校正口径） | **≈ 81.8%** |
+| golden 差分验证覆盖 | **524 fixture 文件**（2026-10-09 批次 93 后实测，含 17 个 economic 占位函数首次真实 golden）|
 | 已触及功能大类 | **17 / 35**（按 akshare 子模块分组；option/interest_rate/spot 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 

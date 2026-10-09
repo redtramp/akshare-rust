@@ -1,0 +1,57 @@
+### EM USA keys order: ['COUNTRY', 'INDICATOR_ID', 'INDICATOR_NAME', 'REPORT_DATE_CH', 'REPORT_DATE', 'PUBLISH_DATE', 'VALUE', 'PRE_VALUE']
+sample: {"COUNTRY": "美国", "INDICATOR_ID": "EMG00342249", "INDICATOR_NAME": "美国:未决房屋销售:环比", "REPORT_DATE_CH": "2026年09月", "REPORT_DATE": "2026-09-01 00:00:00", "PUBLISH_DATE": "2026-10-13 00:00:00", "VALUE": null, "PRE_VALUE": -2}
+================================================================================
+### cftc_2.json
+top keys: ['products', 'keys', 'values']
+keys field: [{"name": "多头仓位", "unit": ""}, {"name": "空头仓位", "unit": ""}, {"name": "净仓位", "unit": ""}]
+values outer keys sample: ['2026-09-29', '2026-09-22', '2026-09-15']
+inner type: dict
+inner keys: ['纽约原油', '原糖', '大豆', '豆油', '豆粕', '白银', '铂金', '钯金', '纽约天然气', '黄金', '棉花', '玉米']
+inner sample val: [371202, 235297, 135905]
+================================================================================
+### cftc_3.json
+top keys: ['products', 'keys', 'values']
+keys field: [{"name": "多头仓位", "unit": ""}, {"name": "空头仓位", "unit": ""}, {"name": "净仓位", "unit": ""}]
+values outer keys sample: ['2026-09-29', '2026-09-22', '2026-09-15']
+inner type: dict
+inner keys: ['美元', '瑞郎', '纽元', '墨西哥比索', '日元', '欧元', '加元', '英镑', '澳元']
+inner sample val: [1369829, 1264890, 104939]
+================================================================================
+### cftc_1.json
+top keys: ['products', 'keys', 'values']
+keys field: [{"name": "多头仓位", "unit": ""}, {"name": "空头仓位", "unit": ""}, {"name": "净仓位", "unit": ""}]
+values outer keys sample: ['2026-09-29', '2026-09-22', '2026-09-15']
+inner type: dict
+inner keys: ['纽约原油', '原糖', '大豆', '豆油', '豆粕', '白银', '铂金', '钯金', '纽约天然气', '黄金', '棉花', '玉米']
+inner sample val: [895203, 1060061, -164858]
+================================================================================
+### cftc_4.json
+top keys: ['products', 'keys', 'values']
+keys field: [{"name": "多头仓位", "unit": ""}, {"name": "空头仓位", "unit": ""}, {"name": "净仓位", "unit": ""}]
+values outer keys sample: ['2026-09-29', '2026-09-22', '2026-09-15']
+inner type: dict
+inner keys: ['美元', '瑞郎', '纽元', '墨西哥比索', '日元', '欧元', '加元', '英镑', '澳元']
+inner sample val: [714406, 790083, -75677]
+================================================================================
+### cme_3.json
+top keys: ['keys', 'values']
+keys field: [{"name": "商品", "unit": ""}, {"name": "类型", "unit": ""}, {"name": "电子交易合约", "unit": ""}, {"name": "场内成交合约", "unit": ""}, {"name": "场外成交合约", "unit": ""}, {"name": "成交量", "unit": ""}, {"name": "未平仓合约", "unit": ""}, {"name": "持仓变化", "unit": ""}]
+values outer keys sample: ['2026-10-02', '2026-10-01', '2026-09-30']
+inner type: list
+inner sample: [["黄金", "期货", 169504, null, 2501, 172005, 397291, -9165], ["黄金", "看跌", 9124, null, 1425, 10549, 221670, 2635], ["黄金", "看涨", 26690, null, 1560, 28250, 551754, -3007], ["黄金", "期权", 35814, null, 2985, 38799, 773424, -372], ["白银", "期货", 48461, null, 846, 49307, 106011, -1036], ["白银", "看跌", 1640, null, 1
+================================================================================
+### usa_oil.json
+top keys: ['products', 'keys', 'values']
+keys field: [{"name": "产量", "unit": "万桶/天"}, {"name": "变化", "unit": "万桶/天"}]
+values outer keys sample: ['2026-09-25', '2026-09-18', '2026-09-11']
+inner type: dict
+inner keys: ['美国国内原油总量', '美国本土48州原油产量', '美国阿拉斯加州原油产量']
+inner sample val: [1394.4, -0.3]
+================================================================================
+### baker.json
+top keys: ['products', 'keys', 'values']
+keys field: [{"name": "钻井数", "unit": "口"}, {"name": "变化", "unit": "口"}]
+values outer keys sample: ['2024-02-23', '2024-02-16', '2024-02-09']
+inner type: dict
+inner keys: ['美国石油钻井', '美国天然气钻井', '混合钻井', '钻井总数']
+inner sample val: ["499.0", "0.0"]

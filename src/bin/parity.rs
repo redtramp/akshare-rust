@@ -2431,9 +2431,9 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         // BATCH67
         "macro_china_urban_unemployment" => Ok(macro_china_urban_unemployment()?),
         "macro_cnbs" => Ok(macro_cnbs()?),
-        "macro_fx_sentiment" => Ok(macro_fx_sentiment("20221011", "20221017")?),
+        "macro_fx_sentiment" => Ok(macro_fx_sentiment("20260928", "20261003")?),
         "macro_global_sox_index" => Ok(macro_global_sox_index()?),
-        "macro_info_ws" => Ok(macro_info_ws()?),
+        "macro_info_ws" => Ok(macro_info_ws("20240514")?),
         "macro_rmb_deposit" => Ok(macro_rmb_deposit()?),
         "macro_rmb_loan" => Ok(macro_rmb_loan()?),
         "macro_stock_finance" => Ok(macro_stock_finance()?),

@@ -4,6 +4,48 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-10-09] 批次 93 · economic 17 个占位函数真实实现（含 1 处去重修复）
+
+- **占位 → 真实实现**：17 个（同名 `pub fn` 计数 **883 不变**，因这 17 个此前已是返回空数据框的
+  `pub fn` 占位并计入同名统计；本批次将其全部替换为真实 HTTP/JS 抓取，**有效可用覆盖 +17**）。
+  economic 大类 `macro_*` 达 **224 / 226 ≈ 99.1%**：
+  - `macro_china_urban_unemployment`（国家统计局 `data.stats.gov.cn` `esData` POST JSON，筛选
+    `_name=="城镇调查失业率"`，3 列 306 行）
+  - `macro_cnbs`（国家金融与发展实验室 `114.115.232.154:8080` xlsx，calamine `Data` 表跳过
+    表头 2 行、`Period`→`YYYY-MM`，9 列 80 行）
+  - `macro_fx_sentiment`（金十 `datacenter-api.jin10.com/sentiment/datas`，动态货币对列，26 列；
+    上游仅允许最近一月，超期 `{status:403}`）
+  - `macro_global_sox_index`（东财 `RPT_INDUSTRY_INDEX`，复用 `macro_china_industry_index`，8 列）
+  - `macro_info_ws`（华尔街见闻 `api-one-wscn.awtmt.com/apiv1/finance/macrodatas`，`public_date`
+    秒时间戳→Asia/Shanghai、`前值` 在 `修正` 非空时取 `修正`，8 列）
+  - `macro_rmb_deposit` / `macro_rmb_loan` / `macro_stock_finance`（同花顺
+    `data.10jqka.com.cn/macro/{rmb,loan,finance}` HTML 首表，公共 `ths_macro_rows`，13/6/5 列）
+  - `macro_usa_cftc_c_holding` / `macro_usa_cftc_merchant_currency_holding` /
+    `macro_usa_cftc_merchant_goods_holding` / `macro_usa_cftc_nc_holding`（金十 cdn `cftc_{2,3,1,4}.json`
+    宽表，每品种多/空/净 3 列，公共 `build_jin10_table` / `macro_cftc_wide`，37/28 列 × 1938 行）
+  - `macro_usa_cme_merchant_goods_holding`（金十 cdn `cme_3.json`，日期→记录数组展开 3 列 × 30086 行）
+  - `macro_usa_cpi_yoy` / `macro_usa_phs`（东财 `RPT_ECONOMICVALUE_USA`，`INDICATOR_ID` 过滤，4 列）
+  - `macro_usa_crude_inner`（金十 cdn `usa_oil.json`，3 品种×产量/变化，7 列）
+  - `macro_usa_rig_count`（金十 cdn `baker.json`，4 品种×钻井数/变化，9 列）
+- **关键修复（差分对账发现并纠正）**：
+  - `macro_china_industry_index` 原请求 `columns=ALL`（17 字段）。`RPT_INDUSTRY_INDEX` 会把
+    **全球指数**（费城半导体 SOX `EMI00055562`）与多只国内板块/概念标签交叉连接，使同一
+    `REPORT_DATE` 重复返回 2 行且 8 个输出列完全相同（仅 `CONCEPT_CODE/NAME` 不同）；整行去重
+    `dedup_json_rows` 因非输出字段不同而失效，导致 SOX 行数翻倍（**16194 vs akshare 8097**）。
+    改为与 akshare 一致**仅请求 8 个输出列**后重复行整行相同，`drop_duplicates()` 对齐（SOX 修复后
+    **8097 行**）。国内行业指数与板块 1:1 映射、无重复，请求 8 列与 `ALL` 等价，已复核 15 个同族
+    函数行数不变。
+- **实现覆盖率**：**≈ 81.8%**（883 / 1080 公开 API）；economic 大类 `macro_*` **224 / 226（99.1%）**。
+- **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`（**277 passed**）
+  全绿；新增 `jin10_number_list` / `build_jin10_table` / `is_month_label` / `dedup_json_rows` /
+  `epoch_to_shanghai` 离线纯函数单测。
+- **parity 验证**：17 个函数全部 **PASS / 0 FAIL / 0 SKIP**（golden 已落盘）。
+  `macro_usa_cme_merchant_goods_holding`（30086 行）、`macro_usa_crude_inner`（2280 行）与 golden 的
+  ±1 行差异为金十 cdn **上游周度数据漂移**（golden 生成时点与当前不同），非实现缺陷；
+  `macro_usa_cftc_*` / 东财 / 同花顺等静态或月度源与 golden **逐行一致**。
+- **parity 注册**：17 个函数已注册至 `src/bin/parity.rs`（import + dispatch）与
+  `tools/parity_runner.py`（BATCH93）；新增 17 个 `tests/golden/macro_*.json`。
+
 ## [2026-10-03] 批次 92 · fund 天天基金/同花顺/新浪/巨潮 10 个缺口函数（含 3 处修复）
 
 - **新增公开函数**：**873 → 883**（净 +10）。补齐 akshare `fund/` 模块 10 个缺口：

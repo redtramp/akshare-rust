@@ -643,7 +643,15 @@ fn macro_china_em(
 fn macro_china_industry_index(symbol: &str) -> Result<Df> {
     let filter = format!("(INDICATOR_ID=\"{symbol}\")");
     let extra = report_extra("REPORT_DATE", "-1", Some(&filter), None, None, None);
-    let rows = datacenter("RPT_INDUSTRY_INDEX", "ALL", &extra, "500")?;
+    // 与 akshare 一致：仅请求 8 个输出列。`RPT_INDUSTRY_INDEX` 会把「全球指数」
+    // （如费城半导体 SOX，EMI00055562）与多只国内板块/概念标签交叉连接，导致同一
+    // `REPORT_DATE` 重复返回多行且 8 列取值完全相同（仅 CONCEPT_CODE/NAME 不同）；
+    // 若请求 `columns=ALL`，这些行会在非输出字段上不同，`dedup_json_rows`（整行去重）
+    // 便无法折叠、行数翻倍。只取 8 列后重复行整行相同，去重即可对齐 akshare 的
+    // `drop_duplicates()`。国内行业指数与板块 1:1 映射，无重复，请求 8 列等价于 ALL。
+    const COLS: &str = "REPORT_DATE,INDICATOR_VALUE,CHANGE_RATE,CHANGERATE_3M,\
+    CHANGERATE_6M,CHANGERATE_1Y,CHANGERATE_2Y,CHANGERATE_3Y";
+    let rows = dedup_json_rows(&datacenter("RPT_INDUSTRY_INDEX", COLS, &extra, "500")?);
     const RENAME: [(&str, &str); 8] = [
         ("REPORT_DATE", "日期"),
         ("INDICATOR_VALUE", "最新值"),
@@ -2671,26 +2679,281 @@ macro_usa_fn!(macro_usa_services_pmi, "美国Markit服务业PMI终值", "89");
 // attr_id=93
 macro_usa_fn!(macro_usa_lmci, "美国劳动力市场条件指数", "93");
 
-// === BATCH67 剩余 macro_* 函数（21 个）===
+// === BATCH93 economic 残留占位函数真实实现（17 个，取代原空数据框占位）===
 // macro_china_m2_yearly 已在 macro_china 区块注册（第55行）
+
+/// 普通网页/接口请求使用的浏览器 UA。
+const BATCH93_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+/// 按原始 JSON 行去重（保留首次出现顺序，对应 akshare `drop_duplicates()`）。
+fn dedup_json_rows(rows: &[Value]) -> Vec<Value> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        let key = serde_json::to_string(r).unwrap_or_default();
+        if seen.insert(key) {
+            out.push(r.clone());
+        }
+    }
+    out
+}
+
+/// JSON 标量 → `Option<String>`（数值走 `to_string`，与 pandas 逐单元格 str 一致）。
+fn json_cell(v: &Value) -> Option<String> {
+    match v {
+        Value::Null => None,
+        Value::String(s) => Some(s.clone()),
+        other => Some(other.to_string()),
+    }
+}
+
+/// 兼容 `[1, 2, 3]`（JSON 数组）与 `"[1, 2, 3]"`（字符串形式）两种单元格形态。
+///
+/// 对应 akshare `eval(str(x))`：金十 cdn 报表同一列可能混用两种表示。
+fn jin10_number_list(v: &Value) -> Vec<Option<f64>> {
+    let arr = match v {
+        Value::Array(a) => a.clone(),
+        Value::String(s) => match serde_json::from_str::<Value>(s.trim()) {
+            Ok(Value::Array(a)) => a,
+            _ => return Vec::new(),
+        },
+        _ => return Vec::new(),
+    };
+    arr.iter()
+        .map(|x| {
+            x.as_f64()
+                .or_else(|| x.as_str().and_then(|s| s.trim().parse::<f64>().ok()))
+        })
+        .collect()
+}
+
+/// 由金十 cdn「日期 → 品种 → [数值…]」结构构建宽表 `Df`。
+///
+/// `items` 为品种顺序，`key_names` 为每个品种展开的指标名，`sep` 为连接符。
+/// 缺失品种按 akshare `fillna("[0, 0, 0]")` 补 0；数值列转 Float64，按 `日期` 升序。
+fn build_jin10_table(
+    values: &Map<String, Value>,
+    items: &[String],
+    key_names: &[&str],
+    sep: &str,
+) -> Result<Df> {
+    let mut cols: Vec<String> = vec!["日期".to_string()];
+    for it in items {
+        for kn in key_names {
+            cols.push(format!("{it}{sep}{kn}"));
+        }
+    }
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(values.len());
+    for (date, inner) in values.iter() {
+        let mut row: Vec<Option<String>> = Vec::with_capacity(cols.len());
+        row.push(Some(date.clone()));
+        for it in items {
+            match inner.get(it) {
+                None | Some(Value::Null) => {
+                    for _ in 0..key_names.len() {
+                        row.push(Some("0".to_string()));
+                    }
+                }
+                Some(cell) => {
+                    let list = jin10_number_list(cell);
+                    for i in 0..key_names.len() {
+                        row.push(list.get(i).copied().flatten().map(|f| f.to_string()));
+                    }
+                }
+            }
+        }
+        rows.push(row);
+    }
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &rows)?;
+    let numeric: Vec<&str> = col_refs.iter().copied().filter(|c| *c != "日期").collect();
+    df.cast_numeric(&numeric)?;
+    df = df.sort_by("日期", true, false)?;
+    Ok(df)
+}
+
+/// 取金十 cdn `values` 内层对象的品种顺序（各日期键首次出现顺序，与 pandas 一致）。
+fn jin10_inner_items(values: &Map<String, Value>) -> Vec<String> {
+    let mut items: Vec<String> = Vec::new();
+    for inner in values.values() {
+        if let Some(obj) = inner.as_object() {
+            for k in obj.keys() {
+                if !items.iter().any(|x| x == k) {
+                    items.push(k.clone());
+                }
+            }
+        }
+    }
+    items
+}
+
+/// 金十 cdn CFTC 持仓宽表公共实现（`cftc_1/2/3/4.json` 同构）。
+fn macro_cftc_wide(file: &str) -> Result<Df> {
+    let json = fetch_jin10_cdn(file)?;
+    let values = json
+        .get("values")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let items = jin10_inner_items(&values);
+    build_jin10_table(&values, &items, &["多头仓位", "空头仓位", "净仓位"], "-")
+}
+
+/// `YYYY-MM` 月份标签判定（同花顺宏观表首列）。
+fn is_month_label(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 7
+        && b[4] == b'-'
+        && b[..4].iter().all(u8::is_ascii_digit)
+        && b[5..].iter().all(u8::is_ascii_digit)
+}
+
+/// 抓取同花顺宏观页并提取首张表的数据行（从首个「月份」行开始，仅保留列数匹配的行）。
+fn ths_macro_rows(url: &str, ncols: usize) -> Result<Vec<Vec<Option<String>>>> {
+    let http = HttpClient::default();
+    let html = http.get_text_with_headers(url, &Map::new(), &[("User-Agent", BATCH93_UA)], None)?;
+    let table = crate::core::html::read_html_tables(&html)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| AkshareError::Empty("同花顺宏观页缺少数据表".into()))?;
+    let start = table
+        .iter()
+        .position(|r| r.len() == ncols && is_month_label(&r[0]))
+        .ok_or_else(|| AkshareError::Empty("同花顺宏观页缺少数据行".into()))?;
+    Ok(table[start..]
+        .iter()
+        .filter(|r| r.len() == ncols)
+        .map(|r| r.iter().cloned().map(Some).collect())
+        .collect())
+}
+
+/// calamine 单元格 → `Option<String>`（Excel 日期格式化为 `YYYY-MM`）。
+fn cnbs_cell(c: &calamine::Data) -> Option<String> {
+    use calamine::Data;
+    match c {
+        Data::Empty => None,
+        Data::String(s) => Some(s.clone()),
+        Data::Float(f) => Some(f.to_string()),
+        Data::Int(i) => Some(i.to_string()),
+        Data::Bool(b) => Some(b.to_string()),
+        Data::DateTime(dt) => dt.as_datetime().map(|d| d.format("%Y-%m").to_string()),
+        Data::DateTimeIso(s) | Data::DurationIso(s) => Some(s.clone()),
+        Data::Error(_) => None,
+    }
+}
+
+/// Unix 秒 → `Asia/Shanghai` 的 `YYYY-MM-DD HH:MM:SS`（对应 pandas `tz_convert`）。
+fn epoch_to_shanghai(secs: i64) -> Option<String> {
+    use chrono::{FixedOffset, TimeZone};
+    let off = FixedOffset::east_opt(8 * 3600)?;
+    let dt = off.timestamp_opt(secs, 0).single()?;
+    Some(dt.format("%Y-%m-%d %H:%M:%S").to_string())
+}
 
 // macro_china_urban_unemployment - 国家统计局（data.stats.gov.cn）
 /// 国家统计局-月度数据-城镇调查失业率（对应 akshare [`akshare.macro_china_urban_unemployment`]）。
-/// 数据源 `data.stats.gov.cn` 统计局 API，返回 `date, item, value` 三列。
+///
+/// POST `data.stats.gov.cn/.../esData`（JSON），筛选 `_name == "城镇调查失业率"`；
+/// `date` 为 `YYYYMM`，`item` 取 `i_showname` 去掉 `" (%)"`，`value` 原样字符串。
+///
+/// # 返回列
+/// `date, item, value`
 pub fn macro_china_urban_unemployment() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["date", "item", "value"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+    const COLS: [&str; 3] = ["date", "item", "value"];
+    const URL: &str =
+        "https://data.stats.gov.cn/dg/website/publicrelease/web/external/stream/esData";
+    let body = json!({
+        "cid": "ee3b7046b390415b9b7745e3d16f6052",
+        "indicatorIds": [
+            "3888eac6062945a79c8a27e5f13d4953",
+            "1d550f3ec77a463bb607d4a3427e1465",
+            "1c1b2d9ab24048bfadc5c7d9510dc663",
+            "3921da310de24f14b6457c235657baf9",
+            "bd6da1abb26046c2acb38aa701d90e86",
+            "7bc1bd5daeac48ae8bb413c34ece1d08",
+            "c03a36c9562246b6bc8aab010951ef1c",
+            "1061f276ce354907b0b9900c266cf851",
+            "40ab91b1ef4948e89633c5c7f55b9713"
+        ],
+        "daCatalogId": "",
+        "das": [{"text": "全国", "value": "000000000000"}],
+        "dts": ["199001MM-203601MM"],
+        "showType": "1",
+        "rootId": "fc982599aa684be7969d7b90b1bd0e84"
+    });
+    let headers = [
+        (
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+(KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+        ),
+        ("Content-Type", "application/json;charset=UTF-8"),
+        ("Origin", "https://data.stats.gov.cn"),
+        (
+            "Referer",
+            "https://data.stats.gov.cn/dg/website/page.html#/pc/national/monthData",
+        ),
+    ];
+    let http = HttpClient::default();
+    let resp = http.post_json_body(URL, &body, &headers)?;
+    let success = resp
+        .get("success")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !success {
+        return Df::from_string_rows(&COLS, &[]);
+    }
+    let Some(data) = resp.get("data").and_then(Value::as_array) else {
+        return Df::from_string_rows(&COLS, &[]);
+    };
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for month in data {
+        let Some(name) = month.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some((year, rest)) = name.split_once('年') else {
+            continue;
+        };
+        let month_part = rest.replace('月', "");
+        let month_clean = format!("{year}{:0>2}", month_part);
+        let Some(values) = month.get("values").and_then(Value::as_array) else {
+            continue;
+        };
+        for vi in values {
+            if vi.get("_name").and_then(Value::as_str) != Some("城镇调查失业率") {
+                continue;
+            }
+            let Some(rate) = vi.get("value").and_then(json_cell) else {
+                continue;
+            };
+            if rate.is_empty() {
+                continue;
+            }
+            let indicator = vi
+                .get("i_showname")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .replace(" (%)", "");
+            rows.push(vec![Some(month_clean.clone()), Some(indicator), Some(rate)]);
+        }
+    }
+    let df = Df::from_string_rows(&COLS, &rows)?;
+    let df = df.sort_by("date", true, false)?;
     Ok(df)
 }
 
 // macro_cnbs - 国家金融与发展实验室（Excel）
 /// 国家金融与发展实验室-中国宏观杠杆率数据（对应 akshare [`akshare.macro_cnbs`]）。
-/// 数据源 `114.115.232.154:8080` Excel 文件。
+///
+/// 下载 `handler/download.ashx`（xlsx），取 `Data` 工作表，跳过前两行表头，
+/// `Period` 格式化为 `YYYY-MM`，其余 8 列数值化。
+///
+/// # 返回列
+/// `年份, 居民部门, 非金融企业部门, 政府部门, 中央政府, 地方政府, 实体经济部门,
+/// 金融部门资产方, 金融部门负债方`
 pub fn macro_cnbs() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec![
+    const COLS: [&str; 9] = [
         "年份",
         "居民部门",
         "非金融企业部门",
@@ -2701,168 +2964,543 @@ pub fn macro_cnbs() -> Result<Df> {
         "金融部门资产方",
         "金融部门负债方",
     ];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+    // akshare 列序：Period->年份, Household->居民部门, Non-financial corporations->非金融企业部门,
+    // `Central government `->中央政府, Local government->地方政府, General government->政府部门,
+    // Non financial sector->实体经济部门, Financial sector(asset side)->金融部门资产方,
+    // Financial sector(liability side)->金融部门负债方。
+    const SRC_IDX: [usize; 9] = [0, 1, 2, 5, 3, 4, 6, 7, 8];
+    let http = HttpClient::default();
+    let bytes = http.get_bytes_with_headers(
+        "http://114.115.232.154:8080/handler/download.ashx",
+        &Map::new(),
+        &[("User-Agent", BATCH93_UA)],
+        None,
+    )?;
+    use calamine::{Reader, Xlsx};
+    use std::io::Cursor;
+    let mut wb = Xlsx::new(Cursor::new(bytes))
+        .map_err(|e| AkshareError::Empty(format!("cnbs xlsx 解析失败: {e}")))?;
+    let range = wb
+        .worksheet_range("Data")
+        .map_err(|e| AkshareError::Empty(format!("cnbs Data 工作表读取失败: {e}")))?;
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for r in range.rows().skip(2) {
+        if r.iter().all(|c| matches!(c, calamine::Data::Empty)) {
+            continue;
+        }
+        let row: Vec<Option<String>> = SRC_IDX
+            .iter()
+            .map(|&i| r.get(i).and_then(cnbs_cell))
+            .collect();
+        rows.push(row);
+    }
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&COLS[1..])?;
     Ok(df)
 }
 
 // macro_fx_sentiment - 金十外汇投机情绪
 /// 金十数据-外汇-投机情绪报告（对应 akshare [`akshare.macro_fx_sentiment`]）。
-/// 数据源 `datacenter-api.jin10.com`。
-pub fn macro_fx_sentiment(_start_date: &str, _end_date: &str) -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["品种", "日期", "多头仓位", "空头仓位"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+///
+/// `start_date`/`end_date` 为 `YYYYMMDD`；返回 `date` + 各货币对列（动态）。
+/// 上游仅允许查询最近一个月，超期返回 `{status:403}` → 报 `Empty`。
+pub fn macro_fx_sentiment(start_date: &str, end_date: &str) -> Result<Df> {
+    fn fmt_date(s: &str) -> String {
+        if s.len() == 8 {
+            format!("{}-{}-{}", &s[0..4], &s[4..6], &s[6..8])
+        } else {
+            s.to_string()
+        }
+    }
+    let url = "https://datacenter-api.jin10.com/sentiment/datas";
+    let http = HttpClient::default();
+    let mut params = Map::new();
+    params.insert("start_date".into(), Value::String(fmt_date(start_date)));
+    params.insert("end_date".into(), Value::String(fmt_date(end_date)));
+    params.insert("currency_pair".into(), Value::String(String::new()));
+    let headers = [
+        ("accept", "*/*"),
+        ("origin", "https://datacenter.jin10.com"),
+        (
+            "referer",
+            "https://datacenter.jin10.com/reportType/dc_ssi_trends",
+        ),
+        (
+            "user-agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+(KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36",
+        ),
+        ("x-app-id", "rU6QIu7JHe2gOUeR"),
+        ("x-csrf-token", ""),
+        ("x-version", "1.0.0"),
+    ];
+    let json = http.get_json_with_headers(url, &params, &headers, None)?;
+    let values = json
+        .get("data")
+        .and_then(|d| d.get("values"))
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    if values.is_empty() {
+        return Err(AkshareError::Empty(
+            "金十外汇投机情绪无数据（仅支持最近一个月）".into(),
+        ));
+    }
+    let mut pairs: Vec<String> = Vec::new();
+    for inner in values.values() {
+        if let Some(obj) = inner.as_object() {
+            for k in obj.keys() {
+                if !pairs.iter().any(|x| x == k) {
+                    pairs.push(k.clone());
+                }
+            }
+        }
+    }
+    let mut cols: Vec<String> = vec!["date".to_string()];
+    cols.extend(pairs.iter().cloned());
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(values.len());
+    for (date, inner) in values.iter() {
+        let mut row: Vec<Option<String>> = vec![Some(date.clone())];
+        for p in &pairs {
+            row.push(inner.get(p).and_then(json_cell));
+        }
+        rows.push(row);
+    }
+    let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
+    let mut df = Df::from_string_rows(&col_refs, &rows)?;
+    let numeric: Vec<&str> = col_refs.iter().copied().filter(|c| *c != "date").collect();
+    df.cast_numeric(&numeric)?;
     Ok(df)
 }
 
 // macro_global_sox_index - 费城半导体指数
-/// 东财-全球宏观-费城半导体指数（对应 akshare [`akshare.macro_global_sox_index`]）。
-/// 数据源 `datacenter-web.eastmoney.com`。
+/// 东方财富-费城半导体指数（对应 akshare [`akshare.macro_global_sox_index`]）。
+///
+/// 报表 `RPT_INDUSTRY_INDEX`（`INDICATOR_ID=EMI00055562`），列契约与东财行业指数一致。
+///
+/// # 返回列
+/// `日期, 最新值, 涨跌幅, 近3月涨跌幅, 近6月涨跌幅, 近1年涨跌幅, 近2年涨跌幅, 近3年涨跌幅`
 pub fn macro_global_sox_index() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "指数"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
-    Ok(df)
+    macro_china_industry_index("EMI00055562")
 }
 
-// macro_info_ws - 新浪财经宏观数据
-/// 新浪财经-宏观数据（对应 akshare [`akshare.macro_info_ws`]）。
-/// 数据源 `api.wsq.sina.com.cn`。
-pub fn macro_info_ws() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "指标"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+// macro_info_ws - 华尔街见闻宏观日历
+/// 华尔街见闻-日历-宏观（对应 akshare [`akshare.macro_info_ws`]）。
+///
+/// `date` 为 `YYYYMMDD`（akshare 默认 `20240514`）；查询该日（本地时区）的宏观事件。
+/// `前值` 在 `修正` 非空时取 `修正`（对应 akshare `np.where`）。
+///
+/// # 返回列
+/// `时间, 地区, 事件, 重要性, 今值, 预期, 前值, 链接`
+pub fn macro_info_ws(date: &str) -> Result<Df> {
+    use chrono::{Local, TimeZone};
+    const COLS: [&str; 8] = [
+        "时间",
+        "地区",
+        "事件",
+        "重要性",
+        "今值",
+        "预期",
+        "前值",
+        "链接",
+    ];
+    if date.len() != 8 {
+        return Err(AkshareError::Empty("日期格式应为 YYYYMMDD".into()));
+    }
+    let (y, m, d) = (
+        date[0..4]
+            .parse::<i32>()
+            .map_err(|_| AkshareError::Empty("日期解析失败".into()))?,
+        date[4..6]
+            .parse::<u32>()
+            .map_err(|_| AkshareError::Empty("日期解析失败".into()))?,
+        date[6..8]
+            .parse::<u32>()
+            .map_err(|_| AkshareError::Empty("日期解析失败".into()))?,
+    );
+    let nd = chrono::NaiveDate::from_ymd_opt(y, m, d)
+        .ok_or_else(|| AkshareError::Empty("日期无效".into()))?;
+    let start = Local
+        .from_local_datetime(&nd.and_hms_opt(0, 0, 0).unwrap_or_default())
+        .single()
+        .ok_or_else(|| AkshareError::Empty("本地时间转换失败".into()))?
+        .timestamp();
+    let next = nd
+        .checked_add_days(chrono::Days::new(1))
+        .ok_or_else(|| AkshareError::Empty("日期加一天失败".into()))?;
+    let end = Local
+        .from_local_datetime(&next.and_hms_opt(0, 0, 0).unwrap_or_default())
+        .single()
+        .ok_or_else(|| AkshareError::Empty("本地时间转换失败".into()))?
+        .timestamp();
+    let url = "https://api-one-wscn.awtmt.com/apiv1/finance/macrodatas";
+    let http = HttpClient::default();
+    let mut params = Map::new();
+    params.insert("start".into(), Value::from(start));
+    params.insert("end".into(), Value::from(end));
+    let json = http.get_json(url, &params, None)?;
+    let items = json
+        .get("data")
+        .and_then(|d| d.get("items"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut rows: Vec<Vec<Option<String>>> = Vec::with_capacity(items.len());
+    for it in &items {
+        let ts = it.get("public_date").and_then(Value::as_i64);
+        let revised = it.get("revised").and_then(json_cell);
+        let previous = it.get("previous").and_then(json_cell);
+        let prev = match revised.as_deref() {
+            Some(r) if r.parse::<f64>().is_ok() => revised,
+            _ => previous,
+        };
+        rows.push(vec![
+            ts.and_then(epoch_to_shanghai),
+            it.get("country")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            it.get("title").and_then(Value::as_str).map(str::to_string),
+            it.get("importance").and_then(json_cell),
+            it.get("actual").and_then(json_cell),
+            it.get("forecast").and_then(json_cell),
+            prev,
+            it.get("uri").and_then(Value::as_str).map(str::to_string),
+        ]);
+    }
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["今值", "预期", "前值"])?;
+    df.cast_integer(&["重要性"])?;
     Ok(df)
 }
 
 // macro_rmb_deposit - 同花顺人民币存款
-/// 同花顺-人民币存款余额（对应 akshare [`akshare.macro_rmb_deposit`]）。
-/// 数据源 `data.10jqka.com.cn/macro/rmb/`。
+/// 同花顺-数据中心-宏观数据-人民币存款余额（对应 akshare [`akshare.macro_rmb_deposit`]）。
+///
+/// # 返回列
+/// `月份, 新增存款-数量, 新增存款-同比, 新增存款-环比, 新增企业存款-数量,
+/// 新增企业存款-同比, 新增企业存款-环比, 新增储蓄存款-数量, 新增储蓄存款-同比,
+/// 新增储蓄存款-环比, 新增其他存款-数量, 新增其他存款-同比, 新增其他存款-环比`
 pub fn macro_rmb_deposit() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["月份", "新增存款-数量", "新增存款-同比"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+    const COLS: [&str; 13] = [
+        "月份",
+        "新增存款-数量",
+        "新增存款-同比",
+        "新增存款-环比",
+        "新增企业存款-数量",
+        "新增企业存款-同比",
+        "新增企业存款-环比",
+        "新增储蓄存款-数量",
+        "新增储蓄存款-同比",
+        "新增储蓄存款-环比",
+        "新增其他存款-数量",
+        "新增其他存款-同比",
+        "新增其他存款-环比",
+    ];
+    let rows = ths_macro_rows("https://data.10jqka.com.cn/macro/rmb/", COLS.len())?;
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&[
+        "新增存款-数量",
+        "新增企业存款-数量",
+        "新增储蓄存款-数量",
+        "新增其他存款-数量",
+    ])?;
+    let df = df.sort_by("月份", true, false)?;
     Ok(df)
 }
 
 // macro_rmb_loan - 同花顺人民币贷款
-/// 同花顺-新增人民币贷款（对应 akshare [`akshare.macro_rmb_loan`]）。
-/// 数据源 `data.10jqka.com.cn/macro/loan/`。
+/// 同花顺-数据中心-宏观数据-新增人民币贷款（对应 akshare [`akshare.macro_rmb_loan`]）。
+///
+/// # 返回列
+/// `月份, 新增人民币贷款-总额, 新增人民币贷款-同比, 新增人民币贷款-环比,
+/// 累计人民币贷款-总额, 累计人民币贷款-同比`
 pub fn macro_rmb_loan() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["月份", "新增人民币贷款-总额", "新增人民币贷款-同比"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+    const COLS: [&str; 6] = [
+        "月份",
+        "新增人民币贷款-总额",
+        "新增人民币贷款-同比",
+        "新增人民币贷款-环比",
+        "累计人民币贷款-总额",
+        "累计人民币贷款-同比",
+    ];
+    let rows = ths_macro_rows("https://data.10jqka.com.cn/macro/loan/", COLS.len())?;
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["新增人民币贷款-总额", "累计人民币贷款-总额"])?;
+    let df = df.sort_by("月份", true, false)?;
     Ok(df)
 }
 
-// macro_stock_finance - 同花顺企业财务
-/// 同花顺-上市公司财务数据（对应 akshare [`akshare.macro_stock_finance`]）。
-/// 数据源 `data.10jqka.com.cn/macro/finance/`。
+// macro_stock_finance - 同花顺股票筹资
+/// 同花顺-数据中心-宏观数据-股票筹资（对应 akshare [`akshare.macro_stock_finance`]）。
+///
+/// # 返回列
+/// `月份, 募集资金, 首发募集资金, 增发募集资金, 配股募集资金`
 pub fn macro_stock_finance() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["指标", "数值"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+    const COLS: [&str; 5] = [
+        "月份",
+        "募集资金",
+        "首发募集资金",
+        "增发募集资金",
+        "配股募集资金",
+    ];
+    let rows = ths_macro_rows("https://data.10jqka.com.cn/macro/finance/", COLS.len())?;
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["募集资金", "首发募集资金", "增发募集资金", "配股募集资金"])?;
+    let df = df.sort_by("月份", true, false)?;
     Ok(df)
 }
 
 // macro_usa_cftc_* - CFTC 持仓报告
-/// CFTC商品类非商业持仓报告（对应 akshare [`akshare.macro_usa_cftc_c_holding`]）。
-/// 数据源 `cdn.jin10.com/data_center/reports/cftc_2.json`。
+/// 美国商品期货交易委员会-商品类非商业持仓报告（对应 akshare [`akshare.macro_usa_cftc_c_holding`]）。
+///
+/// 金十 cdn `cftc_2.json`；每品种 3 列（多/空/净仓位），数值化，按 `日期` 升序。
 pub fn macro_usa_cftc_c_holding() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
-    Ok(df)
+    macro_cftc_wide("cftc_2.json")
 }
 
-/// CFTC外汇类持仓报告（对应 akshare [`akshare.macro_usa_cftc_merchant_currency_holding`]）。
-/// 数据源 `cdn.jin10.com/data_center/reports/cftc_3.json`。
+/// CFTC-外汇类商业持仓报告（对应 akshare [`akshare.macro_usa_cftc_merchant_currency_holding`]）。
+///
+/// 金十 cdn `cftc_3.json`；每品种 3 列，数值化，按 `日期` 升序。
 pub fn macro_usa_cftc_merchant_currency_holding() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
-    Ok(df)
+    macro_cftc_wide("cftc_3.json")
 }
 
-/// CFTC商品类持仓报告（对应 akshare [`akshare.macro_usa_cftc_merchant_goods_holding`]）。
-/// 数据源 `cdn.jin10.com/data_center/reports/cftc_1.json`。
+/// CFTC-商品类商业持仓报告（对应 akshare [`akshare.macro_usa_cftc_merchant_goods_holding`]）。
+///
+/// 金十 cdn `cftc_1.json`；每品种 3 列，数值化，按 `日期` 升序。
 pub fn macro_usa_cftc_merchant_goods_holding() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
-    Ok(df)
+    macro_cftc_wide("cftc_1.json")
 }
 
-/// CFTC非商业持仓报告（对应 akshare [`akshare.macro_usa_cftc_nc_holding`]）。
-/// 数据源 `cdn.jin10.com/data_center/reports/cftc_4.json`。
+/// CFTC-外汇类非商业持仓报告（对应 akshare [`akshare.macro_usa_cftc_nc_holding`]）。
+///
+/// 金十 cdn `cftc_4.json`；每品种 3 列，数值化，按 `日期` 升序。
 pub fn macro_usa_cftc_nc_holding() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
-    Ok(df)
+    macro_cftc_wide("cftc_4.json")
 }
 
-/// CME商品类持仓报告（对应 akshare [`akshare.macro_usa_cme_merchant_goods_holding`]）。
-/// 数据源 `cdn.jin10.com/data_center/reports/cme_3.json`。
+/// CME-贵金属成交量报告（对应 akshare [`akshare.macro_usa_cme_merchant_goods_holding`]）。
+///
+/// 金十 cdn `cme_3.json`（`values` 为「日期 → 记录数组」，每条 `[品种, 类型, …, 成交量, …]`）；
+/// 展开为 `日期, 品种, 成交量`，按 `日期` 升序。
 pub fn macro_usa_cme_merchant_goods_holding() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "多头仓位", "空头仓位", "净持仓"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+    const COLS: [&str; 3] = ["日期", "品种", "成交量"];
+    let json = fetch_jin10_cdn("cme_3.json")?;
+    let values = json
+        .get("values")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for (date, arr) in values.iter() {
+        let Some(records) = arr.as_array() else {
+            continue;
+        };
+        for rec in records {
+            let Some(a) = rec.as_array() else {
+                continue;
+            };
+            let pz = a.first().and_then(json_cell).unwrap_or_default();
+            let tc = a.get(1).and_then(json_cell).unwrap_or_default();
+            let vol = a.get(5).and_then(json_cell);
+            rows.push(vec![Some(date.clone()), Some(format!("{pz}-{tc}")), vol]);
+        }
+    }
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_integer(&["成交量"])?;
+    let df = df.sort_by("日期", true, false)?;
     Ok(df)
 }
 
 // macro_usa_cpi_yoy - 美国CPI年率
-/// 东财-美国CPI年率（对应 akshare [`akshare.macro_usa_cpi_yoy`]）。
-/// 数据源 `datacenter-web.eastmoney.com`。
+/// 东方财富-经济数据一览-美国-CPI年率（对应 akshare [`akshare.macro_usa_cpi_yoy`]）。
+///
+/// 报表 `RPT_ECONOMICVALUE_USA`（`INDICATOR_ID=EMG00000733`）；`时间`/`发布日期` 归一为
+/// `YYYY-MM-DD`，按 `时间` 升序。
+///
+/// # 返回列
+/// `时间, 发布日期, 现值, 前值`
 pub fn macro_usa_cpi_yoy() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "值"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+    const RENAME: [(&str, &str); 4] = [
+        ("REPORT_DATE", "时间"),
+        ("PUBLISH_DATE", "发布日期"),
+        ("VALUE", "现值"),
+        ("PRE_VALUE", "前值"),
+    ];
+    const SELECT: [&str; 4] = ["时间", "发布日期", "现值", "前值"];
+    const NUMERIC: [&str; 2] = ["现值", "前值"];
+    let extra = report_extra(
+        "REPORT_DATE",
+        "-1",
+        Some("(INDICATOR_ID=\"EMG00000733\")"),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_ECONOMICVALUE_USA", "ALL", &extra, "500")?;
+    let mut df = finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)?;
+    df.cast_date(&["时间", "发布日期"])?;
+    let df = df.sort_by("时间", true, false)?;
     Ok(df)
 }
 
 // macro_usa_crude_inner - 美国原油产量
-/// 金十-美国原油产量（对应 akshare [`akshare.macro_usa_crude_inner`]）。
-/// 数据源 `cdn.jin10.com/data_center/reports/usa_oil.json`。
+/// 金十-美国原油产量报告（对应 akshare [`akshare.macro_usa_crude_inner`]）。
+///
+/// 金十 cdn `usa_oil.json`；三个品种各展开「产量/变化」两列，数值化，按 `日期` 升序。
+///
+/// # 返回列
+/// `日期, 美国国内原油总量-产量, 美国国内原油总量-变化, 美国本土48州原油产量-产量,
+/// 美国本土48州原油产量-变化, 美国阿拉斯加州原油产量-产量, 美国阿拉斯加州原油产量-变化`
 pub fn macro_usa_crude_inner() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "产量"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
-    Ok(df)
+    let json = fetch_jin10_cdn("usa_oil.json")?;
+    let values = json
+        .get("values")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let items: Vec<String> = [
+        "美国国内原油总量",
+        "美国本土48州原油产量",
+        "美国阿拉斯加州原油产量",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    build_jin10_table(&values, &items, &["产量", "变化"], "-")
 }
 
 // macro_usa_phs - 美国未决房屋销售
-/// 东财-美国未决房屋销售月率（对应 akshare [`akshare.macro_usa_phs`]）。
-/// 数据源 `datacenter-web.eastmoney.com`。
+/// 东方财富-经济数据一览-美国-未决房屋销售月率（对应 akshare [`akshare.macro_usa_phs`]）。
+///
+/// 报表 `RPT_ECONOMICVALUE_USA`（`INDICATOR_ID=EMG00342249`）；`时间` = `REPORT_DATE_CH`
+/// （中文年月，保持字符串），`发布日期` 归一为 `YYYY-MM-DD`，不二次排序。
+///
+/// # 返回列
+/// `时间, 前值, 现值, 发布日期`
 pub fn macro_usa_phs() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "值"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
+    const RENAME: [(&str, &str); 4] = [
+        ("REPORT_DATE_CH", "时间"),
+        ("PRE_VALUE", "前值"),
+        ("VALUE", "现值"),
+        ("PUBLISH_DATE", "发布日期"),
+    ];
+    const SELECT: [&str; 4] = ["时间", "前值", "现值", "发布日期"];
+    const NUMERIC: [&str; 2] = ["前值", "现值"];
+    let extra = report_extra(
+        "REPORT_DATE",
+        "-1",
+        Some("(INDICATOR_ID=\"EMG00342249\")"),
+        None,
+        None,
+        None,
+    );
+    let rows = datacenter("RPT_ECONOMICVALUE_USA", "ALL", &extra, "2000")?;
+    let mut df = finalize_report(&rows, &RENAME, &SELECT, &NUMERIC, None)?;
+    df.cast_date(&["发布日期"])?;
     Ok(df)
 }
 
 // macro_usa_rig_count - 美国石油钻井数
-/// 金十-美国石油钻井数（对应 akshare [`akshare.macro_usa_rig_count`]）。
-/// 数据源 `cdn.jin10.com/data_center/reports/baker.json`。
+/// 贝克休斯钻井报告-当周（对应 akshare [`akshare.macro_usa_rig_count`]）。
+///
+/// 金十 cdn `baker.json`；四个品种各展开「钻井数/变化」两列（`_` 连接），数值化，按 `日期` 升序。
+///
+/// # 返回列
+/// `日期, 钻井总数_钻井数, 钻井总数_变化, 美国石油钻井_钻井数, 美国石油钻井_变化,
+/// 混合钻井_钻井数, 混合钻井_变化, 美国天然气钻井_钻井数, 美国天然气钻井_变化`
 pub fn macro_usa_rig_count() -> Result<Df> {
-    // 简化实现：返回空数据框，标记为TODO
-    let cols = vec!["日期", "钻井数"];
-    let data: Vec<Vec<Option<String>>> = Vec::new();
-    let df = Df::from_string_rows(&cols, &data)?;
-    Ok(df)
+    let json = fetch_jin10_cdn("baker.json")?;
+    let values = json
+        .get("values")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let items: Vec<String> = ["钻井总数", "美国石油钻井", "混合钻井", "美国天然气钻井"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    build_jin10_table(&values, &items, &["钻井数", "变化"], "_")
+}
+
+#[cfg(test)]
+mod batch93_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn jin10_number_list_parses_array_and_string() {
+        assert_eq!(
+            jin10_number_list(&json!([1, 2, 3])),
+            vec![Some(1.0), Some(2.0), Some(3.0)]
+        );
+        assert_eq!(
+            jin10_number_list(&json!("[4, null, 6]")),
+            vec![Some(4.0), None, Some(6.0)]
+        );
+        assert!(jin10_number_list(&json!(null)).is_empty());
+        assert!(jin10_number_list(&json!("not-json")).is_empty());
+    }
+
+    #[test]
+    fn build_jin10_table_fills_missing_item_with_zero() {
+        let values: Map<String, Value> = serde_json::from_value(json!({
+            "2024-01-02": {"A": [1, 2, 3], "B": [4, 5, 6]},
+            "2024-01-01": {"A": [7, 8, 9]}
+        }))
+        .unwrap();
+        let items = jin10_inner_items(&values);
+        assert_eq!(items, vec!["A".to_string(), "B".to_string()]);
+        let df =
+            build_jin10_table(&values, &items, &["多头仓位", "空头仓位", "净仓位"], "-").unwrap();
+        assert_eq!(
+            df.column_names(),
+            vec![
+                "日期",
+                "A-多头仓位",
+                "A-空头仓位",
+                "A-净仓位",
+                "B-多头仓位",
+                "B-空头仓位",
+                "B-净仓位"
+            ]
+        );
+        assert_eq!(df.height(), 2);
+        let d = df.inner().column("日期").unwrap().str().unwrap();
+        assert_eq!(d.get(0), Some("2024-01-01"));
+        assert_eq!(d.get(1), Some("2024-01-02"));
+        let b0 = df.inner().column("B-多头仓位").unwrap().f64().unwrap();
+        assert_eq!(b0.get(0), Some(0.0));
+        assert_eq!(b0.get(1), Some(4.0));
+    }
+
+    #[test]
+    fn month_label_detection() {
+        assert!(is_month_label("2026-08"));
+        assert!(!is_month_label("2026/08"));
+        assert!(!is_month_label("2026-8"));
+        assert!(!is_month_label("全部"));
+    }
+
+    #[test]
+    fn dedup_json_rows_removes_exact_duplicates() {
+        let rows = vec![
+            json!({"d": "2024-01-01", "v": 1}),
+            json!({"d": "2024-01-01", "v": 1}),
+            json!({"d": "2024-01-02", "v": 2}),
+        ];
+        let out = dedup_json_rows(&rows);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0]["d"], serde_json::json!("2024-01-01"));
+        assert_eq!(out[1]["d"], serde_json::json!("2024-01-02"));
+    }
+
+    #[test]
+    fn epoch_to_shanghai_is_utc_plus_8() {
+        // 2024-05-13 17:00:00 UTC == 2024-05-14 01:00:00 +08:00
+        assert_eq!(
+            epoch_to_shanghai(1_715_619_600).as_deref(),
+            Some("2024-05-14 01:00:00")
+        );
+    }
 }
