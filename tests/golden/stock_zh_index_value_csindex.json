@@ -1,0 +1,108 @@
+{
+  "ok": true,
+  "columns": [
+    {
+      "name": "日期",
+      "dtype": "str"
+    },
+    {
+      "name": "指数代码",
+      "dtype": "str"
+    },
+    {
+      "name": "指数中文全称",
+      "dtype": "str"
+    },
+    {
+      "name": "指数中文简称",
+      "dtype": "str"
+    },
+    {
+      "name": "指数英文全称",
+      "dtype": "str"
+    },
+    {
+      "name": "指数英文简称",
+      "dtype": "str"
+    },
+    {
+      "name": "市盈率1",
+      "dtype": "float64"
+    },
+    {
+      "name": "市盈率2",
+      "dtype": "float64"
+    },
+    {
+      "name": "股息率1",
+      "dtype": "float64"
+    },
+    {
+      "name": "股息率2",
+      "dtype": "float64"
+    }
+  ],
+  "height": 20,
+  "head": [
+    [
+      "2026-10-08",
+      "H30374",
+      "中证中国内地企业全球综合指数",
+      "中国内地全指",
+      "CSI China Mainland Enterprises Global Composite Index",
+      "China Mainland All",
+      "16.25",
+      "17.23",
+      "2.21",
+      "2.0"
+    ],
+    [
+      "2026-10-07",
+      "H30374",
+      "中证中国内地企业全球综合指数",
+      "中国内地全指",
+      "CSI China Mainland Enterprises Global Composite Index",
+      "China Mainland All",
+      "16.41",
+      "17.47",
+      "2.19",
+      "1.97"
+    ],
+    [
+      "2026-10-06",
+      "H30374",
+      "中证中国内地企业全球综合指数",
+      "中国内地全指",
+      "CSI China Mainland Enterprises Global Composite Index",
+      "China Mainland All",
+      "16.43",
+      "17.5",
+      "2.18",
+      "1.96"
+    ],
+    [
+      "2026-10-05",
+      "H30374",
+      "中证中国内地企业全球综合指数",
+      "中国内地全指",
+      "CSI China Mainland Enterprises Global Composite Index",
+      "China Mainland All",
+      "16.41",
+      "17.48",
+      "2.18",
+      "1.96"
+    ],
+    [
+      "2026-10-02",
+      "H30374",
+      "中证中国内地企业全球综合指数",
+      "中国内地全指",
+      "CSI China Mainland Enterprises Global Composite Index",
+      "China Mainland All",
+      "16.39",
+      "17.44",
+      "2.19",
+      "1.97"
+    ]
+  ]
+}

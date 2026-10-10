@@ -981,6 +981,13 @@ CASES: list[tuple[str, list[str], str, str]] = [
     ("movie_boxoffice_yearly", ["20251231"], "strict", "电影票房-年度票房"),
     ("movie_boxoffice_yearly_first_week", ["20251231"], "strict", "电影票房-年度首周票房"),
     ("movie_boxoffice_cinema_daily", ["20261008"], "strict", "电影票房-影院日票房排行"),
+    # === BATCH95 指数日线/估值（新浪/腾讯/中证） ===
+    ("stock_zh_index_spot_sina", [], "loose", "指数实时行情-新浪沪深指数全量"),
+    ("stock_zh_index_daily", ["sh000922"], "strict", "指数日线-新浪(sh000922 已退市静态)"),
+    ("stock_hk_index_daily_sina", ["CES100"], "loose", "港股指数日线-新浪(CES100 实时)"),
+    ("stock_zh_index_daily_tx", ["sz399001", "20250101", "20261031"], "strict", "指数日线-腾讯(深证成指)"),
+    ("stock_zh_index_hist_csindex", ["000928", "20250101", "20250630"], "strict", "中证指数历史行情(800能源)"),
+    ("stock_zh_index_value_csindex", ["H30374"], "strict", "中证指数估值(中国内地全指)"),
 ]
 
 

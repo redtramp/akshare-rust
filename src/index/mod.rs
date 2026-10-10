@@ -10,6 +10,7 @@ use crate::sources::eastmoney::{
     fetch_clist, fetch_kline, fetch_kline_min, fetch_trends, json_value_to_string, kline_to_df,
     min_kline_to_df, push2_urls, KLINE_COLS,
 };
+use chrono::{Datelike, Local, NaiveDate};
 use scraper::{Html, Selector};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -2623,6 +2624,508 @@ pub fn sw_index_third_cons(symbol: &str) -> Result<Df> {
         "营业收入同比增长(09-30)",
         "营业收入同比增长(06-30)",
     ])?;
+    Ok(df)
+}
+
+// === BATCH95 新浪/腾讯/中证指数日线与估值（对应 akshare `index/index_stock_zh.py`
+// 与 `index/index_stock_zh_csindex.py`）===
+
+/// 新浪 `klc_kl.js`/`klc2_kl.js` 响应编码段提取（`var X="...";` 中引号内的编码内容）。
+fn sina_kl_encoded(text: &str, what: &str) -> Result<String> {
+    Ok(text
+        .split('=')
+        .nth(1)
+        .ok_or_else(|| AkshareError::Empty(format!("{what} 响应缺少 '=' 分隔")))?
+        .split(';')
+        .next()
+        .ok_or_else(|| AkshareError::Empty(format!("{what} 响应缺少 ';' 分隔")))?
+        .replace('"', ""))
+}
+
+/// 腾讯行情响应 JSON 提取（`kline_dayqfq={...}` 中 `={` 之后的对象）。
+fn tx_json_payload(text: &str, what: &str) -> Result<Value> {
+    let idx = text
+        .find("={")
+        .ok_or_else(|| AkshareError::Empty(format!("{what} 响应缺少 JSON 分隔")))?;
+    serde_json::from_str(&text[idx + 1..]).map_err(|e| AkshareError::json(what, e.to_string()))
+}
+
+/// `YYYYMMDD` 解析（对应 akshare `strptime("%Y%m%d")`）。
+fn parse_yyyymmdd(s: &str, what: &str) -> Result<NaiveDate> {
+    let invalid = || AkshareError::Param(format!("{what} 无效日期: {s}"));
+    let d: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+    if d.len() == 8 {
+        let y: i32 = d[0..4].parse().map_err(|_| invalid())?;
+        let m: u32 = d[4..6].parse().map_err(|_| invalid())?;
+        let dd: u32 = d[6..8].parse().map_err(|_| invalid())?;
+        return NaiveDate::from_ymd_opt(y, m, dd).ok_or_else(invalid);
+    }
+    Err(AkshareError::Param(format!("{what} 应为 YYYYMMDD: {s}")))
+}
+
+/// 腾讯指数最早交易日（对应 akshare `get_tx_start_year` 的日期部分）。
+///
+/// 优先 `web.ifzq.gtimg.cn/.../weekTrends` 周趋势首条；无数据时回退
+/// `newfqkline/get` 首条日线（对应 akshare 的 `except` 分支）。
+fn tx_earliest_date(http: &HttpClient, symbol: &str) -> Result<NaiveDate> {
+    let params: Map<String, Value> = json!({
+        "code": symbol,
+        "type": "qfq",
+        "_var": "trend_qfq",
+        "r": "0.3506048543943414"
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let text = http.get_text(
+        "https://web.ifzq.gtimg.cn/other/klineweb/klineWeb/weekTrends",
+        &params,
+        None,
+    )?;
+    let payload = tx_json_payload(&text, "腾讯周趋势")?;
+    // 两分支都在分支内取出首条日期字符串，避免借用逃逸（`j2` 的生命周期）
+    let first_date: String = match payload
+        .get("data")
+        .and_then(|d| d.as_array())
+        .and_then(|a| a.first())
+    {
+        Some(row) => row
+            .get(0)
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AkshareError::Empty("腾讯最早交易日解析失败".into()))?
+            .to_string(),
+        None => {
+            let p2: Map<String, Value> = json!({
+                "_var": "kline_dayqfq",
+                "param": format!("{symbol},day,,,320,qfq"),
+                "r": "0.751892490072597"
+            })
+            .as_object()
+            .cloned()
+            .unwrap_or_default();
+            let t2 = http.get_text(
+                "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get",
+                &p2,
+                None,
+            )?;
+            let j2 = tx_json_payload(&t2, "腾讯日K(最早日期)")?;
+            let row = j2
+                .get("data")
+                .and_then(|d| d.get(symbol))
+                .and_then(|s| s.get("day"))
+                .and_then(|d| d.as_array())
+                .and_then(|a| a.first())
+                .ok_or_else(|| AkshareError::Empty("腾讯最早交易日探测失败".into()))?;
+            row.get(0)
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AkshareError::Empty("腾讯最早交易日解析失败".into()))?
+                .to_string()
+        }
+    };
+    NaiveDate::parse_from_str(&first_date, "%Y-%m-%d")
+        .map_err(|e| AkshareError::Empty(format!("腾讯最早交易日解析失败: {first_date}: {e}")))
+}
+
+/// 新浪指数-实时行情（对应 akshare [`akshare.stock_zh_index_spot_sina`]）。
+///
+/// `Market_Center.getHQNodeStockCountSimple` 取沪深指数总数，按 80/页 循环
+/// `Market_Center.getHQNodeDataSimple` 全部分页后拼接。
+///
+/// # 返回列
+/// `代码, 名称, 最新价, 涨跌额, 涨跌幅, 昨收, 今开, 最高, 最低, 成交量, 成交额`
+pub fn stock_zh_index_spot_sina() -> Result<Df> {
+    let http = HttpClient::default();
+    let count_text = http.get_text(
+        "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCountSimple",
+        &json!({"node": "hs_s"}).as_object().cloned().unwrap_or_default(),
+        None,
+    )?;
+    // 响应形如 `"562"`（带引号 JSON 字符串）：剥引号后取数字
+    let count: i64 = count_text
+        .trim()
+        .trim_matches('"')
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<String>()
+        .parse()
+        .map_err(|_| AkshareError::Empty("新浪指数总数解析失败".into()))?;
+    let mut page_count = count / 80;
+    if count % 80 != 0 {
+        page_count += 1;
+    }
+    let url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeDataSimple";
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for page in 1..=page_count {
+        let params: Map<String, Value> = json!({
+            "page": page,
+            "num": "80",
+            "sort": "symbol",
+            "asc": "1",
+            "node": "hs_s",
+            "_s_r_a": "page"
+        })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+        let arr = http.get_json(url, &params, None)?;
+        let items = arr
+            .as_array()
+            .ok_or_else(|| AkshareError::json(url, "新浪指数分页响应非数组"))?;
+        for it in items {
+            // akshare 先对全部单元格去千分位逗号（`_replace_comma`）再数值化
+            let f = |k: &str| {
+                it.get(k)
+                    .and_then(json_value_to_string)
+                    .map(|s| s.replace(',', ""))
+            };
+            rows.push(vec![
+                f("symbol"),
+                f("name"),
+                f("trade"),
+                f("pricechange"),
+                f("changepercent"),
+                f("settlement"),
+                f("open"),
+                f("high"),
+                f("low"),
+                f("volume"),
+                f("amount"),
+            ]);
+        }
+    }
+    const COLS: [&str; 11] = [
+        "代码",
+        "名称",
+        "最新价",
+        "涨跌额",
+        "涨跌幅",
+        "昨收",
+        "今开",
+        "最高",
+        "最低",
+        "成交量",
+        "成交额",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &rows)?;
+    df.cast_numeric(&["最新价", "涨跌额", "涨跌幅", "昨收", "今开", "最高", "最低"])?;
+    df.cast_integer(&["成交量", "成交额"])?;
+    Ok(df)
+}
+
+/// 新浪指数-历史行情（对应 akshare [`akshare.stock_zh_index_daily`]）。
+///
+/// - `symbol`: 如 `"sh000922"`
+///
+/// 走 `finance.sina.com.cn/realstock/company/{symbol}/hisdata/klc_kl.js`
+/// + sina.js `d()` 解码。
+///
+/// # 返回列
+/// `date, open, high, low, close, volume`
+pub fn stock_zh_index_daily(symbol: &str) -> Result<Df> {
+    let url = format!("https://finance.sina.com.cn/realstock/company/{symbol}/hisdata/klc_kl.js");
+    let http = HttpClient::default();
+    let text = http.get_text(
+        &url,
+        &json!({"d": "2020_2_4"})
+            .as_object()
+            .cloned()
+            .unwrap_or_default(),
+        None,
+    )?;
+    let decoded = crate::core::js_engine::sina_js_decode(&sina_kl_encoded(&text, "新浪指数日线")?)?;
+    let rows: Vec<Value> =
+        serde_json::from_str(&decoded).map_err(|e| AkshareError::json(&url, e.to_string()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("date"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("close"),
+            f("volume"),
+        ]);
+    }
+    const COLS: [&str; 6] = ["date", "open", "high", "low", "close", "volume"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["date"])?;
+    df.cast_numeric(&["open", "high", "low", "close"])?;
+    df.cast_integer(&["volume"])?;
+    Ok(df)
+}
+
+/// 新浪港股指数-历史行情（对应 akshare [`akshare.stock_hk_index_daily_sina`]）。
+///
+/// - `symbol`: 如 `"CES100"`
+///
+/// 走 `finance.sina.com.cn/stock/hkstock/{symbol}/klc2_kl.js` + sina.js `d()` 解码。
+///
+/// # 返回列
+/// `date, open, high, low, close, volume, amount`
+pub fn stock_hk_index_daily_sina(symbol: &str) -> Result<Df> {
+    let url = format!("https://finance.sina.com.cn/stock/hkstock/{symbol}/klc2_kl.js");
+    let http = HttpClient::default();
+    let text = http.get_text(
+        &url,
+        &json!({"d": "2023_5_01"})
+            .as_object()
+            .cloned()
+            .unwrap_or_default(),
+        None,
+    )?;
+    let decoded =
+        crate::core::js_engine::sina_js_decode(&sina_kl_encoded(&text, "新浪港股指数日线")?)?;
+    let rows: Vec<Value> =
+        serde_json::from_str(&decoded).map_err(|e| AkshareError::json(&url, e.to_string()))?;
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let f = |k: &str| r.get(k).and_then(json_value_to_string);
+        out.push(vec![
+            f("date"),
+            f("open"),
+            f("high"),
+            f("low"),
+            f("close"),
+            f("volume"),
+            f("amount"),
+        ]);
+    }
+    const COLS: [&str; 7] = ["date", "open", "high", "low", "close", "volume", "amount"];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["date"])?;
+    df.cast_numeric(&["open", "high", "low", "close"])?;
+    df.cast_integer(&["volume", "amount"])?;
+    Ok(df)
+}
+
+/// 腾讯指数-历史行情（对应 akshare [`akshare.stock_zh_index_daily_tx`]）。
+///
+/// - `symbol`: 如 `"sz399001"`
+/// - `start_date`/`end_date`: `YYYYMMDD`，空串 = 自动（最早交易日 / 今天）
+///
+/// 按年循环拉取 `proxy.finance.qq.com/.../newfqkline/get` 日 K（qfq，640 条/年窗口，
+/// `day` 缺失时回退 `qfqday`），去重后按日期区间过滤。
+///
+/// # 返回列
+/// `date, open, close, high, low, amount`
+pub fn stock_zh_index_daily_tx(symbol: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    let http = HttpClient::default();
+    let dt_start = if start_date.is_empty() {
+        tx_earliest_date(&http, symbol)?
+    } else {
+        parse_yyyymmdd(start_date, "start_date")?
+    };
+    let dt_end = if end_date.is_empty() {
+        Local::now().date_naive()
+    } else {
+        parse_yyyymmdd(end_date, "end_date")?
+    };
+    let mut all: Vec<Vec<Option<String>>> = Vec::new();
+    for year in dt_start.year()..=dt_end.year() {
+        let params: Map<String, Value> = json!({
+            "_var": "kline_dayqfq",
+            "param": format!("{symbol},day,{year}-01-01,{}-12-31,640,qfq", year + 1),
+            "r": "0.8205512681390605"
+        })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+        let text = http.get_text(
+            "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get",
+            &params,
+            None,
+        )?;
+        let payload = tx_json_payload(&text, "腾讯日K")?;
+        let sym = payload
+            .get("data")
+            .and_then(|d| d.get(symbol))
+            .ok_or_else(|| AkshareError::Empty(format!("腾讯日K响应缺少 data.{symbol}")))?;
+        let arr = sym
+            .get("day")
+            .and_then(|d| d.as_array())
+            .or_else(|| sym.get("qfqday").and_then(|d| d.as_array()))
+            .ok_or_else(|| AkshareError::Empty("腾讯日K响应缺少 day/qfqday 数组".into()))?;
+        for item in arr {
+            let a = item
+                .as_array()
+                .ok_or_else(|| AkshareError::json("腾讯日K", "行非数组"))?;
+            // 取前 6 字段：date, open, close, high, low, amount（对应 pandas `iloc[:, :6]`）
+            all.push(
+                (0..6)
+                    .map(|i| a.get(i).and_then(|v| v.as_str()).map(String::from))
+                    .collect(),
+            );
+        }
+    }
+    // 去重（对应 pandas `drop_duplicates`，保留首现）
+    let mut seen: Vec<String> = Vec::with_capacity(all.len());
+    let mut deduped: Vec<Vec<Option<String>>> = Vec::with_capacity(all.len());
+    for row in all {
+        let key = row
+            .iter()
+            .map(|v| v.as_deref().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join("\u{1f}");
+        if !seen.contains(&key) {
+            seen.push(key);
+            deduped.push(row);
+        }
+    }
+    // 日期区间过滤（对应 pandas 布尔索引；缺失日期 → 过滤掉）
+    let lo = dt_start.format("%Y-%m-%d").to_string();
+    let hi = dt_end.format("%Y-%m-%d").to_string();
+    let filtered: Vec<Vec<Option<String>>> = deduped
+        .into_iter()
+        .filter(|r| {
+            r[0].as_deref()
+                .map(|d| d >= lo.as_str() && d <= hi.as_str())
+                .unwrap_or(false)
+        })
+        .collect();
+    const COLS: [&str; 6] = ["date", "open", "close", "high", "low", "amount"];
+    let mut df = Df::from_string_rows(&COLS, &filtered)?;
+    df.cast_date(&["date"])?;
+    df.cast_numeric(&["open", "close", "high", "low", "amount"])?;
+    Ok(df)
+}
+
+/// 中证指数-历史行情（对应 akshare [`akshare.stock_zh_index_hist_csindex`]）。
+///
+/// - `symbol`: 指数代码，如 `"000928"`
+/// - `start_date`/`end_date`: `YYYYMMDD`
+///
+/// 走 `www.csindex.com.cn/csindex-home/perf/index-perf` JSON（16 字段位置式）。
+///
+/// # 返回列
+/// `日期, 指数代码, 指数中文全称, 指数中文简称, 指数英文全称, 指数英文简称,
+/// 开盘, 最高, 最低, 收盘, 涨跌, 涨跌幅, 成交量, 成交金额, 样本数量, 滚动市盈率`
+pub fn stock_zh_index_hist_csindex(symbol: &str, start_date: &str, end_date: &str) -> Result<Df> {
+    let url = "https://www.csindex.com.cn/csindex-home/perf/index-perf";
+    let http = HttpClient::default();
+    let params: Map<String, Value> = json!({
+        "indexCode": symbol,
+        "startDate": start_date,
+        "endDate": end_date
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let payload = http.get_json(url, &params, None)?;
+    let items = payload
+        .get("data")
+        .and_then(|d| d.as_array())
+        .ok_or_else(|| AkshareError::json(url, "中证指数行情响应缺少 data 数组"))?;
+    const KEYS: [&str; 16] = [
+        "tradeDate",
+        "indexCode",
+        "indexNameCnAll",
+        "indexNameCn",
+        "indexNameEnAll",
+        "indexNameEn",
+        "open",
+        "high",
+        "low",
+        "close",
+        "change",
+        "changePct",
+        "tradingVol",
+        "tradingValue",
+        "consNumber",
+        "peg",
+    ];
+    let mut out: Vec<Vec<Option<String>>> = Vec::with_capacity(items.len());
+    for it in items {
+        out.push(
+            KEYS.iter()
+                .map(|k| it.get(*k).and_then(json_value_to_string))
+                .collect(),
+        );
+    }
+    const COLS: [&str; 16] = [
+        "日期",
+        "指数代码",
+        "指数中文全称",
+        "指数中文简称",
+        "指数英文全称",
+        "指数英文简称",
+        "开盘",
+        "最高",
+        "最低",
+        "收盘",
+        "涨跌",
+        "涨跌幅",
+        "成交量",
+        "成交金额",
+        "样本数量",
+        "滚动市盈率",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&[
+        "开盘",
+        "最高",
+        "最低",
+        "收盘",
+        "涨跌",
+        "涨跌幅",
+        "成交量",
+        "成交金额",
+        "样本数量",
+        "滚动市盈率",
+    ])?;
+    Ok(df)
+}
+
+/// 中证指数-指数估值数据（对应 akshare [`akshare.stock_zh_index_value_csindex`]）。
+///
+/// - `symbol`: 指数代码，如 `"H30374"`
+///
+/// 下载 `oss-ch.csindex.com.cn` 的 `{symbol}indicator.xls`（首行英文表头，忽略）。
+///
+/// # 返回列
+/// `日期, 指数代码, 指数中文全称, 指数中文简称, 指数英文全称, 指数英文简称,
+/// 市盈率1, 市盈率2, 股息率1, 股息率2`
+pub fn stock_zh_index_value_csindex(symbol: &str) -> Result<Df> {
+    let url = format!(
+        "https://oss-ch.csindex.com.cn/static/html/csindex/public/uploads/file/autofile/indicator/{symbol}indicator.xls"
+    );
+    let (_header, data) = csindex_xls(&url)?;
+    // 跳过全空行（对应 pandas `read_excel` 的 `skip_blank_lines` 默认行为）
+    let mut out: Vec<Vec<Option<String>>> = Vec::new();
+    for row in &data {
+        if row.iter().all(|c| c.is_empty()) {
+            continue;
+        }
+        let f = |i: usize| row.get(i).cloned();
+        out.push(vec![
+            f(0),
+            f(1),
+            f(2),
+            f(3),
+            f(4),
+            f(5),
+            f(6),
+            f(7),
+            f(8),
+            f(9),
+        ]);
+    }
+    const COLS: [&str; 10] = [
+        "日期",
+        "指数代码",
+        "指数中文全称",
+        "指数中文简称",
+        "指数英文全称",
+        "指数英文简称",
+        "市盈率1",
+        "市盈率2",
+        "股息率1",
+        "股息率2",
+    ];
+    let mut df = Df::from_string_rows(&COLS, &out)?;
+    df.cast_date(&["日期"])?;
+    df.cast_numeric(&["市盈率1", "市盈率2", "股息率1", "股息率2"])?;
     Ok(df)
 }
 

@@ -4,6 +4,39 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2026-10-09] 批次 95 · index 新浪/腾讯/中证 指数日线与估值 6 个（同名函数 893 → 899）
+
+- **新增 index 分类 6 个**（`src/index/mod.rs`，对应 akshare `index_stock_zh.py` 与
+  `index_stock_zh_csindex.py` 缺口），index 大类 **52 → 58 / 95（61.1%）**：
+  - `stock_zh_index_spot_sina`（新浪沪深指数实时全量：`Market_Center.getHQNodeStockCountSimple`
+    取总数，按 80/页循环 `getHQNodeDataSimple` 拼接，11 列；先对全部单元格去千分位逗号再
+    `最新价/涨跌额/涨跌幅/昨收/今开/最高/最低` float64 + `成交量/成交额` int64，对齐 akshare
+    `_replace_comma` + `pd.to_numeric`）
+  - `stock_zh_index_daily`（新浪指数历史日线：`finance.sina.com.cn/realstock/company/{symbol}/
+    hisdata/klc_kl.js` 编码段 + `sina_js_decode`，6 列 `date/open/high/low/close/volume`）
+  - `stock_hk_index_daily_sina`（新浪港股指数日线：`/stock/hkstock/{symbol}/klc2_kl.js`，
+    7 列含 `amount`）
+  - `stock_zh_index_daily_tx`（腾讯指数日线：`proxy.finance.qq.com/.../newfqkline/get` 按年
+    循环拉 qfq 日 K（640 条/年窗口、`day` 缺失回退 `qfqday`），去重 + 日期区间过滤，6 列
+    `date/open/close/high/low/amount`（对齐 pandas `iloc[:, :6]`）；空 `start_date` 时经
+    `web.ifzq.gtimg.cn .../weekTrends` 周趋势首条探测最早交易日（无数据回退 320 条日 K），
+    空 `end_date` = 今天）
+  - `stock_zh_index_hist_csindex`（中证指数历史行情：`csindex-home/perf/index-perf` JSON
+    16 字段位置式，日期 date + 9 数值列 float64）
+  - `stock_zh_index_value_csindex`（中证指数估值：`oss-ch.csindex.com.cn`
+    `{symbol}indicator.xls`，复用 `csindex_xls` calamine 解析、跳过英文表头行与全空行，
+    10 列，`市盈率1/2` `股息率1/2` float64）
+  - 新增私有辅助：`sina_kl_encoded`（`var X="...";` 编码段提取）、`tx_json_payload`
+    （`kline_dayqfq={...}` JSON 提取）、`parse_yyyymmdd`（`YYYYMMDD` 解析）、
+    `tx_earliest_date`（最早交易日两分支探测）
+- **验证**：`stock_zh_index_daily_tx` 空参路径实测 8206 行与 akshare 全表一致（首行
+  `1993-01-03`，对齐 `get_tx_start_year` 周趋势行为）。
+- **实现覆盖率**：**≈ 83.2%**（899 / 1080 公开 API）；index 大类 **58 / 95（61.1%）**。
+- **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`
+  （**277 passed**）全绿；6 个新函数全部注册 `src/bin/parity.rs` + `tools/parity_runner.py`
+  并生成 golden，parity **6/6 PASS**（spot loose 562 行 / daily strict / hk loose 2911 行 /
+  tx strict / hist strict / value strict 20 行）。
+
 ## [2026-10-09] 批次 94 · movie 电影票房 8 个 + 国家统计局新站 2 个（同名函数 883 → 893）
 
 - **新增 movie 分类 8 个**（`src/movie/mod.rs`，akshare `movie_yien.py` 全量落地，movie 大类

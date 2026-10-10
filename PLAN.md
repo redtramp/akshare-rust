@@ -133,12 +133,17 @@
 > - **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`（**277 passed**）全绿；9 个新函数全部注册 `src/bin/parity.rs` + `tools/parity_runner.py` 并生成 golden，parity **9/9 PASS**（movie 6：realtime loose 97 行 / daily strict 103 行 / monthly strict 289 行 / yearly strict 1105 行 / first_week strict 1105 行 / cinema_daily strict 100 行；NBS 3：nation strict 4 行 / region 两分支 strict 31 行与 3 行）。
 > - **回归观察（非本批缺陷）**：全量 `--check` 时 `stock_zt_pool_*` 6 例与 `fund_open/money_fund_daily_em` 失败均为**陈旧 golden 数据漂移**（8 月 golden 的涨停池 74 行 vs 上游现返回 0 行，Python 侧同样 0 行；fund 净值日期列滚动），`stock_zh_a_hist` 为东财限流；与 movie/NBS/runner 改动无关。
 
+> **2026-10-09 批次 95 刷新**：新增 **6 个** akshare 同名 `pub fn`（**893 → 899，≈83.2%**），覆盖 **index 新浪/腾讯/中证 指数日线与估值**（`src/index/mod.rs`，对应 akshare `index_stock_zh.py` / `index_stock_zh_csindex.py` 缺口）：`stock_zh_index_spot_sina`（新浪沪深指数实时全量，`Market_Center.getHQNodeStockCountSimple` 总数 + 80/页循环 `getHQNodeDataSimple`，11 列，全单元格先去千分位逗号再数值化，`成交量/成交额` int64）、`stock_zh_index_daily`（`hisdata/klc_kl.js` 编码段 + `sina_js_decode` 解码，6 列）、`stock_hk_index_daily_sina`（`/stock/hkstock/{symbol}/klc2_kl.js`，7 列含 `amount`）、`stock_zh_index_daily_tx`（腾讯 `newfqkline/get` 按年循环 qfq 日 K、`day` 缺失回退 `qfqday`、去重 + 日期区间过滤，6 列对齐 `iloc[:, :6]`；空 `start_date` 经 `weekTrends` 周趋势首条探测最早交易日、无数据回退 320 条日 K，空 `end_date` = 今天）、`stock_zh_index_hist_csindex`（`csindex-home/perf/index-perf` JSON 16 字段位置式）、`stock_zh_index_value_csindex`（`oss-ch.csindex.com.cn {symbol}indicator.xls`，复用 `csindex_xls` calamine、跳过英文表头行与全空行，10 列）。新增私有辅助 `sina_kl_encoded` / `tx_json_payload` / `parse_yyyymmdd` / `tx_earliest_date`。
+> - **验证**：`stock_zh_index_daily_tx` 空参路径实测 **8206 行**与 akshare 全表一致（首行 `1993-01-03`，对齐 `get_tx_start_year` 周趋势行为）。
+> - **质量门禁**：`cargo fmt` / `cargo clippy --all-targets -- -D warnings` / `cargo test --lib`（**277 passed**）全绿；6 个新函数全部注册 `src/bin/parity.rs` + `tools/parity_runner.py` 并生成 golden，parity **6/6 PASS**（spot loose 562 行 / daily strict / hk loose 2911 行 / tx strict / hist strict / value strict 20 行）。
+> - index 大类 **52 → 58 / 95（61.1%）**；实现覆盖率 **893 → 899（≈82.7% → 83.2%）**；golden fixture **533 → 539**。
+
 | 指标 | 数值 |
 |---|---|
 | akshare 公开可调用函数 | **1080**（导出名约 1099，其中 19 个为类/客户端对象非函数式 API）|
-| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **893**（2026-10-09 批次 94 后实测，含 198 个宏生成函数；另有 ~104 个内部 helper 不计入）|
-| 实现覆盖率（893 / 1080 校正口径） | **≈ 82.7%** |
-| golden 差分验证覆盖 | **533 fixture 文件**（2026-10-09 批次 94 后实测，含 movie 6 个 + NBS 3 个首次真实 golden）|
+| Rust 已实现用户面函数（与 akshare 同名 `pub fn` 1:1 匹配） | **899**（2026-10-09 批次 95 后实测，含 198 个宏生成函数；另有 ~104 个内部 helper 不计入）|
+| 实现覆盖率（899 / 1080 校正口径） | **≈ 83.2%** |
+| golden 差分验证覆盖 | **539 fixture 文件**（2026-10-09 批次 95 后实测，含 index 新浪/腾讯/中证 6 个首次真实 golden）|
 | 已触及功能大类 | **21 / 35**（2026-10-09 批次 94 后，按下方子模块表"已实现>0"计；option/interest_rate/spot/news/reits 已 100%）|
 | README 声明 | 46 个接口（把内部 `get_token_lg` 误计入，实际公开 API 为 45）|
 
@@ -147,7 +152,7 @@
 | 大类 | 已实现 | akshare 总数 | 覆盖率 |
 |---|---:|---:|---:|
 | economic | 147 | 225 | 65.3% |
-| index | 52 | 95 | 54.7% |
+| index | 58 | 95 | 61.1%（2026-10-09 批次 95 后）|
 | fund | 55 | 88 | 62.5% |
 | stock | 127 | 130 | 97.7% |
 | stock_feature | 150 | 208 | 72.1% |

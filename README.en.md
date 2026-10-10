@@ -29,7 +29,7 @@ println!("{}", df);
 
 ## Implemented Interfaces
 
-> As of now, a total of **893** data interfaces are implemented, covering **21 / 35** functional categories, with an overall coverage of **≈ 82.7%**
+> As of now, a total of **899** data interfaces are implemented, covering **21 / 35** functional categories, with an overall coverage of **≈ 83.2%**
 > (benchmarked against the **1080** identically-named public functions in akshare **1.18.83**; earlier docs used a 1131 baseline).
 > All interfaces align with the identically-named Python akshare functions (column names / column order / values verified differentially item by item).
 

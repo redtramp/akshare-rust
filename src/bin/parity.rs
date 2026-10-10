@@ -396,6 +396,12 @@ use akshare_rust::index::{
     index_volume_cflp,
     index_zh_a_hist,
     index_zh_a_hist_min_em,
+    stock_hk_index_daily_sina,
+    stock_zh_index_daily,
+    stock_zh_index_daily_tx,
+    stock_zh_index_hist_csindex,
+    stock_zh_index_spot_sina,
+    stock_zh_index_value_csindex,
     sw_index_first_info,
     sw_index_second_info,
     sw_index_third_cons,
@@ -1078,6 +1084,28 @@ fn dispatch(func: &str, args: &[String]) -> Result<Df, BoxErr> {
         "index_stock_cons" => {
             let [s] = take1(func, args)?;
             Ok(index_stock_cons(s)?)
+        }
+        // === BATCH95 新浪/腾讯/中证指数日线与估值 ===
+        "stock_zh_index_spot_sina" => Ok(stock_zh_index_spot_sina()?),
+        "stock_zh_index_daily" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_index_daily(s)?)
+        }
+        "stock_hk_index_daily_sina" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_hk_index_daily_sina(s)?)
+        }
+        "stock_zh_index_daily_tx" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_zh_index_daily_tx(s, d0, d1)?)
+        }
+        "stock_zh_index_hist_csindex" => {
+            let [s, d0, d1] = take3(func, args)?;
+            Ok(stock_zh_index_hist_csindex(s, d0, d1)?)
+        }
+        "stock_zh_index_value_csindex" => {
+            let [s] = take1(func, args)?;
+            Ok(stock_zh_index_value_csindex(s)?)
         }
         "fund_etf_spot_em" => Ok(fund_etf_spot_em()?),
         "fund_etf_hist_min_em" => {
